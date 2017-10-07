@@ -1,0 +1,946 @@
+From 1630f53481f445ada0a455e9979236d31a8d3bb0 Mon Sep 17 00:00:00 2001
+From: Carlos Soriano <csoriano@gnome.org>
+Date: Mon, 6 Feb 2017 18:47:54 +0100
+Subject: mime-actions: use file metadata for trusting desktop files
+
+Currently we only trust desktop files that have the executable bit
+set, and don't replace the displayed icon or the displayed name until
+it's trusted, which prevents for running random programs by a malicious
+desktop file.
+
+However, the executable permission is preserved if the desktop file
+comes from a compressed file.
+
+To prevent this, add a metadata::trusted metadata to the file once the
+user acknowledges the file as trusted. This adds metadata to the file,
+which cannot be added unless it has access to the computer.
+
+Also remove the SHEBANG "trusted" content we were putting inside the
+desktop file, since that doesn't add more security since it can come
+with the file itself.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=777991
+
+https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=860268
+ .
+ nautilus (3.22.3-1.1) stretch; urgency=high
+ .
+  * CVE-2017-14604: desktop_file_trust.patch
+    + Spoof a file type by using the .desktop file extension, as demonstrated
+      by an attack in which a .desktop file's Name field ends in .pdf but
+      this file's Exec field launches a malicious "sh -c" command.
+      (Closes: #860268).
+      - Initial patch by Phil Wyett <philwyett@kathenas.org>
+      - Translations additions by Donncha O'Cearbhaill <donncha@donncha.is>
+Author: Phil Wyett <philwyett@kathenas.org>
+---
+
+--- a/src/nautilus-directory-async.c
++++ b/src/nautilus-directory-async.c
+@@ -30,6 +30,7 @@
+ #include "nautilus-global-preferences.h"
+ #include "nautilus-link.h"
+ #include "nautilus-profile.h"
++#include "nautilus-metadata.h"
+ #include <eel/eel-glib-extensions.h>
+ #include <gtk/gtk.h>
+ #include <libxml/parser.h>
+@@ -3580,13 +3581,17 @@
+ {
+     GFile *location;
+     gboolean res;
++    g_autofree gchar* trusted = NULL;
+
+     if (!is_launcher)
+     {
+         return TRUE;
+     }
+
+-    if (nautilus_file_can_execute (file))
++    trusted = nautilus_file_get_metadata (file,
++                                          NAUTILUS_METADATA_KEY_DESKTOP_FILE_TRUSTED,
++                                          NULL);
++    if (nautilus_file_can_execute (file) && trusted != NULL)
+     {
+         return TRUE;
+     }
+--- a/src/nautilus-file-operations.c
++++ b/src/nautilus-file-operations.c
+@@ -235,10 +235,10 @@
+ #define COPY_FORCE _("Copy _Anyway")
+
+ static void
+-mark_desktop_file_trusted (CommonJob    *common,
+-                           GCancellable *cancellable,
+-                           GFile        *file,
+-                           gboolean      interactive);
++mark_desktop_file_executable (CommonJob    *common,
++                              GCancellable *cancellable,
++                              GFile        *file,
++                              gboolean      interactive);
+
+ static gboolean
+ is_all_button_text (const char *button_text)
+@@ -5290,10 +5290,10 @@
+             g_file_equal (copy_job->desktop_location, dest_dir) &&
+             is_trusted_desktop_file (src, job->cancellable))
+         {
+-            mark_desktop_file_trusted (job,
+-                                       job->cancellable,
+-                                       dest,
+-                                       FALSE);
++            mark_desktop_file_executable (job,
++                                          job->cancellable,
++                                          dest,
++                                          FALSE);
+         }
+
+         if (job->undo_info != NULL)
+@@ -7887,9 +7887,9 @@
+ }
+
+ static void
+-mark_trusted_task_done (GObject      *source_object,
+-                        GAsyncResult *res,
+-                        gpointer      user_data)
++mark_desktop_file_executable_task_done (GObject      *source_object,
++                                        GAsyncResult *res,
++                                        gpointer      user_data)
+ {
+     MarkTrustedJob *job = user_data;
+
+@@ -7907,13 +7907,11 @@
+ #define TRUSTED_SHEBANG "#!/usr/bin/env xdg-open\n"
+
+ static void
+-mark_desktop_file_trusted (CommonJob    *common,
+-                           GCancellable *cancellable,
+-                           GFile        *file,
+-                           gboolean      interactive)
++mark_desktop_file_executable (CommonJob    *common,
++                              GCancellable *cancellable,
++                              GFile        *file,
++                              gboolean      interactive)
+ {
+-    char *contents, *new_contents;
+-    gsize length, new_length;
+     GError *error;
+     guint32 current_perms, new_perms;
+     int response;
+@@ -7921,96 +7919,6 @@
+
+ retry:
+     error = NULL;
+-    if (!g_file_load_contents (file,
+-                               cancellable,
+-                               &contents, &length,
+-                               NULL, &error))
+-    {
+-        if (interactive)
+-        {
+-            response = run_error (common,
+-                                  g_strdup (_("Unable to mark launcher trusted (executable)")),
+-                                  error->message,
+-                                  NULL,
+-                                  FALSE,
+-                                  CANCEL, RETRY,
+-                                  NULL);
+-        }
+-        else
+-        {
+-            response = 0;
+-        }
+-
+-
+-        if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
+-        {
+-            abort_job (common);
+-        }
+-        else if (response == 1)
+-        {
+-            goto retry;
+-        }
+-        else
+-        {
+-            g_assert_not_reached ();
+-        }
+-
+-        goto out;
+-    }
+-
+-    if (!g_str_has_prefix (contents, "#!"))
+-    {
+-        new_length = length + strlen (TRUSTED_SHEBANG);
+-        new_contents = g_malloc (new_length);
+-
+-        strcpy (new_contents, TRUSTED_SHEBANG);
+-        memcpy (new_contents + strlen (TRUSTED_SHEBANG),
+-                contents, length);
+-
+-        if (!g_file_replace_contents (file,
+-                                      new_contents,
+-                                      new_length,
+-                                      NULL,
+-                                      FALSE, 0,
+-                                      NULL, cancellable, &error))
+-        {
+-            g_free (contents);
+-            g_free (new_contents);
+-
+-            if (interactive)
+-            {
+-                response = run_error (common,
+-                                      g_strdup (_("Unable to mark launcher trusted (executable)")),
+-                                      error->message,
+-                                      NULL,
+-                                      FALSE,
+-                                      CANCEL, RETRY,
+-                                      NULL);
+-            }
+-            else
+-            {
+-                response = 0;
+-            }
+-
+-            if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
+-            {
+-                abort_job (common);
+-            }
+-            else if (response == 1)
+-            {
+-                goto retry;
+-            }
+-            else
+-            {
+-                g_assert_not_reached ();
+-            }
+-
+-            goto out;
+-        }
+-        g_free (new_contents);
+-    }
+-    g_free (contents);
+-
+     info = g_file_query_info (file,
+                               G_FILE_ATTRIBUTE_STANDARD_TYPE ","
+                               G_FILE_ATTRIBUTE_UNIX_MODE,
+@@ -8101,10 +8009,10 @@
+ }
+
+ static void
+-mark_trusted_task_thread_func (GTask        *task,
+-                               gpointer      source_object,
+-                               gpointer      task_data,
+-                               GCancellable *cancellable)
++mark_desktop_file_executable_task_thread_func (GTask        *task,
++                                               gpointer      source_object,
++                                               gpointer      task_data,
++                                               GCancellable *cancellable)
+ {
+     MarkTrustedJob *job = task_data;
+     CommonJob *common;
+@@ -8113,18 +8021,18 @@
+
+     nautilus_progress_info_start (job->common.progress);
+
+-    mark_desktop_file_trusted (common,
+-                               cancellable,
+-                               job->file,
+-                               job->interactive);
++    mark_desktop_file_executable (common,
++                                  cancellable,
++                                  job->file,
++                                  job->interactive);
+ }
+
+ void
+-nautilus_file_mark_desktop_file_trusted (GFile              *file,
+-                                         GtkWindow          *parent_window,
+-                                         gboolean            interactive,
+-                                         NautilusOpCallback  done_callback,
+-                                         gpointer            done_callback_data)
++nautilus_file_mark_desktop_file_executable (GFile              *file,
++                                            GtkWindow          *parent_window,
++                                            gboolean            interactive,
++                                            NautilusOpCallback  done_callback,
++                                            gpointer            done_callback_data)
+ {
+     GTask *task;
+     MarkTrustedJob *job;
+@@ -8135,9 +8043,9 @@
+     job->done_callback = done_callback;
+     job->done_callback_data = done_callback_data;
+
+-    task = g_task_new (NULL, NULL, mark_trusted_task_done, job);
++    task = g_task_new (NULL, NULL, mark_desktop_file_executable_task_done, job);
+     g_task_set_task_data (task, job, NULL);
+-    g_task_run_in_thread (task, mark_trusted_task_thread_func);
++    g_task_run_in_thread (task, mark_desktop_file_executable_task_thread_func);
+     g_object_unref (task);
+ }
+
+--- a/src/nautilus-file-operations.h
++++ b/src/nautilus-file-operations.h
+@@ -146,11 +146,11 @@
+ 					 GtkWindow            *parent_window,
+ 					 NautilusCopyCallback  done_callback,
+ 					 gpointer              done_callback_data);
+-void nautilus_file_mark_desktop_file_trusted (GFile           *file,
+-					      GtkWindow        *parent_window,
+-					      gboolean          interactive,
+-					      NautilusOpCallback done_callback,
+-					      gpointer          done_callback_data);
++void nautilus_file_mark_desktop_file_executable (GFile           *file,
++                                                 GtkWindow        *parent_window,
++                                                 gboolean          interactive,
++                                                 NautilusOpCallback done_callback,
++                                                 gpointer          done_callback_data);
+ void nautilus_file_operations_extract_files (GList                   *files,
+                                              GFile                   *destination_directory,
+                                              GtkWindow               *parent_window,
+--- a/src/nautilus-metadata.c
++++ b/src/nautilus-metadata.c
+@@ -51,6 +51,7 @@
+     NAUTILUS_METADATA_KEY_CUSTOM_ICON_NAME,
+     NAUTILUS_METADATA_KEY_SCREEN,
+     NAUTILUS_METADATA_KEY_EMBLEMS,
++    NAUTILUS_METADATA_KEY_DESKTOP_FILE_TRUSTED,
+     NULL
+ };
+
+--- a/src/nautilus-metadata.h
++++ b/src/nautilus-metadata.h
+@@ -67,6 +67,8 @@
+ #define NAUTILUS_METADATA_KEY_SCREEN				"screen"
+ #define NAUTILUS_METADATA_KEY_EMBLEMS				"emblems"
+
++#define NAUTILUS_METADATA_KEY_DESKTOP_FILE_TRUSTED				"trusted"
++
+ guint nautilus_metadata_get_id (const char *metadata);
+
+ #endif /* NAUTILUS_METADATA_H */
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -42,6 +42,7 @@
+ #include "nautilus-program-choosing.h"
+ #include "nautilus-global-preferences.h"
+ #include "nautilus-signaller.h"
++#include "nautilus-metadata.h"
+
+ #define DEBUG_FLAG NAUTILUS_DEBUG_MIME
+ #include "nautilus-debug.h"
+@@ -221,7 +222,6 @@
+ #define RESPONSE_RUN 1000
+ #define RESPONSE_DISPLAY 1001
+ #define RESPONSE_RUN_IN_TERMINAL 1002
+-#define RESPONSE_MARK_TRUSTED 1003
+
+ #define SILENT_WINDOW_OPEN_LIMIT 5
+ #define SILENT_OPEN_LIMIT 5
+@@ -1517,24 +1517,35 @@
+
+     switch (response_id)
+     {
+-        case RESPONSE_RUN:
++        case GTK_RESPONSE_OK:
+             {
++                file = nautilus_file_get_location (parameters->file);
++
++                /* We need to do this in order to prevent malicious desktop files
++                 * with the executable bit already set.
++                 * See https://bugzilla.gnome.org/show_bug.cgi?id=777991
++                 */
++                 nautilus_file_set_metadata (parameters->file, NAUTILUS_METADATA_KEY_DESKTOP_FILE_TRUSTED,
++                                            NULL,
++                                            "yes");
++
++                nautilus_file_mark_desktop_file_executable (file,
++                                                            parameters->parent_window,
++                                                            TRUE,
++                                                            NULL, NULL);
++
++                /* Need to force a reload of the attributes so is_trusted is marked
++                 * correctly. Not sure why the general monitor doesn't fire in this
++                 * case when setting the metadata
++                 */
++                nautilus_file_invalidate_all_attributes (parameters->file);
++
+                 screen = gtk_widget_get_screen (GTK_WIDGET (parameters->parent_window));
+                 uri = nautilus_file_get_uri (parameters->file);
+                 DEBUG ("Launching untrusted launcher %s", uri);
+                 nautilus_launch_desktop_file (screen, uri, NULL,
+                                               parameters->parent_window);
+                 g_free (uri);
+-            }
+-            break;
+-
+-        case RESPONSE_MARK_TRUSTED:
+-            {
+-                file = nautilus_file_get_location (parameters->file);
+-                nautilus_file_mark_desktop_file_trusted (file,
+-                                                         parameters->parent_window,
+-                                                         TRUE,
+-                                                         NULL, NULL);
+                 g_object_unref (file);
+             }
+             break;
+@@ -1586,21 +1597,20 @@
+                                          GTK_MESSAGE_WARNING,
+                                          GTK_BUTTONS_NONE,
+                                          NULL);
++
+         g_object_set (dialog,
+                       "text", primary,
+                       "secondary-text", secondary,
+                       NULL);
+         gtk_dialog_add_button (GTK_DIALOG (dialog),
+-                               _("_Launch Anyway"), RESPONSE_RUN);
++                               _("_Cancel"), GTK_RESPONSE_CANCEL);
++
++        gtk_dialog_set_default_response (GTK_DIALOG (dialog), GTK_RESPONSE_CANCEL);
+         if (nautilus_file_can_set_permissions (file))
+         {
+             gtk_dialog_add_button (GTK_DIALOG (dialog),
+-                                   _("Mark as _Trusted"), RESPONSE_MARK_TRUSTED);
++                                   _("Trust and _Launch"), GTK_RESPONSE_OK);
+         }
+-        gtk_dialog_add_button (GTK_DIALOG (dialog),
+-                               _("_Cancel"), GTK_RESPONSE_CANCEL);
+-        gtk_dialog_set_default_response (GTK_DIALOG (dialog), GTK_RESPONSE_CANCEL);
+-
+         g_signal_connect (dialog, "response",
+                           G_CALLBACK (untrusted_launcher_response_callback),
+                           parameters_desktop);
+--- a/po/be.po
++++ b/po/be.po
+@@ -3693,6 +3693,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Зрабіць давераным"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Даверыцца і _запусціць"
++
+ #: ../src/nautilus-mime-actions.c:1792
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ca.po
++++ b/po/ca.po
+@@ -3607,6 +3607,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marca com de _confiança"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Confia i _executa"
++
+ #: ../src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/cs.po
++++ b/po/cs.po
+@@ -3661,6 +3661,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Označit jako _důveryhodný"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Důvěřovat a _spustit"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/da.po
++++ b/po/da.po
+@@ -3632,6 +3632,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Markér som _betroet"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Hav tillid til og _kør"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/de.po
++++ b/po/de.po
+@@ -3698,6 +3698,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Als _vertrauenswürdig markieren"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Vertrauen und _starten"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/el.po
++++ b/po/el.po
+@@ -3756,6 +3756,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Σημείωση ως έ_μπιστου"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "Έμπιστο και ε_κκίνηση"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/en_GB.po
++++ b/po/en_GB.po
+@@ -3585,6 +3585,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Mark as _Trusted"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Trust and _Launch"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/eo.po
++++ b/po/eo.po
+@@ -3662,6 +3662,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marki kiel kon_trolita"
+
++#: src/nautilus-mime-actions.c:1507
++msgid "Trust and _Launch"
++msgstr ""
++
+ #: ../src/nautilus-mime-actions.c:1793
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/es.po
++++ b/po/es.po
+@@ -3983,6 +3983,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marcar como de con_fianza"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Confiar y _ejecutar"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/eu.po
++++ b/po/eu.po
+@@ -3651,6 +3651,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Markatu _fidagarri gisa"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "Fidatu eta _abiarazi"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/fi.po
++++ b/po/fi.po
+@@ -3670,6 +3670,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Merkitse luo_tetuksi"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Luota ja k_äynnistä"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/fr.po
++++ b/po/fr.po
+@@ -3653,6 +3653,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marquer comme _fiable"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Faire confiance et _lancer"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/fur.po
++++ b/po/fur.po
+@@ -3599,6 +3599,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Segne come _fidât"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Fiditi e _invie"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/gl.po
++++ b/po/gl.po
+@@ -3623,6 +3623,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marcar como _confiábel"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Confiar e _iniciar"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/hr.po
++++ b/po/hr.po
+@@ -3631,6 +3631,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Označi kao _pouzdano"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Vjeruj i _pokreni"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/hu.po
++++ b/po/hu.po
+@@ -3568,6 +3568,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Megjelölés megbízhatóként"
+
++#: src/nautilus-mime-actions.c:1507
++msgid "Trust and _Launch"
++msgstr "Megbízható, elin_dítom"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/id.po
++++ b/po/id.po
+@@ -3326,6 +3326,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Tandai Dipercaya"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Percayai dan _Luncurkan"
++
+ #: src/nautilus-mime-actions.c:1704
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/is.po
++++ b/po/is.po
+@@ -3603,6 +3603,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Treysta"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "Tre_ysta og ræsa"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/it.po
++++ b/po/it.po
+@@ -3670,6 +3670,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Contrassegna come _fidato"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Dai fiducia e _lancia"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ja.po
++++ b/po/ja.po
+@@ -3233,6 +3233,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "信用できるアプリにする(_T)"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr ""
++
+ #: ../src/nautilus-mime-actions.c:1714
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/kk.po
++++ b/po/kk.po
+@@ -3488,6 +3488,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Сені_мді ретінде белгілеу"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Сену және жөне_лту"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ko.po
++++ b/po/ko.po
+@@ -3471,6 +3471,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "신뢰한다고 표시(_T)"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "신뢰하고 실행(_L)"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/lt.po
++++ b/po/lt.po
+@@ -3652,6 +3652,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Pažymėti kaip _patikimą"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Pasitikėti ir _paleisti"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/lv.po
++++ b/po/lv.po
+@@ -3646,6 +3646,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Atzīmēt kā _uzticamu"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Uzticēties un pa_laist"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ml.po
++++ b/po/ml.po
+@@ -3644,6 +3644,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_വിശ്വസനീയമായി അടയാളപ്പെടുത്തുക"
+
++#: src/nautilus-mime-actions.c:1507
++msgid "Trust and _Launch"
++msgstr ""
++
+ #: ../src/nautilus-mime-actions.c:1793
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/nb.po
++++ b/po/nb.po
+@@ -3543,6 +3543,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Merk med _tillit"
+
++#: src/nautilus-mime-actions.c:1507
++msgid "Trust and _Launch"
++msgstr "Etabler tillit og _start"
++
+ #: ../src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ne.po
++++ b/po/ne.po
+@@ -3700,6 +3700,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "महत्वपूर्णको रूपमा चिन्ह लगाउनुहोस्"
+
++#, fuzzy
++msgid "Trust and _Launch"
++msgstr "विश्वास"
++
+ #: ../src/nautilus-mime-actions.c:1792
+ #, fuzzy, c-format
+ msgid "This will open %d separate application."
+--- a/po/nl.po
++++ b/po/nl.po
+@@ -3660,6 +3660,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Als _vertrouwd markeren"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Vertrouwen en _uitvoeren"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/pa.po
++++ b/po/pa.po
+@@ -3674,6 +3674,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "ਭਰੋਸੇਯੋਗ ਬਣਾਓ(_T)"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "ਭਰੋਸਾ ਕਰੋ ਅਤੇ ਚਲਾਓ(_L)"
++
+ #: src/nautilus-mime-actions.c:1870
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/pl.po
++++ b/po/pl.po
+@@ -3658,6 +3658,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Oznacz jako zaufany"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Oznacz jako zaufany i _uruchom"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/pt_BR.po
++++ b/po/pt_BR.po
+@@ -3630,6 +3630,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Marcar como _confiável"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Confiar e _iniciar"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/ru.po
++++ b/po/ru.po
+@@ -3650,6 +3650,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Считать проверенным"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Доверить и запустить"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/sk.po
++++ b/po/sk.po
+@@ -3716,6 +3716,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Označiť ako _dôveryhodné"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Dôverovať a _spustiť"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/sl.po
++++ b/po/sl.po
+@@ -3757,6 +3757,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Označi kot _zaupanja vredno"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Zaupaj in _zaženi"
++
+ #: ../src/nautilus-mime-actions.c:1713
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/sr.po
++++ b/po/sr.po
+@@ -3725,6 +3725,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Означи као поверљиво"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Веруј и _покрени"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/sr@latin.po
++++ b/po/sr@latin.po
+@@ -3725,6 +3725,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "_Označi kao poverljivo"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Veruj i _pokreni"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/sv.po
++++ b/po/sv.po
+@@ -3596,6 +3596,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Markera som _pålitlig"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "Lita på och _kör"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/tr.po
++++ b/po/tr.po
+@@ -3612,6 +3612,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Güvenilir _Olarak İşaretle"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Güven ve _Başlat"
++
+ #: ../src/nautilus-mime-actions.c:1704
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/uk.po
++++ b/po/uk.po
+@@ -3706,6 +3706,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Вважати _перевіреним"
+
++#: src/nautilus-mime-actions.c:1612
++msgid "Trust and _Launch"
++msgstr "Довіритись і _запустити"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/vi.po
++++ b/po/vi.po
+@@ -3507,6 +3507,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "Đánh dấu là đáng _tin"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "Tin và Khởi chạ_y"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
+--- a/po/zh_TW.po
++++ b/po/zh_TW.po
+@@ -3427,6 +3427,10 @@
+ msgid "Mark as _Trusted"
+ msgstr "標記成受信任的(_T)"
+
++#: src/nautilus-mime-actions.c:1514
++msgid "Trust and _Launch"
++msgstr "信任並啟動(_L)"
++
+ #: src/nautilus-mime-actions.c:1905
+ #, c-format
+ msgid "This will open %d separate application."
