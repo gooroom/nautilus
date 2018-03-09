@@ -1,2 +1,4 @@
 multiarch_fallback.patch
 desktop_file_trust.patch
+gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
+gooroom-remove-context-menu-item.patch
