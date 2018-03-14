@@ -1,3 +1,15 @@
+nautilus (3.22.3-1+deb9u1+grm1u1) stretch-security; urgency=medium
+
+  [ cjheo ]
+  * [3ec48063] Added the patch to modify context menu and prevent root folder access
+
+  [ jongkyung.woo ]
+  * [61657e49] gsettings set org.gnome.nautilus.icon-view default-zoom-level small
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Wed, 14 Mar 2018 19:14:48 +0900
+
 nautilus (3.22.3-1+deb9u1) stretch-security; urgency=high
 
   [ Phil Wyett ]
