@@ -3,3 +3,4 @@ desktop_file_trust.patch
 gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
 gooroom-remove-context-menu-item.patch
 gooroom-gsettings-set-icon-view-default-to-small.patch
+gooroom-prevent-to-access-root-directory-with-accelerator.patch
