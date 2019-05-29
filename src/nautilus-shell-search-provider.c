@@ -426,15 +426,30 @@ search_add_volumes_and_bookmarks (PendingSearch *search)
     g_object_unref (volume_monitor);
 }
 
+static NautilusQuery*
+shell_query_new (gchar **terms)
+{
+    NautilusQuery *query;
+    g_autoptr (GFile) home = NULL;
+    g_autofree gchar *terms_joined = NULL;
+
+    terms_joined = g_strjoinv (" ", terms);
+    home = g_file_new_for_path (g_get_home_dir ());
+
+    query = nautilus_query_new ();
+    nautilus_query_set_text (query, terms_joined);
+    nautilus_query_set_location (query, home);
+
+    return query;
+}
+
 static void
 execute_search (NautilusShellSearchProvider  *self,
                 GDBusMethodInvocation        *invocation,
                 gchar                       **terms)
 {
-    gchar *terms_joined;
     NautilusQuery *query;
     PendingSearch *pending_search;
-    GFile *home;
 
     cancel_current_search (self);
 
@@ -446,13 +461,9 @@ execute_search (NautilusShellSearchProvider  *self,
         return;
     }
 
-    terms_joined = g_strjoinv (" ", terms);
-    home = g_file_new_for_path (g_get_home_dir ());
-
-    query = nautilus_query_new ();
+    query = shell_query_new (terms);
+    nautilus_query_set_recursive (query, NAUTILUS_QUERY_RECURSIVE_INDEXED_ONLY);
     nautilus_query_set_show_hidden_files (query, FALSE);
-    nautilus_query_set_text (query, terms_joined);
-    nautilus_query_set_location (query, home);
 
     pending_search = g_slice_new0 (PendingSearch);
     pending_search->invocation = g_object_ref (invocation);
@@ -479,9 +490,6 @@ execute_search (NautilusShellSearchProvider  *self,
     nautilus_search_provider_set_query (NAUTILUS_SEARCH_PROVIDER (pending_search->engine),
                                         query);
     nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (pending_search->engine));
-
-    g_clear_object (&home);
-    g_free (terms_joined);
 }
 
 static gboolean
@@ -566,14 +574,14 @@ result_list_attributes_ready_cb (GList    *file_list,
     GFile *file_location;
     GList *l;
     gchar *uri, *display_name;
-    gchar *description;
+    gchar *path, *description;
     gchar *thumbnail_path;
     GIcon *gicon;
     GFile *location;
     GVariant *meta_variant;
     gint icon_scale;
 
-    icon_scale = gdk_screen_get_monitor_scale_factor (gdk_screen_get_default (), 0);
+    icon_scale = gdk_monitor_get_scale_factor (gdk_display_get_monitor (gdk_display_get_default (), 0));
 
     for (l = file_list; l != NULL; l = l->next)
     {
@@ -583,7 +591,8 @@ result_list_attributes_ready_cb (GList    *file_list,
         uri = nautilus_file_get_uri (file);
         display_name = get_display_name (data->self, file);
         file_location = nautilus_file_get_location (file);
-        description = g_file_get_path (file_location);
+        path = g_file_get_path (file_location);
+        description = path ? g_path_get_dirname (path) : NULL;
 
         g_variant_builder_add (&meta, "{sv}",
                                "id", g_variant_new_string (uri));
@@ -625,6 +634,7 @@ result_list_attributes_ready_cb (GList    *file_list,
                              g_strdup (uri), g_variant_ref_sink (meta_variant));
 
         g_free (display_name);
+        g_free (path);
         g_free (description);
         g_free (uri);
     }
@@ -690,7 +700,7 @@ handle_activate_result (NautilusShellSearchProvider2  *skeleton,
     gboolean res;
     GFile *file;
 
-    res = gtk_show_uri (NULL, result, timestamp, NULL);
+    res = gtk_show_uri_on_window (NULL, result, timestamp, NULL);
 
     if (!res)
     {
@@ -711,13 +721,23 @@ handle_launch_search (NautilusShellSearchProvider2  *skeleton,
                       gpointer                       user_data)
 {
     GApplication *app = g_application_get_default ();
-    gchar *string = g_strjoinv (" ", terms);
-    gchar *uri = nautilus_get_home_directory_uri ();
+    g_autoptr (NautilusQuery) query = shell_query_new (terms);
 
-    nautilus_application_search (NAUTILUS_APPLICATION (app), uri, string);
+    if (location_settings_search_get_recursive () == NAUTILUS_QUERY_RECURSIVE_NEVER)
+    {
+        /*
+         * If no recursive search is enabled, we still want to be able to
+         * show the same results we presented in the overview when nautilus
+         * is explicitly launched to access to more results, and thus we perform
+         * a query showing results coming from index-based search engines.
+         * Otherwise we just respect the user settings.
+         * See: https://gitlab.gnome.org/GNOME/nautilus/merge_requests/249
+         */
+        nautilus_query_set_recursive (query,
+                                      NAUTILUS_QUERY_RECURSIVE_INDEXED_ONLY);
+    }
 
-    g_free (string);
-    g_free (uri);
+    nautilus_application_search (NAUTILUS_APPLICATION (app), query);
 
     nautilus_shell_search_provider2_complete_launch_search (skeleton, invocation);
     return TRUE;
@@ -777,7 +797,7 @@ nautilus_shell_search_provider_register (NautilusShellSearchProvider  *self,
 {
     return g_dbus_interface_skeleton_export (G_DBUS_INTERFACE_SKELETON (self->skeleton),
                                              connection,
-                                             "/org/gnome/Nautilus/SearchProvider", error);
+                                             "/org/gnome/Nautilus" PROFILE "/SearchProvider", error);
 }
 
 void

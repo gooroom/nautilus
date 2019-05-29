@@ -153,6 +153,12 @@ nautilus_file_conflict_dialog_disable_skip (NautilusFileConflictDialog *fcd)
 }
 
 void
+nautilus_file_conflict_dialog_disable_replace (NautilusFileConflictDialog *fcd)
+{
+    gtk_widget_set_sensitive (fcd->replace_button, FALSE);
+}
+
+void
 nautilus_file_conflict_dialog_disable_apply_to_all (NautilusFileConflictDialog *fcd)
 {
     gtk_widget_hide (fcd->checkbox);
@@ -295,6 +301,7 @@ nautilus_file_conflict_dialog_init (NautilusFileConflictDialog *fcd)
     fcd->entry = widget;
     g_signal_connect (widget, "changed",
                       G_CALLBACK (entry_text_changed_cb), dialog);
+    gtk_entry_set_activates_default (GTK_ENTRY (widget), TRUE);
 
     widget = gtk_button_new_with_label (_("Reset"));
     gtk_button_set_image (GTK_BUTTON (widget),
@@ -327,8 +334,8 @@ nautilus_file_conflict_dialog_init (NautilusFileConflictDialog *fcd)
     gtk_widget_hide (fcd->rename_button);
 
     fcd->replace_button = gtk_dialog_add_button (dialog,
-                                                 _("Replace"),
-                                                CONFLICT_RESPONSE_REPLACE);
+                                                 _("Re_place"),
+                                                 CONFLICT_RESPONSE_REPLACE);
     gtk_widget_grab_focus (fcd->replace_button);
 
     /* Setup HIG properties */

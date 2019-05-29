@@ -137,7 +137,15 @@ set_copy_move_dialog_text (FileConflictDialogData *data)
 
     if (destination_is_directory)
     {
-        if (source_is_directory)
+        if (nautilus_file_is_symbolic_link (data->source)
+            && !nautilus_file_is_symbolic_link (data->destination))
+        {
+            primary_text = g_strdup_printf (_("You are trying to replace the destination folder “%s” with a symbolic link."),
+                                            destination_name);
+            message = g_strdup_printf (_("This is not allowed in order to avoid the deletion of the destination folder’s contents."));
+            message_extra = _("Please rename the symbolic link or press the skip button.");
+        }
+        else if (source_is_directory)
         {
             primary_text = g_strdup_printf (_("Merge folder “%s”?"),
                                             destination_name);
@@ -250,22 +258,22 @@ set_file_labels (FileConflictDialogData *data)
     should_show_type = !nautilus_file_is_mime_type (data->source,
                                                     destination_mime_type);
 
-    destination_date = nautilus_file_get_string_attribute (data->destination,
-                                                           "date_modified");
-    destination_size = nautilus_file_get_string_attribute (data->destination,
-                                                           "size");
+    destination_date = nautilus_file_get_string_attribute_with_default (data->destination,
+                                                                        "date_modified");
+    destination_size = nautilus_file_get_string_attribute_with_default (data->destination,
+                                                                        "size");
 
     if (should_show_type)
     {
-        destination_type = nautilus_file_get_string_attribute (data->destination,
-                                                               "type");
+        destination_type = nautilus_file_get_string_attribute_with_default (data->destination,
+                                                                            "type");
     }
 
     destination_label = g_string_new (NULL);
     if (destination_is_directory)
     {
         g_string_append_printf (destination_label, "<b>%s</b>\n", _("Original folder"));
-        g_string_append_printf (destination_label, "%s %s\n", _("Items:"), destination_size);
+        g_string_append_printf (destination_label, "%s %s\n", _("Contents:"), destination_size);
     }
     else
     {
@@ -280,15 +288,15 @@ set_file_labels (FileConflictDialogData *data)
 
     g_string_append_printf (destination_label, "%s %s", _("Last modified:"), destination_date);
 
-    source_date = nautilus_file_get_string_attribute (data->source,
-                                                      "date_modified");
-    source_size = nautilus_file_get_string_attribute (data->source,
-                                                      "size");
+    source_date = nautilus_file_get_string_attribute_with_default (data->source,
+                                                                   "date_modified");
+    source_size = nautilus_file_get_string_attribute_with_default (data->source,
+                                                                   "size");
 
     if (should_show_type)
     {
-        source_type = nautilus_file_get_string_attribute (data->source,
-                                                          "type");
+        source_type = nautilus_file_get_string_attribute_with_default (data->source,
+                                                                       "type");
     }
 
     source_label = g_string_new (NULL);
@@ -297,7 +305,7 @@ set_file_labels (FileConflictDialogData *data)
         g_string_append_printf (source_label, "<b>%s</b>\n",
                                 destination_is_directory ?
                                 _("Merge with") : _("Replace with"));
-        g_string_append_printf (source_label, "%s %s\n", _("Items:"), source_size);
+        g_string_append_printf (source_label, "%s %s\n", _("Contents:"), source_size);
     }
     else
     {
@@ -339,10 +347,19 @@ set_replace_button_label (FileConflictDialogData *data)
     source_is_directory = nautilus_file_is_directory (data->source);
     destination_is_directory = nautilus_file_is_directory (data->destination);
 
-    if (source_is_directory && destination_is_directory)
+    if (destination_is_directory)
     {
-        nautilus_file_conflict_dialog_set_replace_button_label (data->dialog,
-                                                                _("Merge"));
+        if (nautilus_file_is_symbolic_link (data->source)
+            && !nautilus_file_is_symbolic_link (data->destination))
+        {
+            nautilus_file_conflict_dialog_disable_replace (data->dialog);
+            nautilus_file_conflict_dialog_disable_apply_to_all (data->dialog);
+        }
+        else if (source_is_directory)
+        {
+            nautilus_file_conflict_dialog_set_replace_button_label (data->dialog,
+                                                                    _("Merge"));
+        }
     }
 }
 
@@ -414,7 +431,7 @@ run_file_conflict_dialog (gpointer user_data)
     files = g_list_prepend (files, data->destination_directory);
 
     nautilus_file_list_call_when_ready (files,
-                                        NAUTILUS_FILE_ATTRIBUTES_FOR_ICON,
+                                        NAUTILUS_FILE_ATTRIBUTES_FOR_ICON | NAUTILUS_FILE_ATTRIBUTE_DIRECTORY_ITEM_COUNT,
                                         &data->handle,
                                         data->on_file_list_ready,
                                         data);
@@ -443,7 +460,7 @@ run_file_conflict_dialog (gpointer user_data)
         data->response->new_name =
             nautilus_file_conflict_dialog_get_new_name (data->dialog);
     }
-    else if (response_id != GTK_RESPONSE_CANCEL ||
+    else if (response_id != GTK_RESPONSE_CANCEL &&
              response_id != GTK_RESPONSE_NONE)
     {
         data->response->apply_to_all =
@@ -500,33 +517,31 @@ static gboolean
 open_file_in_application (gpointer user_data)
 {
     HandleUnsupportedFileData *data;
+    g_autofree gchar *mime_type = NULL;
+    GtkWidget *dialog;
+    const char *heading;
     g_autoptr (GAppInfo) application = NULL;
 
     data = user_data;
+    mime_type = nautilus_file_get_mime_type (data->file);
+    dialog = gtk_app_chooser_dialog_new_for_content_type (data->parent_window,
+                                                          GTK_DIALOG_MODAL |
+                                                          GTK_DIALOG_DESTROY_WITH_PARENT |
+                                                          GTK_DIALOG_USE_HEADER_BAR,
+                                                          mime_type);
+    heading = _("Password-protected archives are not yet supported. "
+                "This list contains applications that can open the archive.");
 
-    application = nautilus_mime_get_default_application_for_file (data->file);
+    gtk_app_chooser_dialog_set_heading (GTK_APP_CHOOSER_DIALOG (dialog), heading);
 
-    if (!application)
+    if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_OK)
     {
-        GtkWidget *dialog;
-        g_autofree gchar *mime_type = NULL;
-
-        mime_type = nautilus_file_get_mime_type (data->file);
-
-        dialog = gtk_app_chooser_dialog_new_for_content_type (data->parent_window,
-                                                              GTK_DIALOG_MODAL |
-                                                              GTK_DIALOG_DESTROY_WITH_PARENT |
-                                                              GTK_DIALOG_USE_HEADER_BAR,
-                                                              mime_type);
-        if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_OK)
-        {
-            application = gtk_app_chooser_get_app_info (GTK_APP_CHOOSER (dialog));
-        }
-
-        gtk_widget_destroy (dialog);
+        application = gtk_app_chooser_get_app_info (GTK_APP_CHOOSER (dialog));
     }
 
-    if (application)
+    gtk_widget_destroy (dialog);
+
+    if (application != NULL)
     {
         g_autoptr (GList) files = NULL;
 

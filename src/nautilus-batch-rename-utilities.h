@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NAUTILUS_BATCH_RENAME_UTILITIES_H
-#define NAUTILUS_BATCH_RENAME_UTILITIES_H
+#pragma once
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
@@ -42,7 +41,8 @@ GList* nautilus_batch_rename_dialog_sort        (GList                       *se
                                                  GHashTable                  *creation_date_table);
 
 void check_metadata_for_selection               (NautilusBatchRenameDialog *dialog,
-                                                 GList                     *selection);
+                                                 GList                     *selection,
+                                                 GCancellable              *cancellable);
 
 gboolean selection_has_single_parent            (GList *selection);
 
@@ -68,5 +68,3 @@ void batch_rename_sort_lists_for_rename (GList    **selection,
                                          GList    **new_files,
                                          GList    **old_files,
                                          gboolean   is_undo_redo);
-
-#endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

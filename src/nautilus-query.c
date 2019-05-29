@@ -19,17 +19,18 @@
  *
  */
 
-#include <config.h>
-#include <string.h>
+#include "nautilus-query.h"
 
 #include <eel/eel-glib-extensions.h>
 #include <glib/gi18n.h>
 
+#include "nautilus-enum-types.h"
+#include "nautilus-file-utilities.h"
 #include "nautilus-global-preferences.h"
 
-#include "nautilus-file-utilities.h"
-#include "nautilus-query.h"
-#include "nautilus-enum-types.h"
+#define RANK_SCALE_FACTOR 100
+#define MIN_RANK 10.0
+#define MAX_RANK 50.0
 
 struct _NautilusQuery
 {
@@ -40,11 +41,11 @@ struct _NautilusQuery
     GList *mime_types;
     gboolean show_hidden;
     GPtrArray *date_range;
+    NautilusQueryRecursive recursive;
     NautilusQuerySearchType search_type;
     NautilusQuerySearchContent search_content;
 
     gboolean searching;
-    gboolean recursive;
     char **prepared_words;
     GMutex prepared_words_mutex;
 };
@@ -114,7 +115,7 @@ nautilus_query_get_property (GObject    *object,
 
         case PROP_RECURSIVE:
         {
-            g_value_set_boolean (value, self->recursive);
+            g_value_set_enum (value, self->recursive);
         }
         break;
 
@@ -177,7 +178,7 @@ nautilus_query_set_property (GObject      *object,
 
         case PROP_RECURSIVE:
         {
-            nautilus_query_set_recursive (self, g_value_get_boolean (value));
+            nautilus_query_set_recursive (self, g_value_get_enum (value));
         }
         break;
 
@@ -268,11 +269,12 @@ nautilus_query_class_init (NautilusQueryClass *class)
      */
     g_object_class_install_property (gobject_class,
                                      PROP_RECURSIVE,
-                                     g_param_spec_boolean ("recursive",
-                                                           "Whether the query is being performed on subdirectories",
-                                                           "Whether the query is being performed on subdirectories or not",
-                                                           FALSE,
-                                                           G_PARAM_READWRITE));
+                                     g_param_spec_enum ("recursive",
+                                                        "Whether the query is being performed on subdirectories",
+                                                        "Whether the query is being performed on subdirectories or not",
+                                                        NAUTILUS_TYPE_QUERY_RECURSIVE,
+                                                        NAUTILUS_QUERY_RECURSIVE_ALWAYS,
+                                                        G_PARAM_READWRITE));
 
     /**
      * NautilusQuery::search-type:
@@ -399,7 +401,12 @@ nautilus_query_matches_string (NautilusQuery *query,
         return -1;
     }
 
-    retval = MAX (10.0, 50.0 - (gdouble) (ptr - prepared_string) - nonexact_malus);
+    /* The rank value depends on the numbers of letters before and after the match.
+     * To make the prefix matches prefered over sufix ones, the number of letters
+     * after the match is divided by a factor, so that it decreases the rank by a
+     * smaller amount.
+     */
+    retval = MAX (MIN_RANK, MAX_RANK - (gdouble) (ptr - prepared_string) - (gdouble) nonexact_malus / RANK_SCALE_FACTOR);
     g_free (prepared_string);
 
     return retval;
@@ -627,21 +634,20 @@ nautilus_query_set_searching (NautilusQuery *query,
     }
 }
 
-gboolean
+NautilusQueryRecursive
 nautilus_query_get_recursive (NautilusQuery *query)
 {
-    g_return_val_if_fail (NAUTILUS_IS_QUERY (query), FALSE);
+    g_return_val_if_fail (NAUTILUS_IS_QUERY (query),
+                          NAUTILUS_QUERY_RECURSIVE_ALWAYS);
 
     return query->recursive;
 }
 
 void
-nautilus_query_set_recursive (NautilusQuery *query,
-                              gboolean       recursive)
+nautilus_query_set_recursive (NautilusQuery          *query,
+                              NautilusQueryRecursive  recursive)
 {
     g_return_if_fail (NAUTILUS_IS_QUERY (query));
-
-    recursive = !!recursive;
 
     if (query->recursive != recursive)
     {

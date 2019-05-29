@@ -315,7 +315,7 @@
                       <object class="GtkListBox" id="type_listbox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="selection_mode">none</property>
+                        <property name="selection_mode">single</property>
                         <signal name="row-activated" handler="types_listbox_row_activated" object="NautilusSearchPopover" swapped="no" />
                       </object>
                     </child>
@@ -354,6 +354,7 @@
           <object class="GtkBox">
             <property name="can_focus">False</property>
             <property name="hexpand">True</property>
+            <property name="visible">True</property>
             <child>
               <object class="GtkRadioButton" id="full_text_search_button">
                 <property name="label" translatable="yes">Full Text</property>
@@ -365,6 +366,7 @@
                 <property name="xalign">0</property>
                 <property name="active">True</property>
                 <property name="draw_indicator">False</property>
+                <signal name="toggled" handler="search_fts_mode_changed" object="NautilusSearchPopover" swapped="no" />
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -383,6 +385,8 @@
                 <property name="xalign">0</property>
                 <property name="draw_indicator">False</property>
                 <property name="group">full_text_search_button</property>
+                <property name="active">True</property>
+                <signal name="toggled" handler="search_fts_mode_changed" object="NautilusSearchPopover" swapped="no" />
               </object>
               <packing>
                 <property name="expand">False</property>

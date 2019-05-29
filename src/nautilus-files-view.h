@@ -22,44 +22,25 @@
  *          Pavel Cisler <pavel@eazel.com>
  */
 
-#ifndef NAUTILUS_FILES_VIEW_H
-#define NAUTILUS_FILES_VIEW_H
+#pragma once
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
 
 #include "nautilus-directory.h"
 #include "nautilus-file.h"
-#include "nautilus-link.h"
-
-typedef struct NautilusFilesView NautilusFilesView;
-typedef struct NautilusFilesViewClass NautilusFilesViewClass;
 
 #include "nautilus-window.h"
 #include "nautilus-view.h"
 #include "nautilus-window-slot.h"
 
+G_BEGIN_DECLS
+
 #define NAUTILUS_TYPE_FILES_VIEW nautilus_files_view_get_type()
-#define NAUTILUS_FILES_VIEW(obj)\
-        (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_FILES_VIEW, NautilusFilesView))
-#define NAUTILUS_FILES_VIEW_CLASS(klass)\
-        (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_FILES_VIEW, NautilusFilesViewClass))
-#define NAUTILUS_IS_FILES_VIEW(obj)\
-        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_FILES_VIEW))
-#define NAUTILUS_IS_FILES_VIEW_CLASS(klass)\
-        (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_FILES_VIEW))
-#define NAUTILUS_FILES_VIEW_GET_CLASS(obj)\
-        (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_FILES_VIEW, NautilusFilesViewClass))
 
-typedef struct NautilusFilesViewDetails NautilusFilesViewDetails;
+G_DECLARE_DERIVABLE_TYPE (NautilusFilesView, nautilus_files_view, NAUTILUS, FILES_VIEW, GtkGrid)
 
-struct NautilusFilesView {
-        GtkGrid parent;
-
-        NautilusFilesViewDetails *details;
-};
-
-struct NautilusFilesViewClass {
+struct _NautilusFilesViewClass {
         GtkGridClass parent_class;
 
         /* The 'clear' signal is emitted to empty the view of its contents.
@@ -74,12 +55,11 @@ struct NautilusFilesViewClass {
          */
         void         (* begin_file_changes)     (NautilusFilesView *view);
 
-        /* The 'add_file' signal is emitted to add one file to the view.
+        /* The 'add_files' signal is emitted to add a set of files to the view.
          * It must be replaced by each subclass.
          */
-        void    (* add_file)                    (NautilusFilesView *view,
-                                                 NautilusFile      *file,
-                                                 NautilusDirectory *directory);
+        void    (* add_files)                    (NautilusFilesView *view,
+                                                  GList             *files);
         void    (* remove_file)                 (NautilusFilesView *view,
                                                  NautilusFile      *file,
                                                  NautilusDirectory *directory);
@@ -185,8 +165,10 @@ struct NautilusFilesViewClass {
          * return whether the view is at minimum size (furthest-out zoom level) */
         gboolean (* can_zoom_out)            (NautilusFilesView *view);
 
-        /* The current zoom level as a percentage of the default (0, 1] */
+        /* The current zoom level as a percentage of the default. */
         gfloat   (* get_zoom_level_percentage) (NautilusFilesView *view);
+
+        gboolean (*is_zoom_level_default)      (NautilusFilesView *view);
 
         /* reveal_selection is a function pointer that subclasses may
          * override to make sure the selected items are sufficiently
@@ -212,13 +194,6 @@ struct NautilusFilesViewClass {
                                               NautilusFile      *a,
                                               NautilusFile      *b);
 
-        /* using_manual_layout is a function pointer that subclasses may
-         * override to control whether or not items can be freely positioned
-         * on the user-visible area.
-         * Note that this value is not guaranteed to be constant within the
-         * view's lifecycle. */
-        gboolean (* using_manual_layout)     (NautilusFilesView *view);
-
         /* is_empty is a function pointer that subclasses must
          * override to report whether the view contains any items.
          */
@@ -233,7 +208,7 @@ struct NautilusFilesViewClass {
         void (* widget_to_file_operation_position) (NautilusFilesView *view,
                                                     GdkPoint     *position);
 
-        /* Preference change callbacks, overriden by icon and list views.
+        /* Preference change callbacks, overridden by icon and list views.
          * Icon and list views respond by synchronizing to the new preference
          * values and forcing an update if appropriate.
          */
@@ -254,15 +229,14 @@ struct NautilusFilesViewClass {
 
         GdkRectangle * (* compute_rename_popover_pointing_to) (NautilusFilesView *view);
 
+        GdkRectangle * (* reveal_for_selection_context_menu) (NautilusFilesView *view);
+
         GIcon *        (* get_icon)          (NautilusFilesView *view);
 
         /* Use this to show an optional visual feedback when the directory is empty.
          * By default it shows a widget overlay on top of the view */
         void           (* check_empty_states)          (NautilusFilesView *view);
 };
-
-/* GObject support */
-GType               nautilus_files_view_get_type                         (void);
 
 NautilusFilesView *      nautilus_files_view_new                         (guint               id,
                                                                           NautilusWindowSlot *slot);
@@ -286,6 +260,9 @@ void                nautilus_files_view_activate_files                   (Nautil
                                                                           GList                   *files,
                                                                           NautilusWindowOpenFlags  flags,
                                                                           gboolean                 confirm_multiple);
+void                nautilus_files_view_activate_file                    (NautilusFilesView       *view,
+                                                                          NautilusFile            *file,
+                                                                          NautilusWindowOpenFlags  flags);
 void                nautilus_files_view_preview_files                    (NautilusFilesView *view,
                                                                           GList             *files,
                                                                           GArray            *locations);
@@ -295,17 +272,13 @@ void                nautilus_files_view_notify_selection_changed         (Nautil
 NautilusDirectory  *nautilus_files_view_get_model                        (NautilusFilesView *view);
 NautilusFile       *nautilus_files_view_get_directory_as_file            (NautilusFilesView *view);
 void                nautilus_files_view_pop_up_background_context_menu   (NautilusFilesView *view,
-                                                                          GdkEventButton    *event);
+                                                                          const GdkEvent    *event);
 void                nautilus_files_view_pop_up_selection_context_menu    (NautilusFilesView *view,
-                                                                          GdkEventButton    *event);
+                                                                          const GdkEvent    *event);
 gboolean            nautilus_files_view_should_show_file                 (NautilusFilesView *view,
                                                                           NautilusFile      *file);
 gboolean            nautilus_files_view_should_sort_directories_first    (NautilusFilesView *view);
 void                nautilus_files_view_ignore_hidden_file_preferences   (NautilusFilesView *view);
-void                nautilus_files_view_set_show_foreign                 (NautilusFilesView *view,
-                                                                          gboolean           show_foreign);
-gboolean            nautilus_files_view_handle_scroll_event              (NautilusFilesView *view,
-                                                                          GdkEventScroll    *event);
 
 void                nautilus_files_view_add_subdirectory                (NautilusFilesView *view,
                                                                          NautilusDirectory *directory);
@@ -321,17 +294,13 @@ guint               nautilus_files_view_get_view_id                (NautilusView
 char *            nautilus_files_view_get_backing_uri            (NautilusFilesView      *view);
 void              nautilus_files_view_move_copy_items            (NautilusFilesView      *view,
                                                                   const GList            *item_uris,
-                                                                  GArray                 *relative_item_points,
                                                                   const char             *target_uri,
-                                                                  int                     copy_action,
-                                                                  int                     x,
-                                                                  int                     y);
+                                                                  int                     copy_action);
 void              nautilus_files_view_new_file_with_initial_contents (NautilusFilesView  *view,
                                                                       const char         *parent_uri,
                                                                       const char         *filename,
                                                                       const char         *initial_contents,
-                                                                      int                 length,
-                                                                      GdkPoint           *pos);
+                                                                      int                 length);
 
 /* selection handling */
 void              nautilus_files_view_activate_selection         (NautilusFilesView      *view);
@@ -344,11 +313,8 @@ char *            nautilus_files_view_get_title                  (NautilusFilesV
 gboolean          nautilus_files_view_supports_zooming           (NautilusFilesView      *view);
 void              nautilus_files_view_bump_zoom_level            (NautilusFilesView      *view,
                                                                   int                     zoom_increment);
-void              nautilus_files_view_zoom_to_level              (NautilusFilesView      *view,
-                                                                  gint                    level);
 gboolean          nautilus_files_view_can_zoom_in                (NautilusFilesView      *view);
 gboolean          nautilus_files_view_can_zoom_out               (NautilusFilesView      *view);
-void              nautilus_files_view_update_menus               (NautilusFilesView      *view);
 
 void              nautilus_files_view_update_context_menus       (NautilusFilesView      *view);
 void              nautilus_files_view_update_toolbar_menus       (NautilusFilesView      *view);
@@ -360,4 +326,4 @@ void              nautilus_files_view_action_show_hidden_files   (NautilusFilesV
 GActionGroup *    nautilus_files_view_get_action_group           (NautilusFilesView      *view);
 GtkWidget*        nautilus_files_view_get_content_widget         (NautilusFilesView      *view);
 
-#endif /* NAUTILUS_FILES_VIEW_H */
+G_END_DECLS

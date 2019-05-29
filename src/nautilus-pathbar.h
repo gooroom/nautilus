@@ -16,43 +16,18 @@
  * 
  */
 
-#ifndef NAUTILUS_PATHBAR_H
-#define NAUTILUS_PATHBAR_H
+#pragma once
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
 
-typedef struct _NautilusPathBar      NautilusPathBar;
-typedef struct _NautilusPathBarClass NautilusPathBarClass;
-typedef struct _NautilusPathBarDetails NautilusPathBarDetails;
+#define NAUTILUS_TYPE_PATH_BAR (nautilus_path_bar_get_type ())
+G_DECLARE_FINAL_TYPE (NautilusPathBar, nautilus_path_bar, NAUTILUS, PATH_BAR, GtkContainer)
 
-#define NAUTILUS_TYPE_PATH_BAR                 (nautilus_path_bar_get_type ())
-#define NAUTILUS_PATH_BAR(obj)                 (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_PATH_BAR, NautilusPathBar))
-#define NAUTILUS_PATH_BAR_CLASS(klass)         (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_PATH_BAR, NautilusPathBarClass))
-#define NAUTILUS_IS_PATH_BAR(obj)              (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_PATH_BAR))
-#define NAUTILUS_IS_PATH_BAR_CLASS(klass)      (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_PATH_BAR))
-#define NAUTILUS_PATH_BAR_GET_CLASS(obj)       (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_PATH_BAR, NautilusPathBarClass))
+void     nautilus_path_bar_set_path                       (NautilusPathBar *path_bar,
+                                                           GFile           *file);
 
-struct _NautilusPathBar
-{
-	GtkContainer parent;
-	
-	NautilusPathBarDetails *priv;
-};
-
-struct _NautilusPathBarClass
-{
-	GtkContainerClass parent_class;
-
-	void     (* path_clicked)   (NautilusPathBar  *path_bar,
-				     GFile            *location);
-        void     (* open_location)  (NautilusPathBar   *path_bar,
-                                     GFile             *location,
-                                     GtkPlacesOpenFlags flags);
-};
-
-GType    nautilus_path_bar_get_type (void) G_GNUC_CONST;
-
-void     nautilus_path_bar_set_path    (NautilusPathBar *path_bar, GFile *file);
-
-#endif /* NAUTILUS_PATHBAR_H */
+void     nautilus_path_bar_set_extensions_background_menu (NautilusPathBar *path_bar,
+                                                           GMenu           *menu);
+void     nautilus_path_bar_set_templates_menu             (NautilusPathBar *path_bar,
+                                                           GMenu           *menu);

@@ -25,7 +25,7 @@
 #include <string.h>
 #include <eel/eel-glib-extensions.h>
 #include <glib/gi18n.h>
-#include <libnautilus-extension/nautilus-column-provider.h>
+#include <nautilus-extension.h>
 #include "nautilus-module.h"
 
 static const char *default_column_order[] =
@@ -36,11 +36,13 @@ static const char *default_column_order[] =
     "owner",
     "group",
     "permissions",
-    "mime_type",
+    "detailed_type",
     "where",
     "date_modified_with_time",
     "date_modified",
     "date_accessed",
+    "recency",
+    "starred",
     NULL
 };
 
@@ -81,6 +83,13 @@ get_builtin_columns (void)
                                            NULL));
     columns = g_list_append (columns,
                              g_object_new (NAUTILUS_TYPE_COLUMN,
+                                           "name", "detailed_type",
+                                           "attribute", "detailed_type",
+                                           "label", _("Detailed Type"),
+                                           "description", _("The detailed type of the file."),
+                                           NULL));
+    columns = g_list_append (columns,
+                             g_object_new (NAUTILUS_TYPE_COLUMN,
                                            "name", "date_accessed",
                                            "attribute", "date_accessed",
                                            "label", _("Accessed"),
@@ -115,26 +124,39 @@ get_builtin_columns (void)
 
     columns = g_list_append (columns,
                              g_object_new (NAUTILUS_TYPE_COLUMN,
-                                           "name", "mime_type",
-                                           "attribute", "mime_type",
-                                           "label", _("MIME Type"),
-                                           "description", _("The MIME type of the file."),
-                                           NULL));
-
-    columns = g_list_append (columns,
-                             g_object_new (NAUTILUS_TYPE_COLUMN,
                                            "name", "where",
                                            "attribute", "where",
                                            "label", _("Location"),
                                            "description", _("The location of the file."),
                                            NULL));
+
     columns = g_list_append (columns,
                              g_object_new (NAUTILUS_TYPE_COLUMN,
                                            "name", "date_modified_with_time",
                                            "attribute", "date_modified_with_time",
-                                           "label", _("Modified - Time"),
+                                           "label", _("Modified — Time"),
                                            "description", _("The date the file was modified."),
                                            "xalign", 1.0,
+                                           NULL));
+
+    columns = g_list_append (columns,
+                             g_object_new (NAUTILUS_TYPE_COLUMN,
+                                           "name", "recency",
+                                           "attribute", "recency",
+                                           "label", _("Recency"),
+                                           "description", _("The date the file was accessed by the user."),
+                                           "default-sort-order", GTK_SORT_DESCENDING,
+                                           "xalign", 1.0,
+                                           NULL));
+
+    columns = g_list_append (columns,
+                             g_object_new (NAUTILUS_TYPE_COLUMN,
+                                           "name", "starred",
+                                           "attribute", "starred",
+                                           "label", _("Star"),
+                                           "description", _("Shows if file is starred."),
+                                           "default-sort-order", GTK_SORT_DESCENDING,
+                                           "xalign", 0.5,
                                            NULL));
 
     return columns;

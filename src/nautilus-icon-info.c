@@ -15,13 +15,9 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
-#include <string.h>
 #include "nautilus-icon-info.h"
-#include "nautilus-icon-names.h"
-#include "nautilus-default-file-icon.h"
-#include <gtk/gtk.h>
-#include <gio/gio.h>
+
+#include "nautilus-enums.h"
 
 struct _NautilusIconInfo
 {
@@ -34,11 +30,6 @@ struct _NautilusIconInfo
     char *icon_name;
 
     gint orig_scale;
-};
-
-struct _NautilusIconInfoClass
-{
-    GObjectClass parent_class;
 };
 
 static void schedule_reap_cache (void);
@@ -345,10 +336,10 @@ nautilus_icon_info_lookup (GIcon *icon,
                            int    scale)
 {
     NautilusIconInfo *icon_info;
-    GdkPixbuf *pixbuf;
 
     if (G_IS_LOADABLE_ICON (icon))
     {
+        GdkPixbuf *pixbuf;
         LoadableIconKey lookup_key;
         LoadableIconKey *key;
         GInputStream *stream;
@@ -545,15 +536,8 @@ nautilus_icon_info_get_pixbuf (NautilusIconInfo *icon)
     res = nautilus_icon_info_get_pixbuf_nodefault (icon);
     if (res == NULL)
     {
-        res = gdk_pixbuf_new_from_data (nautilus_default_file_icon,
-                                        GDK_COLORSPACE_RGB,
-                                        TRUE,
-                                        8,
-                                        nautilus_default_file_icon_width,
-                                        nautilus_default_file_icon_height,
-                                        nautilus_default_file_icon_width * 4,         /* stride */
-                                        NULL,         /* don't destroy info */
-                                        NULL);
+        res = gdk_pixbuf_new_from_resource ("/org/gnome/nautilus/text-x-preview.png",
+                                            NULL);
     }
 
     return res;
@@ -610,8 +594,13 @@ nautilus_icon_info_get_pixbuf_at_size (NautilusIconInfo *icon,
     }
 
     scale = (double) forced_size / s;
+
+    /* Neither of these can be 0. */
+    w = MAX (w * scale, 1);
+    h = MAX (h * scale, 1);
+
     scaled_pixbuf = gdk_pixbuf_scale_simple (pixbuf,
-                                             w * scale, h * scale,
+                                             w, h,
                                              GDK_INTERP_BILINEAR);
     g_object_unref (pixbuf);
     return scaled_pixbuf;

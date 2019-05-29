@@ -21,11 +21,13 @@
    Authors: John Sullivan <sullivan@eazel.com>
 */
 
-#ifndef NAUTILUS_ERROR_REPORTING_H
-#define NAUTILUS_ERROR_REPORTING_H
+#pragma once
 
 #include <gtk/gtk.h>
 #include "nautilus-file.h"
+
+#define MAXIMUM_DISPLAYED_FILE_NAME_LENGTH      50
+#define MAXIMUM_DISPLAYED_ERROR_MESSAGE_LENGTH  350
 
 void nautilus_report_error_loading_directory	 (NautilusFile   *file,
 						  GError         *error,
@@ -49,5 +51,3 @@ void nautilus_rename_file                      (NautilusFile   *file,
 						const char     *new_name,
 						NautilusFileOperationCallback callback,
 						gpointer callback_data);
-
-#endif /* NAUTILUS_ERROR_REPORTING_H */

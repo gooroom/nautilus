@@ -19,13 +19,12 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#ifndef NAUTILUS_FILE_H
-#define NAUTILUS_FILE_H
+#pragma once
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
-#include "nautilus-file-attributes.h"
-#include "nautilus-icon-info.h"
+
+#include "nautilus-types.h"
 
 /* NautilusFile is an object used to represent a single element of a
  * NautilusDirectory. It's lightweight and relies on NautilusDirectory
@@ -55,10 +54,12 @@ typedef enum {
 	NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
 	NAUTILUS_FILE_SORT_BY_SIZE,
 	NAUTILUS_FILE_SORT_BY_TYPE,
+	NAUTILUS_FILE_SORT_BY_STARRED,
 	NAUTILUS_FILE_SORT_BY_MTIME,
         NAUTILUS_FILE_SORT_BY_ATIME,
 	NAUTILUS_FILE_SORT_BY_TRASHED_TIME,
-	NAUTILUS_FILE_SORT_BY_SEARCH_RELEVANCE
+	NAUTILUS_FILE_SORT_BY_SEARCH_RELEVANCE,
+	NAUTILUS_FILE_SORT_BY_RECENCY
 } NautilusFileSortType;	
 
 typedef enum {
@@ -119,14 +120,9 @@ typedef void (*NautilusFileOperationCallback) (NautilusFile  *file,
 					       GFile         *result_location,
 					       GError        *error,
 					       gpointer       callback_data);
-typedef int (*NautilusWidthMeasureCallback)   (const char    *string,
-					       void	     *context);
-typedef char * (*NautilusTruncateCallback)    (const char    *string,
-					       int	      width,
-					       void	     *context);
 
 
-#define NAUTILUS_FILE_ATTRIBUTES_FOR_ICON (NAUTILUS_FILE_ATTRIBUTE_INFO | NAUTILUS_FILE_ATTRIBUTE_LINK_INFO | NAUTILUS_FILE_ATTRIBUTE_THUMBNAIL)
+#define NAUTILUS_FILE_ATTRIBUTES_FOR_ICON (NAUTILUS_FILE_ATTRIBUTE_INFO | NAUTILUS_FILE_ATTRIBUTE_THUMBNAIL)
 
 typedef void NautilusFileListHandle;
 
@@ -147,6 +143,8 @@ NautilusFile *          nautilus_file_get_existing_by_uri               (const c
  */
 NautilusFile *          nautilus_file_ref                               (NautilusFile                   *file);
 void                    nautilus_file_unref                             (NautilusFile                   *file);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (NautilusFile, nautilus_file_unref)
 
 /* Monitor the file. */
 void                    nautilus_file_monitor_add                       (NautilusFile                   *file,
@@ -190,6 +188,8 @@ gboolean                nautilus_file_can_get_size                      (Nautilu
 goffset                 nautilus_file_get_size                          (NautilusFile                   *file);
 time_t                  nautilus_file_get_mtime                         (NautilusFile                   *file);
 time_t                  nautilus_file_get_atime                         (NautilusFile                   *file);
+time_t                  nautilus_file_get_recency                       (NautilusFile                   *file);
+time_t                  nautilus_file_get_trash_time                    (NautilusFile                   *file);
 GFileType               nautilus_file_get_file_type                     (NautilusFile                   *file);
 char *                  nautilus_file_get_mime_type                     (NautilusFile                   *file);
 char *                  nautilus_file_get_extension                     (NautilusFile                   *file);
@@ -203,22 +203,21 @@ char *                  nautilus_file_get_volume_name                   (Nautilu
 char *                  nautilus_file_get_symbolic_link_target_path     (NautilusFile                   *file);
 char *                  nautilus_file_get_symbolic_link_target_uri      (NautilusFile                   *file);
 gboolean                nautilus_file_is_broken_symbolic_link           (NautilusFile                   *file);
-gboolean                nautilus_file_is_nautilus_link                  (NautilusFile                   *file);
 gboolean                nautilus_file_is_executable                     (NautilusFile                   *file);
 gboolean                nautilus_file_is_directory                      (NautilusFile                   *file);
 gboolean                nautilus_file_is_regular_file                   (NautilusFile                   *file);
 gboolean                nautilus_file_is_user_special_directory         (NautilusFile                   *file,
 									 GUserDirectory                 special_directory);
-gboolean                nautilus_file_is_special_link                   (NautilusFile                   *file);
 gboolean		nautilus_file_is_archive			(NautilusFile			*file);
 gboolean                nautilus_file_is_in_search                      (NautilusFile                   *file);
 gboolean                nautilus_file_is_in_trash                       (NautilusFile                   *file);
 gboolean                nautilus_file_is_in_recent                      (NautilusFile                   *file);
+gboolean                nautilus_file_is_in_starred                     (NautilusFile                   *file);
+gboolean                nautilus_file_is_in_admin                       (NautilusFile                   *file);
 gboolean                nautilus_file_is_remote                         (NautilusFile                   *file);
 gboolean                nautilus_file_is_other_locations                (NautilusFile                   *file);
+gboolean                nautilus_file_is_starred_location              (NautilusFile                   *file);
 gboolean		nautilus_file_is_home				(NautilusFile                   *file);
-gboolean                nautilus_file_is_desktop_directory              (NautilusFile                   *file);
-gboolean                nautilus_file_is_child_of_desktop_directory     (NautilusFile                   *file);
 GError *                nautilus_file_get_file_info_error               (NautilusFile                   *file);
 gboolean                nautilus_file_get_directory_item_count          (NautilusFile                   *file,
 									 guint                          *count,
@@ -235,6 +234,10 @@ gboolean                nautilus_file_should_show_directory_item_count  (Nautilu
 
 void                    nautilus_file_set_search_relevance              (NautilusFile                   *file,
 									 gdouble                         relevance);
+void                    nautilus_file_set_search_fts_snippet            (NautilusFile                   *file,
+                                                                         const gchar                    *fts_snippet);
+const gchar*            nautilus_file_get_search_fts_snippet            (NautilusFile                   *file);
+
 void                    nautilus_file_set_attributes                    (NautilusFile                   *file, 
 									 GFileInfo                      *attributes,
 									 NautilusFileOperationCallback   callback,
@@ -244,6 +247,8 @@ GFilesystemPreviewType  nautilus_file_get_filesystem_use_preview        (Nautilu
 char *                  nautilus_file_get_filesystem_id                 (NautilusFile                   *file);
 
 char *                  nautilus_file_get_filesystem_type               (NautilusFile                   *file);
+
+gboolean                nautilus_file_get_filesystem_remote             (NautilusFile                   *file);
 
 NautilusFile *          nautilus_file_get_trash_original_file           (NautilusFile                   *file);
 
@@ -326,12 +331,10 @@ void                    nautilus_file_rename                            (Nautilu
 									 const char                     *new_name,
 									 NautilusFileOperationCallback   callback,
 									 gpointer                        callback_data);
-#ifdef ENABLE_TRACKER
 void                    nautilus_file_batch_rename                      (GList                          *files,
                                                                          GList                          *new_names,
                                                                          NautilusFileOperationCallback   callback,
                                                                          gpointer                        callback_data);
-#endif /* ENABLE_TRACKER */
 void                    nautilus_file_cancel                            (NautilusFile                   *file,
 									 NautilusFileOperationCallback   callback,
 									 gpointer                        callback_data);
@@ -445,8 +448,7 @@ int                     nautilus_file_compare_display_name              (Nautilu
 /* filtering functions for use by various directory views */
 gboolean                nautilus_file_is_hidden_file                    (NautilusFile                   *file);
 gboolean                nautilus_file_should_show                       (NautilusFile                   *file,
-									 gboolean                        show_hidden,
-									 gboolean                        show_foreign);
+									 gboolean                        show_hidden);
 GList                  *nautilus_file_list_filter_hidden                (GList                          *files,
 									 gboolean                        show_hidden);
 
@@ -454,15 +456,9 @@ GList                  *nautilus_file_list_filter_hidden                (GList  
 /* Get the URI that's used when activating the file.
  * Getting this can require reading the contents of the file.
  */
-gboolean                nautilus_file_is_launcher                       (NautilusFile                   *file);
-gboolean                nautilus_file_is_foreign_link                   (NautilusFile                   *file);
-gboolean                nautilus_file_is_trusted_link                   (NautilusFile                   *file);
 gboolean                nautilus_file_has_activation_uri                (NautilusFile                   *file);
 char *                  nautilus_file_get_activation_uri                (NautilusFile                   *file);
 GFile *                 nautilus_file_get_activation_location           (NautilusFile                   *file);
-
-char *                  nautilus_file_get_target_uri                    (NautilusFile                   *file);
-
 GIcon *                 nautilus_file_get_gicon                         (NautilusFile                   *file,
 									 NautilusFileIconFlags           flags);
 NautilusIconInfo *      nautilus_file_get_icon                          (NautilusFile                   *file,
@@ -499,6 +495,7 @@ GList *                 nautilus_file_list_filter                       (GList  
                                                                          GList                         **failed,
                                                                          NautilusFileFilterFunc          filter_function,
                                                                          gpointer                        user_data);
+gboolean                nautilus_file_list_are_all_folders              (const GList                    *files);
 /* DND */
 gboolean                nautilus_drag_can_accept_item                   (NautilusFile                   *drop_target_item,
                                                                          const char                     *item_uri);
@@ -526,7 +523,8 @@ struct NautilusFile {
 typedef enum {
 	NAUTILUS_DATE_TYPE_MODIFIED,
 	NAUTILUS_DATE_TYPE_ACCESSED,
-	NAUTILUS_DATE_TYPE_TRASHED
+	NAUTILUS_DATE_TYPE_TRASHED,
+	NAUTILUS_DATE_TYPE_RECENCY
 } NautilusDateType;
 
 gboolean                nautilus_file_get_date                          (NautilusFile                   *file,
@@ -611,27 +609,4 @@ typedef struct {
 							  gpointer                        callback_data);
 
 	void                 (* poll_for_media)          (NautilusFile                   *file);
-
-        gboolean             (* can_rename)              (NautilusFile                   *file);
-
-        void                 (* rename)                  (NautilusFile                   *file,
-                                                          const char                     *new_name,
-                                                          NautilusFileOperationCallback   callback,
-                                                          gpointer                        callback_data);
-
-       char*                 (* get_target_uri)          (NautilusFile                   *file);
-
-       gboolean              (* drag_can_accept_files)   (NautilusFile                   *drop_target_item);
-
-       void                  (* invalidate_attributes_internal) (NautilusFile            *file,
-                                                                 NautilusFileAttributes   file_attributes);
-
-       gboolean              (* opens_in_view)           (NautilusFile                   *file);
-
-       /* Use this if the custom file class doesn't support usual operations like
-        * copy, delete or move.
-        */
-       gboolean              (* is_special_link)          (NautilusFile                  *file);
 } NautilusFileClass;
-
-#endif /* NAUTILUS_FILE_H */

@@ -24,26 +24,21 @@
             John Sullivan <sullivan@eazel.com>
 */
 
-#ifndef EEL_VFS_EXTENSIONS_H
-#define EEL_VFS_EXTENSIONS_H
+#pragma once
 
 #include <glib.h>
 
 G_BEGIN_DECLS
 
 #define	EEL_TRASH_URI "trash:"
-#define EEL_DESKTOP_URI "x-nautilus-desktop:"
 #define EEL_SEARCH_URI "x-nautilus-search:"
 
+gboolean           eel_uri_is_starred                  (const char           *uri);
 gboolean           eel_uri_is_trash                      (const char           *uri);
-gboolean           eel_uri_is_trash_folder               (const char           *uri);
-gboolean           eel_uri_is_in_trash                   (const char           *uri);
-gboolean           eel_uri_is_desktop                    (const char           *uri);
 gboolean           eel_uri_is_search                     (const char           *uri);
 gboolean           eel_uri_is_other_locations            (const char           *uri);
 gboolean           eel_uri_is_recent                     (const char           *uri);
-
-char *             eel_make_valid_utf8                   (const char           *name);
+gboolean           eel_uri_is_in_xdg_dirs                (const char           *uri);
 
 char *             eel_filename_strip_extension          (const char           *filename);
 void               eel_filename_get_rename_region        (const char           *filename,
@@ -52,5 +47,3 @@ void               eel_filename_get_rename_region        (const char           *
 char *             eel_filename_get_extension_offset     (const char           *filename);
 
 G_END_DECLS
-
-#endif /* EEL_VFS_EXTENSIONS_H */

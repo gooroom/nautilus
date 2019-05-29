@@ -20,26 +20,16 @@
    Authors: Anders Carlsson <andersca@gnu.org>
 */
 
+#pragma once
+
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
 #include "nautilus-file.h"
 #include "nautilus-directory.h"
-#include <libnautilus-extension/nautilus-column.h>
-
-#ifndef NAUTILUS_LIST_MODEL_H
-#define NAUTILUS_LIST_MODEL_H
+#include <nautilus-extension.h>
 
 #define NAUTILUS_TYPE_LIST_MODEL nautilus_list_model_get_type()
-#define NAUTILUS_LIST_MODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_LIST_MODEL, NautilusListModel))
-#define NAUTILUS_LIST_MODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_LIST_MODEL, NautilusListModelClass))
-#define NAUTILUS_IS_LIST_MODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_LIST_MODEL))
-#define NAUTILUS_IS_LIST_MODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_LIST_MODEL))
-#define NAUTILUS_LIST_MODEL_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_LIST_MODEL, NautilusListModelClass))
+G_DECLARE_DERIVABLE_TYPE (NautilusListModel, nautilus_list_model, NAUTILUS, LIST_MODEL, GObject);
 
 enum {
 	NAUTILUS_LIST_MODEL_FILE_COLUMN,
@@ -52,21 +42,14 @@ enum {
 	NAUTILUS_LIST_MODEL_NUM_COLUMNS
 };
 
-typedef struct NautilusListModelDetails NautilusListModelDetails;
-
-typedef struct NautilusListModel {
-	GObject parent_instance;
-	NautilusListModelDetails *details;
-} NautilusListModel;
-
-typedef struct {
+struct _NautilusListModelClass
+{
 	GObjectClass parent_class;
 
 	void (* subdirectory_unloaded)(NautilusListModel *model,
 				       NautilusDirectory *subdirectory);
-} NautilusListModelClass;
+};
 
-GType    nautilus_list_model_get_type                          (void);
 gboolean nautilus_list_model_add_file                          (NautilusListModel          *model,
 								NautilusFile         *file,
 								NautilusDirectory    *directory);
@@ -128,5 +111,3 @@ void              nautilus_list_model_subdirectory_done_loading (NautilusListMod
 
 void              nautilus_list_model_set_highlight_for_files (NautilusListModel *model,
 							       GList *files);
-						   
-#endif /* NAUTILUS_LIST_MODEL_H */

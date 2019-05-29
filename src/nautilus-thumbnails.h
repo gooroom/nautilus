@@ -19,8 +19,7 @@
    Author: Andy Hertzfeld <andy@eazel.com>
 */
 
-#ifndef NAUTILUS_THUMBNAILS_H
-#define NAUTILUS_THUMBNAILS_H
+#pragma once
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include "nautilus-file.h"
@@ -28,13 +27,9 @@
 /* Returns NULL if there's no thumbnail yet. */
 void       nautilus_create_thumbnail                (NautilusFile *file);
 gboolean   nautilus_can_thumbnail                   (NautilusFile *file);
-gboolean   nautilus_can_thumbnail_internally        (NautilusFile *file);
 gboolean   nautilus_thumbnail_is_mimetype_limited_by_size
 						    (const char *mime_type);
 
 /* Queue handling: */
 void       nautilus_thumbnail_remove_from_queue     (const char   *file_uri);
 void       nautilus_thumbnail_prioritize            (const char   *file_uri);
-
-
-#endif /* NAUTILUS_THUMBNAILS_H */

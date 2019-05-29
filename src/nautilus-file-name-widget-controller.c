@@ -20,7 +20,7 @@
 #include <glib/gi18n.h>
 
 #include "nautilus-file-name-widget-controller.h"
-
+#include "nautilus-file-utilities.h"
 
 #define FILE_NAME_DUPLICATED_LABEL_TIMEOUT 500
 
@@ -63,6 +63,40 @@ nautilus_file_name_widget_controller_get_new_name (NautilusFileNameWidgetControl
     return NAUTILUS_FILE_NAME_WIDGET_CONTROLLER_GET_CLASS (self)->get_new_name (self);
 }
 
+void
+nautilus_file_name_widget_controller_set_containing_directory (NautilusFileNameWidgetController *self,
+                                                               NautilusDirectory                *directory)
+{
+    g_assert (NAUTILUS_IS_DIRECTORY (directory));
+
+    g_object_set (self, "containing-directory", directory, NULL);
+}
+
+gboolean
+nautilus_file_name_widget_controller_is_name_too_long (NautilusFileNameWidgetController  *self,
+                                                       gchar                             *name)
+{
+    NautilusFileNameWidgetControllerPrivate *priv;
+    size_t name_length;
+    g_autoptr (GFile) location = NULL;
+    glong max_name_length;
+
+    priv = nautilus_file_name_widget_controller_get_instance_private (self);
+    name_length = strlen (name);
+    location = nautilus_directory_get_location (priv->containing_directory);
+    max_name_length = nautilus_get_max_child_name_length_for_location (location);
+
+    if (max_name_length == -1)
+    {
+        /* We don't know, so let's give it a chance */
+        return FALSE;
+    }
+    else
+    {
+        return name_length > max_name_length + 1;
+    }
+}
+
 static gboolean
 nautilus_file_name_widget_controller_name_is_valid (NautilusFileNameWidgetController  *self,
                                                     gchar                             *name,
@@ -96,25 +130,41 @@ real_name_is_valid (NautilusFileNameWidgetController  *self,
                     gchar                             *name,
                     gchar                            **error_message)
 {
+    gboolean is_valid;
+
+    is_valid = TRUE;
     if (strlen (name) == 0)
     {
-        return FALSE;
+        is_valid = FALSE;
     }
-
-    if (strstr (name, "/") != NULL)
+    else if (strstr (name, "/") != NULL)
     {
+        is_valid = FALSE;
         *error_message = _("File names cannot contain “/”.");
     }
     else if (strcmp (name, ".") == 0)
     {
+        is_valid = FALSE;
         *error_message = _("A file cannot be called “.”.");
     }
     else if (strcmp (name, "..") == 0)
     {
+        is_valid = FALSE;
         *error_message = _("A file cannot be called “..”.");
     }
+    else if (nautilus_file_name_widget_controller_is_name_too_long (self, name))
+    {
+        is_valid = FALSE;
+        *error_message = _("File name is too long.");
+    }
 
-    return *error_message == NULL;
+    if (is_valid && g_str_has_prefix (name, "."))
+    {
+        /* We must warn about the side effect */
+        *error_message = _("Files with “.” at the beginning of their name are hidden.");
+    }
+
+    return is_valid;
 }
 
 static gboolean
@@ -159,6 +209,8 @@ file_name_widget_controller_process_new_name (NautilusFileNameWidgetController *
     gchar *error_message = NULL;
     NautilusFile *existing_file;
     priv = nautilus_file_name_widget_controller_get_instance_private (controller);
+
+    g_return_if_fail (NAUTILUS_IS_DIRECTORY (priv->containing_directory));
 
     name = nautilus_file_name_widget_controller_get_new_name (controller);
     *valid_name = nautilus_file_name_widget_controller_name_is_valid (controller,
@@ -289,6 +341,11 @@ file_name_widget_controller_on_activate (gpointer user_data)
 static void
 nautilus_file_name_widget_controller_init (NautilusFileNameWidgetController *self)
 {
+    NautilusFileNameWidgetControllerPrivate *priv;
+
+    priv = nautilus_file_name_widget_controller_get_instance_private (self);
+
+    priv->containing_directory = NULL;
 }
 
 static void
@@ -345,8 +402,9 @@ nautilus_file_name_widget_controller_set_property (GObject      *object,
 
         case PROP_CONTAINING_DIRECTORY:
         {
-            priv->containing_directory = NAUTILUS_DIRECTORY (g_value_get_object (value));
-            nautilus_directory_ref (priv->containing_directory);
+            g_clear_object (&priv->containing_directory);
+
+            priv->containing_directory = NAUTILUS_DIRECTORY (g_value_dup_object (value));
         }
         break;
 
@@ -460,6 +518,5 @@ nautilus_file_name_widget_controller_class_init (NautilusFileNameWidgetControlle
                              "Containing Directory",
                              "The directory used to check for duplicate names",
                              NAUTILUS_TYPE_DIRECTORY,
-                             G_PARAM_WRITABLE |
-                             G_PARAM_CONSTRUCT_ONLY));
+                             G_PARAM_WRITABLE));
 }

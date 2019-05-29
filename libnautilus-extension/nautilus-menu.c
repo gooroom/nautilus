@@ -26,59 +26,38 @@
 #include <glib.h>
 #include <glib/gi18n-lib.h>
 
-/**
- * SECTION:nautilus-menu
- * @title: NautilusMenu
- * @short_description: Menu descriptor object
- * @include: libnautilus-extension/nautilus-menu.h
- *
- * #NautilusMenu is an object that describes a submenu in a file manager
- * menu. Extensions can provide #NautilusMenu objects by attaching them to
- * #NautilusMenuItem objects, using nautilus_menu_item_set_submenu().
- */
-
-#define NAUTILUS_MENU_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), NAUTILUS_TYPE_MENU, NautilusMenuPrivate))
-G_DEFINE_TYPE (NautilusMenu, nautilus_menu, G_TYPE_OBJECT);
-
-struct _NautilusMenuPrivate
+struct _NautilusMenu
 {
+    GObject parent_instance;
+
     GList *item_list;
 };
 
-void
-nautilus_menu_append_item (NautilusMenu     *menu,
-                           NautilusMenuItem *item)
-{
-    g_return_if_fail (menu != NULL);
-    g_return_if_fail (item != NULL);
+G_DEFINE_TYPE (NautilusMenu, nautilus_menu, G_TYPE_OBJECT);
 
-    menu->priv->item_list = g_list_append (menu->priv->item_list, g_object_ref (item));
+void
+nautilus_menu_append_item (NautilusMenu     *self,
+                           NautilusMenuItem *menu_item)
+{
+    g_return_if_fail (NAUTILUS_IS_MENU (self));
+    g_return_if_fail (NAUTILUS_IS_MENU_ITEM (menu_item));
+
+    self->item_list = g_list_append (self->item_list, g_object_ref (menu_item));
 }
 
-/**
- * nautilus_menu_get_items:
- * @menu: a #NautilusMenu
- *
- * Returns: (element-type NautilusMenuItem) (transfer full): the provided #NautilusMenuItem list
- */
 GList *
-nautilus_menu_get_items (NautilusMenu *menu)
+nautilus_menu_get_items (NautilusMenu *self)
 {
     GList *item_list;
 
-    g_return_val_if_fail (menu != NULL, NULL);
+    g_return_val_if_fail (NAUTILUS_IS_MENU (self), NULL);
 
-    item_list = g_list_copy (menu->priv->item_list);
+    item_list = g_list_copy (self->item_list);
     g_list_foreach (item_list, (GFunc) g_object_ref, NULL);
 
     return item_list;
 }
 
-/**
- * nautilus_menu_item_list_free:
- * @item_list: (element-type NautilusMenuItem): a list of #NautilusMenuItem
- *
- */
 void
 nautilus_menu_item_list_free (GList *item_list)
 {
@@ -88,27 +67,20 @@ nautilus_menu_item_list_free (GList *item_list)
     g_list_free (item_list);
 }
 
-/* Type initialization */
-
 static void
 nautilus_menu_finalize (GObject *object)
 {
     NautilusMenu *menu = NAUTILUS_MENU (object);
 
-    if (menu->priv->item_list)
-    {
-        g_list_free (menu->priv->item_list);
-    }
+    g_clear_pointer (&menu->item_list, g_list_free);
 
     G_OBJECT_CLASS (nautilus_menu_parent_class)->finalize (object);
 }
 
 static void
-nautilus_menu_init (NautilusMenu *menu)
+nautilus_menu_init (NautilusMenu *self)
 {
-    menu->priv = NAUTILUS_MENU_GET_PRIVATE (menu);
-
-    menu->priv->item_list = NULL;
+    self->item_list = NULL;
 }
 
 static void
@@ -116,19 +88,11 @@ nautilus_menu_class_init (NautilusMenuClass *klass)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
-    g_type_class_add_private (klass, sizeof (NautilusMenuPrivate));
-
     object_class->finalize = nautilus_menu_finalize;
 }
-
-/* public constructors */
 
 NautilusMenu *
 nautilus_menu_new (void)
 {
-    NautilusMenu *obj;
-
-    obj = NAUTILUS_MENU (g_object_new (NAUTILUS_TYPE_MENU, NULL));
-
-    return obj;
+    return g_object_new (NAUTILUS_TYPE_MENU, NULL);
 }

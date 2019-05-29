@@ -42,25 +42,42 @@ nautilus_new_folder_dialog_controller_name_is_valid (NautilusFileNameWidgetContr
                                                      gchar                             *name,
                                                      gchar                            **error_message)
 {
+    gboolean is_valid;
+
+    is_valid = TRUE;
     if (strlen (name) == 0)
     {
-        return FALSE;
+        is_valid = FALSE;
     }
-
-    if (strstr (name, "/") != NULL)
+    else if (strstr (name, "/") != NULL)
     {
+        is_valid = FALSE;
         *error_message = _("Folder names cannot contain “/”.");
     }
     else if (strcmp (name, ".") == 0)
     {
+        is_valid = FALSE;
         *error_message = _("A folder cannot be called “.”.");
     }
     else if (strcmp (name, "..") == 0)
     {
+        is_valid = FALSE;
         *error_message = _("A folder cannot be called “..”.");
     }
+    else if (nautilus_file_name_widget_controller_is_name_too_long (self, name))
+    {
+        is_valid = FALSE;
+        *error_message = _("Folder name is too long.");
+    }
 
-    return *error_message == NULL;
+    if (is_valid && g_str_has_prefix (name, "."))
+    {
+        /* We must warn about the side effect */
+        *error_message = _("Folders with “.” at the beginning of their name are hidden.");
+        return TRUE;
+    }
+
+    return is_valid;
 }
 
 static void

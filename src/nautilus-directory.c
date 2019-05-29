@@ -19,25 +19,28 @@
  *  Author: Darin Adler <darin@bentspoon.com>
  */
 
-#include <config.h>
 #include "nautilus-directory-private.h"
 
-#include "nautilus-directory-notify.h"
-#include "nautilus-file-attributes.h"
-#include "nautilus-file-private.h"
-#include "nautilus-file-utilities.h"
-#include "nautilus-search-directory.h"
-#include "nautilus-search-directory-file.h"
-#include "nautilus-vfs-file.h"
-#include "nautilus-global-preferences.h"
-#include "nautilus-lib-self-check-functions.h"
-#include "nautilus-metadata.h"
-#include "nautilus-profile.h"
-#include "nautilus-vfs-directory.h"
 #include <eel/eel-glib-extensions.h>
 #include <eel/eel-string.h>
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
+
+#include "nautilus-directory-notify.h"
+#include "nautilus-directory-private.h"
+#include "nautilus-enums.h"
+#include "nautilus-file-private.h"
+#include "nautilus-file-queue.h"
+#include "nautilus-file-utilities.h"
+#include "nautilus-global-preferences.h"
+#include "nautilus-lib-self-check-functions.h"
+#include "nautilus-metadata.h"
+#include "nautilus-profile.h"
+#include "nautilus-search-directory-file.h"
+#include "nautilus-search-directory.h"
+#include "nautilus-starred-directory.h"
+#include "nautilus-vfs-directory.h"
+#include "nautilus-vfs-file.h"
 
 enum
 {
@@ -59,18 +62,157 @@ static GParamSpec *properties[NUM_PROPERTIES] = { NULL, };
 
 static GHashTable *directories;
 
-static void               nautilus_directory_finalize (GObject *object);
 static NautilusDirectory *nautilus_directory_new (GFile *location);
-static GList *real_get_file_list (NautilusDirectory *directory);
-static gboolean           real_is_editable (NautilusDirectory *directory);
 static void               set_directory_location (NautilusDirectory *directory,
                                                   GFile             *location);
-static NautilusFile *real_new_file_from_filename (NautilusDirectory *directory,
-                                                  const char        *filename,
-                                                  gboolean           self_owned);
-static gboolean           real_handles_location (GFile *location);
 
 G_DEFINE_TYPE (NautilusDirectory, nautilus_directory, G_TYPE_OBJECT);
+
+static gboolean
+real_contains_file (NautilusDirectory *self,
+                    NautilusFile      *file)
+{
+    NautilusDirectory *directory;
+
+    directory = nautilus_file_get_directory (file);
+
+    return directory == self;
+}
+
+static gboolean
+real_are_all_files_seen (NautilusDirectory *directory)
+{
+    return directory->details->directory_loaded;
+}
+
+static gboolean
+real_is_not_empty (NautilusDirectory *directory)
+{
+    return directory->details->file_list != NULL;
+}
+
+static gboolean
+is_tentative (NautilusFile *file,
+              gpointer      callback_data)
+{
+    g_assert (callback_data == NULL);
+
+    /* Avoid returning files with !is_added, because these
+     * will later be sent with the files_added signal, and a
+     * user doing get_file_list + files_added monitoring will
+     * then see the file twice */
+    return !file->details->got_file_info || !file->details->is_added;
+}
+
+static GList *
+real_get_file_list (NautilusDirectory *directory)
+{
+    GList *tentative_files, *non_tentative_files;
+
+    tentative_files = nautilus_file_list_filter (directory->details->file_list,
+                                                 &non_tentative_files, is_tentative, NULL);
+    nautilus_file_list_free (tentative_files);
+
+    return non_tentative_files;
+}
+
+static gboolean
+real_is_editable (NautilusDirectory *directory)
+{
+    return TRUE;
+}
+
+static NautilusFile *
+real_new_file_from_filename (NautilusDirectory *directory,
+                             const char        *filename,
+                             gboolean           self_owned)
+{
+    NautilusFile *file;
+
+    g_assert (NAUTILUS_IS_DIRECTORY (directory));
+    g_assert (filename != NULL);
+    g_assert (filename[0] != '\0');
+
+    if (NAUTILUS_IS_SEARCH_DIRECTORY (directory))
+    {
+        if (self_owned)
+        {
+            file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE, NULL));
+        }
+        else
+        {
+            /* This doesn't normally happen, unless the user somehow types in a uri
+             * that references a file like this. (See #349840) */
+            file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_VFS_FILE, NULL));
+        }
+    }
+    else
+    {
+        file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_VFS_FILE, NULL));
+    }
+    nautilus_file_set_directory (file, directory);
+
+    return file;
+}
+
+static gboolean
+real_handles_location (GFile *location)
+{
+    /* This class is the fallback on handling any location */
+    return TRUE;
+}
+
+static void
+nautilus_directory_finalize (GObject *object)
+{
+    NautilusDirectory *directory;
+
+    directory = NAUTILUS_DIRECTORY (object);
+
+    g_hash_table_remove (directories, directory->details->location);
+
+    nautilus_directory_cancel (directory);
+    g_assert (directory->details->count_in_progress == NULL);
+
+    if (directory->details->monitor_list != NULL)
+    {
+        g_warning ("destroying a NautilusDirectory while it's being monitored");
+        g_list_free_full (directory->details->monitor_list, g_free);
+    }
+
+    if (directory->details->monitor != NULL)
+    {
+        nautilus_monitor_cancel (directory->details->monitor);
+    }
+
+    if (directory->details->dequeue_pending_idle_id != 0)
+    {
+        g_source_remove (directory->details->dequeue_pending_idle_id);
+    }
+
+    if (directory->details->call_ready_idle_id != 0)
+    {
+        g_source_remove (directory->details->call_ready_idle_id);
+    }
+
+    if (directory->details->location)
+    {
+        g_object_unref (directory->details->location);
+    }
+
+    g_assert (directory->details->file_list == NULL);
+    g_hash_table_destroy (directory->details->file_hash);
+
+    nautilus_file_queue_destroy (directory->details->high_priority_queue);
+    nautilus_file_queue_destroy (directory->details->low_priority_queue);
+    nautilus_file_queue_destroy (directory->details->extension_queue);
+    g_assert (directory->details->directory_load_in_progress == NULL);
+    g_assert (directory->details->count_in_progress == NULL);
+    g_assert (directory->details->dequeue_pending_idle_id == 0);
+    g_list_free_full (directory->details->pending_file_info, g_object_unref);
+
+    G_OBJECT_CLASS (nautilus_directory_parent_class)->finalize (object);
+}
 
 static void
 nautilus_directory_set_property (GObject      *object,
@@ -127,7 +269,13 @@ nautilus_directory_class_init (NautilusDirectoryClass *klass)
 
     object_class = G_OBJECT_CLASS (klass);
 
+    klass->contains_file = real_contains_file;
+    klass->are_all_files_seen = real_are_all_files_seen;
+    klass->is_not_empty = real_is_not_empty;
+    klass->get_file_list = real_get_file_list;
+    klass->is_editable = real_is_editable;
     klass->new_file_from_filename = real_new_file_from_filename;
+    klass->handles_location = real_handles_location;
 
     object_class->finalize = nautilus_directory_finalize;
     object_class->set_property = nautilus_directory_set_property;
@@ -173,10 +321,6 @@ nautilus_directory_class_init (NautilusDirectoryClass *klass)
                              G_TYPE_FILE,
                              G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
 
-    klass->get_file_list = real_get_file_list;
-    klass->is_editable = real_is_editable;
-    klass->handles_location = real_handles_location;
-
     g_type_class_add_private (klass, sizeof (NautilusDirectoryDetails));
     g_object_class_install_properties (object_class, NUM_PROPERTIES, properties);
 }
@@ -185,7 +329,8 @@ static void
 nautilus_directory_init (NautilusDirectory *directory)
 {
     directory->details = G_TYPE_INSTANCE_GET_PRIVATE ((directory), NAUTILUS_TYPE_DIRECTORY, NautilusDirectoryDetails);
-    directory->details->file_hash = g_hash_table_new (g_str_hash, g_str_equal);
+    directory->details->file_hash = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                           g_free, NULL);
     directory->details->high_priority_queue = nautilus_file_queue_new ();
     directory->details->low_priority_queue = nautilus_file_queue_new ();
     directory->details->extension_queue = nautilus_file_queue_new ();
@@ -219,58 +364,6 @@ nautilus_directory_unref (NautilusDirectory *directory)
 }
 
 static void
-nautilus_directory_finalize (GObject *object)
-{
-    NautilusDirectory *directory;
-
-    directory = NAUTILUS_DIRECTORY (object);
-
-    g_hash_table_remove (directories, directory->details->location);
-
-    nautilus_directory_cancel (directory);
-    g_assert (directory->details->count_in_progress == NULL);
-
-    if (directory->details->monitor_list != NULL)
-    {
-        g_warning ("destroying a NautilusDirectory while it's being monitored");
-        g_list_free_full (directory->details->monitor_list, g_free);
-    }
-
-    if (directory->details->monitor != NULL)
-    {
-        nautilus_monitor_cancel (directory->details->monitor);
-    }
-
-    if (directory->details->dequeue_pending_idle_id != 0)
-    {
-        g_source_remove (directory->details->dequeue_pending_idle_id);
-    }
-
-    if (directory->details->call_ready_idle_id != 0)
-    {
-        g_source_remove (directory->details->call_ready_idle_id);
-    }
-
-    if (directory->details->location)
-    {
-        g_object_unref (directory->details->location);
-    }
-
-    g_assert (directory->details->file_list == NULL);
-    g_hash_table_destroy (directory->details->file_hash);
-
-    nautilus_file_queue_destroy (directory->details->high_priority_queue);
-    nautilus_file_queue_destroy (directory->details->low_priority_queue);
-    nautilus_file_queue_destroy (directory->details->extension_queue);
-    g_assert (directory->details->directory_load_in_progress == NULL);
-    g_assert (directory->details->count_in_progress == NULL);
-    g_assert (directory->details->dequeue_pending_idle_id == 0);
-    g_list_free_full (directory->details->pending_file_info, g_object_unref);
-
-    G_OBJECT_CLASS (nautilus_directory_parent_class)->finalize (object);
-}
-
-static void
 collect_all_directories (gpointer key,
                          gpointer value,
                          gpointer callback_data)
@@ -287,8 +380,7 @@ collect_all_directories (gpointer key,
 static void
 filtering_changed_callback (gpointer callback_data)
 {
-    GList *dirs, *l;
-    NautilusDirectory *directory;
+    g_autolist (NautilusDirectory) dirs = NULL;
 
     g_assert (callback_data == NULL);
 
@@ -298,13 +390,14 @@ filtering_changed_callback (gpointer callback_data)
     /* Preference about which items to show has changed, so we
      * can't trust any of our precomputed directory counts.
      */
-    for (l = dirs; l != NULL; l = l->next)
+    for (GList *l = dirs; l != NULL; l = l->next)
     {
+        NautilusDirectory *directory;
+
         directory = NAUTILUS_DIRECTORY (l->data);
+
         nautilus_directory_invalidate_count_and_mime_list (directory);
     }
-
-    nautilus_directory_list_unref (dirs);
 }
 
 void
@@ -591,13 +684,6 @@ nautilus_directory_get_location (NautilusDirectory *directory)
     return g_object_ref (directory->details->location);
 }
 
-static gboolean
-real_handles_location (GFile *location)
-{
-    /* This class is the fallback on handling any location */
-    return TRUE;
-}
-
 NautilusFile *
 nautilus_directory_new_file_from_filename (NautilusDirectory *directory,
                                            const char        *filename,
@@ -608,39 +694,6 @@ nautilus_directory_new_file_from_filename (NautilusDirectory *directory,
                                                                                               self_owned);
 }
 
-static NautilusFile *
-real_new_file_from_filename (NautilusDirectory *directory,
-                             const char        *filename,
-                             gboolean           self_owned)
-{
-    NautilusFile *file;
-
-    g_assert (NAUTILUS_IS_DIRECTORY (directory));
-    g_assert (filename != NULL);
-    g_assert (filename[0] != '\0');
-
-    if (NAUTILUS_IS_SEARCH_DIRECTORY (directory))
-    {
-        if (self_owned)
-        {
-            file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE, NULL));
-        }
-        else
-        {
-            /* This doesn't normally happen, unless the user somehow types in a uri
-             * that references a file like this. (See #349840) */
-            file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_VFS_FILE, NULL));
-        }
-    }
-    else
-    {
-        file = NAUTILUS_FILE (g_object_new (NAUTILUS_TYPE_VFS_FILE, NULL));
-    }
-    nautilus_file_set_directory (file, directory);
-
-    return file;
-}
-
 static GList *
 nautilus_directory_provider_get_all (void)
 {
@@ -648,6 +701,10 @@ nautilus_directory_provider_get_all (void)
     GList *extensions;
 
     extension_point = g_io_extension_point_lookup (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME);
+    if (extension_point == NULL)
+    {
+        g_warning ("Directory provider extension point not registered. Did you call nautilus_ensure_extension_points()?");
+    }
     extensions = g_io_extension_point_get_extensions (extension_point);
 
     return extensions;
@@ -757,18 +814,29 @@ nautilus_directory_is_in_recent (NautilusDirectory *directory)
 }
 
 gboolean
-nautilus_directory_is_remote (NautilusDirectory *directory)
+nautilus_directory_is_in_starred (NautilusDirectory *directory)
 {
-    NautilusFile *file;
-    gboolean is_remote;
-
     g_assert (NAUTILUS_IS_DIRECTORY (directory));
 
-    file = nautilus_directory_get_corresponding_file (directory);
-    is_remote = nautilus_file_is_remote (file);
-    nautilus_file_unref (file);
+    if (directory->details->location == NULL)
+    {
+        return FALSE;
+    }
 
-    return is_remote;
+    return g_file_has_uri_scheme (directory->details->location, "starred");
+}
+
+gboolean
+nautilus_directory_is_in_admin (NautilusDirectory *directory)
+{
+    g_assert (NAUTILUS_IS_DIRECTORY (directory));
+
+    if (directory->details->location == NULL)
+    {
+        return FALSE;
+    }
+
+    return g_file_has_uri_scheme (directory->details->location, "admin");
 }
 
 gboolean
@@ -784,24 +852,25 @@ add_to_hash_table (NautilusDirectory *directory,
                    NautilusFile      *file,
                    GList             *node)
 {
-    const char *name;
+    gchar *name;
 
-    name = eel_ref_str_peek (file->details->name);
+    name = nautilus_file_get_name (file);
 
+    g_assert (name != NULL);
     g_assert (node != NULL);
     g_assert (g_hash_table_lookup (directory->details->file_hash,
                                    name) == NULL);
-    g_hash_table_insert (directory->details->file_hash, (char *) name, node);
+    g_hash_table_insert (directory->details->file_hash, name, node);
 }
 
 static GList *
 extract_from_hash_table (NautilusDirectory *directory,
                          NautilusFile      *file)
 {
-    const char *name;
+    g_autofree gchar *name = NULL;
     GList *node;
 
-    name = eel_ref_str_peek (file->details->name);
+    name = nautilus_file_get_name (file);
     if (name == NULL)
     {
         return NULL;
@@ -823,7 +892,6 @@ nautilus_directory_add_file (NautilusDirectory *directory,
 
     g_assert (NAUTILUS_IS_DIRECTORY (directory));
     g_assert (NAUTILUS_IS_FILE (file));
-    g_assert (file->details->name != NULL);
 
     /* Add to list. */
     node = g_list_prepend (directory->details->file_list, file);
@@ -863,7 +931,6 @@ nautilus_directory_remove_file (NautilusDirectory *directory,
 
     g_assert (NAUTILUS_IS_DIRECTORY (directory));
     g_assert (NAUTILUS_IS_FILE (file));
-    g_assert (file->details->name != NULL);
 
     /* Find the list node in the hash table. */
     node = extract_from_hash_table (directory, file);
@@ -1046,7 +1113,7 @@ call_files_added_free_list (gpointer key,
 }
 
 static void
-call_files_changed_common (NautilusDirectory *directory,
+call_files_changed_common (NautilusDirectory *self,
                            GList             *file_list)
 {
     GList *node;
@@ -1054,15 +1121,18 @@ call_files_changed_common (NautilusDirectory *directory,
 
     for (node = file_list; node != NULL; node = node->next)
     {
+        NautilusDirectory *directory;
+
         file = node->data;
-        if (file->details->directory == directory)
+        directory = nautilus_file_get_directory (file);
+
+        if (directory == self)
         {
-            nautilus_directory_add_file_to_work_queue (directory,
-                                                       file);
+            nautilus_directory_add_file_to_work_queue (self, file);
         }
     }
-    nautilus_directory_async_state_changed (directory);
-    nautilus_directory_emit_change_signals (directory, file_list);
+    nautilus_directory_async_state_changed (self);
+    nautilus_directory_emit_change_signals (self, file_list);
 }
 
 static void
@@ -1249,16 +1319,17 @@ nautilus_directory_notify_files_changed (GList *files)
         file = nautilus_file_get_existing (location);
         if (file != NULL)
         {
+            NautilusDirectory *directory;
+
+            directory = nautilus_file_get_directory (file);
+
             /* Tell it to re-get info now, and later emit
              * a changed signal.
              */
             file->details->file_info_is_up_to_date = FALSE;
-            file->details->link_info_is_up_to_date = FALSE;
             nautilus_file_invalidate_extension_info_internal (file);
 
-            hash_table_list_prepend (changed_lists,
-                                     file->details->directory,
-                                     file);
+            hash_table_list_prepend (changed_lists, directory, file);
         }
     }
 
@@ -1272,7 +1343,6 @@ nautilus_directory_notify_files_removed (GList *files)
 {
     GHashTable *changed_lists;
     GList *p;
-    NautilusDirectory *directory;
     GHashTable *parent_directories;
     NautilusFile *file;
     GFile *location;
@@ -1286,6 +1356,8 @@ nautilus_directory_notify_files_removed (GList *files)
     /* Go through all the notifications. */
     for (p = files; p != NULL; p = p->next)
     {
+        NautilusDirectory *directory;
+
         location = p->data;
 
         /* Update file count for parent directory if anyone might care. */
@@ -1300,11 +1372,12 @@ nautilus_directory_notify_files_removed (GList *files)
         file = nautilus_file_get_existing (location);
         if (file != NULL && !nautilus_file_rename_in_progress (file))
         {
+            directory = nautilus_file_get_directory (file);
+
             /* Mark it gone and prepare to send the changed signal. */
             nautilus_file_mark_gone (file);
             hash_table_list_prepend (changed_lists,
-                                     file->details->directory,
-                                     nautilus_file_ref (file));
+                                     directory, nautilus_file_ref (file));
         }
         nautilus_file_unref (file);
     }
@@ -1462,10 +1535,12 @@ nautilus_directory_moved (const char *old_uri,
     list = nautilus_directory_moved_internal (old_location, new_location);
     for (node = list; node != NULL; node = node->next)
     {
+        NautilusDirectory *directory;
+
         file = NAUTILUS_FILE (node->data);
-        hash_table_list_prepend (hash,
-                                 file->details->directory,
-                                 nautilus_file_ref (file));
+        directory = nautilus_file_get_directory (file);
+
+        hash_table_list_prepend (hash, directory, nautilus_file_ref (file));
     }
     nautilus_file_list_free (list);
 
@@ -1511,14 +1586,14 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
         file = nautilus_file_get_existing (to_location);
         if (file != NULL)
         {
+            NautilusDirectory *directory;
+
+            directory = nautilus_file_get_directory (file);
+
             /* Mark it gone and prepare to send the changed signal. */
             nautilus_file_mark_gone (file);
-            new_directory = file->details->directory;
-            hash_table_list_prepend (changed_lists,
-                                     new_directory,
-                                     file);
-            collect_parent_directories (parent_directories,
-                                        new_directory);
+            hash_table_list_prepend (changed_lists, directory, file);
+            collect_parent_directories (parent_directories, directory);
         }
 
         /* Update any directory objects that are affected. */
@@ -1526,10 +1601,11 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
                                                             to_location);
         for (node = affected_files; node != NULL; node = node->next)
         {
+            NautilusDirectory *directory;
+
             file = NAUTILUS_FILE (node->data);
-            hash_table_list_prepend (changed_lists,
-                                     file->details->directory,
-                                     file);
+            directory = nautilus_file_get_directory (file);
+            hash_table_list_prepend (changed_lists, directory, file);
         }
         unref_list = g_list_concat (unref_list, affected_files);
 
@@ -1543,8 +1619,12 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
         }
         else
         {
+            NautilusDirectory *directory;
+
+            directory = nautilus_file_get_directory (file);
+
             /* Handle notification in the old directory. */
-            old_directory = file->details->directory;
+            old_directory = directory;
             collect_parent_directories (parent_directories, old_directory);
 
             /* Cancel loading of attributes in the old directory */
@@ -1601,70 +1681,6 @@ nautilus_directory_notify_files_moved (GList *file_pairs)
     /* Separate handling for brand new file objects. */
     nautilus_directory_notify_files_added (new_files_list);
     g_list_free (new_files_list);
-}
-
-void
-nautilus_directory_schedule_position_set (GList *position_setting_list)
-{
-    GList *p;
-    const NautilusFileChangesQueuePosition *item;
-    NautilusFile *file;
-    char str[64];
-    time_t now;
-
-    time (&now);
-
-    for (p = position_setting_list; p != NULL; p = p->next)
-    {
-        item = (NautilusFileChangesQueuePosition *) p->data;
-
-        file = nautilus_file_get (item->location);
-
-        if (item->set)
-        {
-            g_snprintf (str, sizeof (str), "%d,%d", item->point.x, item->point.y);
-        }
-        else
-        {
-            str[0] = 0;
-        }
-        nautilus_file_set_metadata
-            (file,
-            NAUTILUS_METADATA_KEY_ICON_POSITION,
-            NULL,
-            str);
-
-        if (item->set)
-        {
-            nautilus_file_set_time_metadata
-                (file,
-                NAUTILUS_METADATA_KEY_ICON_POSITION_TIMESTAMP,
-                now);
-        }
-        else
-        {
-            nautilus_file_set_time_metadata
-                (file,
-                NAUTILUS_METADATA_KEY_ICON_POSITION_TIMESTAMP,
-                UNDEFINED_TIME);
-        }
-
-        if (item->set)
-        {
-            g_snprintf (str, sizeof (str), "%d", item->screen);
-        }
-        else
-        {
-            str[0] = 0;
-        }
-        nautilus_file_set_metadata
-            (file,
-            NAUTILUS_METADATA_KEY_SCREEN,
-            NULL,
-            str);
-
-        nautilus_file_unref (file);
-    }
 }
 
 gboolean
@@ -1778,41 +1794,10 @@ nautilus_directory_is_not_empty (NautilusDirectory *directory)
     return NAUTILUS_DIRECTORY_CLASS (G_OBJECT_GET_CLASS (directory))->is_not_empty (directory);
 }
 
-static gboolean
-is_tentative (NautilusFile *file,
-              gpointer      callback_data)
-{
-    g_assert (callback_data == NULL);
-
-    /* Avoid returning files with !is_added, because these
-     * will later be sent with the files_added signal, and a
-     * user doing get_file_list + files_added monitoring will
-     * then see the file twice */
-    return !file->details->got_file_info || !file->details->is_added;
-}
-
 GList *
 nautilus_directory_get_file_list (NautilusDirectory *directory)
 {
     return NAUTILUS_DIRECTORY_CLASS (G_OBJECT_GET_CLASS (directory))->get_file_list (directory);
-}
-
-static GList *
-real_get_file_list (NautilusDirectory *directory)
-{
-    GList *tentative_files, *non_tentative_files;
-
-    tentative_files = nautilus_file_list_filter (directory->details->file_list,
-                                                 &non_tentative_files, is_tentative, NULL);
-    nautilus_file_list_free (tentative_files);
-
-    return non_tentative_files;
-}
-
-static gboolean
-real_is_editable (NautilusDirectory *directory)
-{
-    return TRUE;
 }
 
 gboolean
@@ -1945,7 +1930,6 @@ nautilus_directory_list_sort_by_uri (GList *list)
 #if !defined (NAUTILUS_OMIT_SELF_CHECK)
 
 #include <eel/eel-debug.h>
-#include "nautilus-file-attributes.h"
 
 static int data_dummy;
 static gboolean got_files_flag;

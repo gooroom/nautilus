@@ -7,7 +7,7 @@ Copyright Holders and Upstream Authors:
   Copyright (C) 1995-1997 Peter Mattis, Spencer Kimball and Josh MacDonald
   Copyright (C) 1997-2000, 2008 Free Software Foundation, Inc.
   Copyright (C) 1999, 2000, 2001 Eazel, Inc.
-  Copyright (C) 1999, 2000, 2003, 2004 Red Hat, Inc.
+  Copyright (C) 1999-2017 Red Hat, Inc.
   Copyright (C) 2001, 2002 Anders Carlsson
   Copyright (C) 2001 Maciej Stachowiak
   Copyright (C) 2002, 2004 James Willcox
@@ -29,13 +29,16 @@ Copyright Holders and Upstream Authors:
   Copyright (C) 2007 Nokia Corporation
   Copyright (C) 2008-2010 Cosimo Cecchi
   Copyright (C) 2009 Alexander Larsson
+  Copyright (C) 2010 Carlos Garcia Campos
   Copyright (C) 2011 Ignacio Casal Quinteiro
+  Copyright (C) 2018 Ernestas Kulik
+  Copyright (C) 2018 Canonical Ltd.
 
 License:
 
    This package is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This package is distributed in the hope that it will be useful,
@@ -44,8 +47,7 @@ License:
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this package; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 On Debian systems, the complete text of the GNU General
-Public License can be found in `/usr/share/common-licenses/GPL'.
+Public License can be found in `/usr/share/common-licenses/GPL-3'.

@@ -20,29 +20,37 @@
  *
  */
 
-#include <config.h>
-
 #include "nautilus-toolbar.h"
-
-#include "nautilus-location-entry.h"
-#include "nautilus-pathbar.h"
-#include "nautilus-window.h"
-#include "nautilus-progress-info-widget.h"
-#include "nautilus-application.h"
-
-#include "nautilus-global-preferences.h"
-#include "nautilus-ui-utilities.h"
-#include "nautilus-progress-info-manager.h"
-#include "nautilus-file-operations.h"
-#include "nautilus-file-undo-manager.h"
-#include "nautilus-toolbar-menu-sections.h"
 
 #include <glib/gi18n.h>
 #include <math.h>
 
+#include "animation/ide-box-theatric.h"
+#include "animation/egg-animation.h"
+
+#include "nautilus-application.h"
+#include "nautilus-bookmark.h"
+#include "nautilus-file-operations.h"
+#include "nautilus-file-undo-manager.h"
+#include "nautilus-global-preferences.h"
+#include "nautilus-location-entry.h"
+#include "nautilus-pathbar.h"
+#include "nautilus-progress-info-manager.h"
+#include "nautilus-progress-info-widget.h"
+#include "nautilus-toolbar-menu-sections.h"
+#include "nautilus-ui-utilities.h"
+#include "nautilus-window.h"
+#include "nautilus-container-max-width.h"
+
 #define OPERATION_MINIMUM_TIME 2 /*s */
 #define NEEDS_ATTENTION_ANIMATION_TIMEOUT 2000 /*ms */
 #define REMOVE_FINISHED_OPERATIONS_TIEMOUT 3 /*s */
+
+#define ANIMATION_X_GROW 30
+#define ANIMATION_Y_GROW 30
+
+/* Just design, context at https://gitlab.gnome.org/GNOME/nautilus/issues/548#note_274131 */
+#define SWITCHER_MAX_WIDTH 840
 
 typedef enum
 {
@@ -59,12 +67,16 @@ struct _NautilusToolbar
 
     GtkWidget *path_bar_container;
     GtkWidget *location_entry_container;
+    GtkWidget *search_container;
+    GtkWidget *toolbar_switcher;
+    GtkWidget *toolbar_switcher_container;
+    NautilusContainerMaxWidth *toolbar_switcher_container_max_width;
     GtkWidget *path_bar;
     GtkWidget *location_entry;
 
     gboolean show_location_entry;
+    gboolean location_entry_should_auto_hide;
 
-    guint popup_timeout_id;
     guint start_operations_timeout_id;
     guint remove_finished_operations_timeout_id;
     guint operations_button_attention_timeout_id;
@@ -85,20 +97,27 @@ struct _NautilusToolbar
     GtkWidget *operations_icon;
 
     GtkWidget *forward_button;
+    GtkGesture *forward_button_longpress_gesture;
+    GtkGesture *forward_button_multi_press_gesture;
+
     GtkWidget *back_button;
+    GtkGesture *back_button_longpress_gesture;
+    GtkGesture *back_button_multi_press_gesture;
+
+    GtkWidget *location_entry_close_button;
 
     NautilusProgressInfoManager *progress_manager;
 
     /* active slot & bindings */
-    NautilusWindowSlot *active_slot;
+    NautilusWindowSlot *window_slot;
     GBinding *icon_binding;
-    GBinding *view_widget_binding;
 };
 
 enum
 {
     PROP_WINDOW = 1,
     PROP_SHOW_LOCATION_ENTRY,
+    PROP_WINDOW_SLOT,
     NUM_PROPERTIES
 };
 
@@ -106,8 +125,9 @@ static GParamSpec *properties[NUM_PROPERTIES] = { NULL, };
 
 G_DEFINE_TYPE (NautilusToolbar, nautilus_toolbar, GTK_TYPE_HEADER_BAR);
 
-static void unschedule_menu_popup_timeout (NautilusToolbar *self);
-static void update_operations (NautilusToolbar *self);
+static void nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
+                                                   NautilusWindowSlot *slot);
+static void update_operations                     (NautilusToolbar    *self);
 
 static void
 toolbar_update_appearance (NautilusToolbar *self)
@@ -118,10 +138,20 @@ toolbar_update_appearance (NautilusToolbar *self)
                           g_settings_get_boolean (nautilus_preferences,
                                                   NAUTILUS_PREFERENCES_ALWAYS_USE_LOCATION_ENTRY);
 
-    gtk_widget_set_visible (self->location_entry,
-                            show_location_entry);
-    gtk_widget_set_visible (self->path_bar,
-                            !show_location_entry);
+
+    if (self->window_slot != NULL &&
+        nautilus_window_slot_get_searching (self->window_slot))
+    {
+        gtk_stack_set_visible_child_name (GTK_STACK (self->toolbar_switcher), "search");
+    }
+    else if (show_location_entry)
+    {
+        gtk_stack_set_visible_child_name (GTK_STACK (self->toolbar_switcher), "location");
+    }
+    else
+    {
+        gtk_stack_set_visible_child_name (GTK_STACK (self->toolbar_switcher), "pathbar");
+    }
 }
 
 static void
@@ -139,32 +169,30 @@ activate_back_or_forward_menu_item (GtkMenuItem    *menu_item,
 }
 
 static void
-activate_back_menu_item_callback (GtkMenuItem    *menu_item,
-                                  NautilusWindow *window)
+activate_back_menu_item_callback (GtkMenuItem     *menu_item,
+                                  NautilusToolbar *self)
 {
-    activate_back_or_forward_menu_item (menu_item, window, TRUE);
+    activate_back_or_forward_menu_item (menu_item, self->window, TRUE);
 }
 
 static void
-activate_forward_menu_item_callback (GtkMenuItem    *menu_item,
-                                     NautilusWindow *window)
+activate_forward_menu_item_callback (GtkMenuItem     *menu_item,
+                                     NautilusToolbar *self)
 {
-    activate_back_or_forward_menu_item (menu_item, window, FALSE);
+    activate_back_or_forward_menu_item (menu_item, self->window, FALSE);
 }
 
 static void
-fill_menu (NautilusWindow *window,
-           GtkWidget      *menu,
-           gboolean        back)
+fill_menu (NautilusToolbar *self,
+           GtkWidget       *menu,
+           gboolean         back)
 {
-    NautilusWindowSlot *slot;
     GtkWidget *menu_item;
     int index;
     GList *list;
 
-    slot = nautilus_window_get_active_slot (window);
-    list = back ? nautilus_window_slot_get_back_history (slot) :
-           nautilus_window_slot_get_forward_history (slot);
+    list = back ? nautilus_window_slot_get_back_history (self->window_slot) :
+                  nautilus_window_slot_get_forward_history (self->window_slot);
 
     index = 0;
     while (list != NULL)
@@ -176,7 +204,7 @@ fill_menu (NautilusWindow *window,
                                  back
                                  ? G_CALLBACK (activate_back_menu_item_callback)
                                  : G_CALLBACK (activate_forward_menu_item_callback),
-                                 window, 0);
+                                 self, 0);
 
         gtk_menu_shell_append (GTK_MENU_SHELL (menu), menu_item);
         list = g_list_next (list);
@@ -184,84 +212,14 @@ fill_menu (NautilusWindow *window,
     }
 }
 
-/* adapted from gtk/gtkmenubutton.c */
-static void
-menu_position_func (GtkMenu   *menu,
-                    gint      *x,
-                    gint      *y,
-                    gboolean  *push_in,
-                    GtkWidget *widget)
-{
-    GtkWidget *toplevel;
-    GtkRequisition menu_req;
-    GdkRectangle monitor;
-    gint monitor_num;
-    GdkScreen *screen;
-    GdkWindow *window;
-    GtkAllocation allocation;
-
-    /* Set the dropdown menu hint on the toplevel, so the WM can omit the top side
-     * of the shadows.
-     */
-    toplevel = gtk_widget_get_toplevel (GTK_WIDGET (menu));
-    gtk_window_set_type_hint (GTK_WINDOW (toplevel), GDK_WINDOW_TYPE_HINT_DROPDOWN_MENU);
-
-    window = gtk_widget_get_window (widget);
-    screen = gtk_widget_get_screen (GTK_WIDGET (menu));
-    monitor_num = gdk_screen_get_monitor_at_window (screen, window);
-    if (monitor_num < 0)
-    {
-        monitor_num = 0;
-    }
-
-    gdk_screen_get_monitor_workarea (screen, monitor_num, &monitor);
-    gtk_widget_get_preferred_size (GTK_WIDGET (menu), &menu_req, NULL);
-    gtk_widget_get_allocation (widget, &allocation);
-    gdk_window_get_origin (window, x, y);
-
-    *x += allocation.x;
-    *y += allocation.y;
-
-    if (gtk_widget_get_direction (widget) == GTK_TEXT_DIR_RTL)
-    {
-        *x -= MAX (menu_req.width - allocation.width, 0);
-    }
-    else
-    {
-        *x += MAX (allocation.width - menu_req.width, 0);
-    }
-
-    if ((*y + allocation.height + menu_req.height) <= monitor.y + monitor.height)
-    {
-        *y += allocation.height;
-    }
-    else if ((*y - menu_req.height) >= monitor.y)
-    {
-        *y -= menu_req.height;
-    }
-    else if (monitor.y + monitor.height - (*y + allocation.height) > *y)
-    {
-        *y += allocation.height;
-    }
-    else
-    {
-        *y -= menu_req.height;
-    }
-
-    *push_in = FALSE;
-}
-
 static void
 show_menu (NautilusToolbar *self,
            GtkWidget       *widget,
-           guint            button,
-           guint32          event_time)
+           const GdkEvent  *event)
 {
-    NautilusWindow *window;
     GtkWidget *menu;
     NautilusNavigationDirection direction;
 
-    window = self->window;
     menu = gtk_menu_new ();
 
     direction = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (widget),
@@ -271,13 +229,13 @@ show_menu (NautilusToolbar *self,
     {
         case NAUTILUS_NAVIGATION_DIRECTION_FORWARD:
         {
-            fill_menu (window, menu, FALSE);
+            fill_menu (self, menu, FALSE);
         }
         break;
 
         case NAUTILUS_NAVIGATION_DIRECTION_BACK:
         {
-            fill_menu (window, menu, TRUE);
+            fill_menu (self, menu, TRUE);
         }
         break;
 
@@ -288,96 +246,63 @@ show_menu (NautilusToolbar *self,
         break;
     }
 
-    gtk_menu_attach_to_widget (GTK_MENU (menu), GTK_WIDGET (window), NULL);
-    gtk_menu_popup (GTK_MENU (menu), NULL, NULL,
-                    (GtkMenuPositionFunc) menu_position_func, widget,
-                    button, event_time);
+    gtk_menu_attach_to_widget (GTK_MENU (menu), GTK_WIDGET (self->window), NULL);
+    gtk_menu_popup_at_widget (GTK_MENU (menu), widget,
+                              GDK_GRAVITY_SOUTH_WEST,
+                              GDK_GRAVITY_NORTH_WEST,
+                              event);
 }
 
-#define MENU_POPUP_TIMEOUT 1200
-
-typedef struct
+static void
+navigation_button_press_cb (GtkGestureMultiPress *gesture,
+                            gint                  n_press,
+                            gdouble               x,
+                            gdouble               y,
+                            gpointer              user_data)
 {
     NautilusToolbar *self;
     GtkWidget *widget;
-} ScheduleMenuData;
+    GdkEventSequence *sequence;
+    const GdkEvent *event;
 
-static void
-schedule_menu_data_free (ScheduleMenuData *data)
-{
-    g_slice_free (ScheduleMenuData, data);
-}
+    self = NAUTILUS_TOOLBAR (user_data);
+    widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
+    sequence = gtk_gesture_single_get_current_sequence (GTK_GESTURE_SINGLE (gesture));
+    event = gtk_gesture_get_last_event (GTK_GESTURE (gesture), sequence);
 
-static gboolean
-popup_menu_timeout_cb (gpointer user_data)
-{
-    ScheduleMenuData *data = user_data;
-
-    show_menu (data->self, data->widget,
-               1, gtk_get_current_event_time ());
-
-    return FALSE;
+    show_menu (self, widget, event);
 }
 
 static void
-unschedule_menu_popup_timeout (NautilusToolbar *self)
-{
-    if (self->popup_timeout_id != 0)
-    {
-        g_source_remove (self->popup_timeout_id);
-        self->popup_timeout_id = 0;
-    }
-}
-
-static void
-schedule_menu_popup_timeout (NautilusToolbar *self,
-                             GtkWidget       *widget)
-{
-    ScheduleMenuData *data;
-
-    /* unschedule any previous timeouts */
-    unschedule_menu_popup_timeout (self);
-
-    data = g_slice_new0 (ScheduleMenuData);
-    data->self = self;
-    data->widget = widget;
-
-    self->popup_timeout_id = g_timeout_add_full (G_PRIORITY_DEFAULT, MENU_POPUP_TIMEOUT,
-                                                 popup_menu_timeout_cb, data,
-                                                 (GDestroyNotify) schedule_menu_data_free);
-}
-static gboolean
-navigation_button_press_cb (GtkButton      *button,
-                            GdkEventButton *event,
-                            gpointer        user_data)
+back_button_longpress_cb (GtkGestureLongPress *gesture,
+                          double               x,
+                          double               y,
+                          gpointer             user_data)
 {
     NautilusToolbar *self = user_data;
+    GdkEventSequence *sequence;
+    const GdkEvent *event;
 
-    if (event->button == 3)
-    {
-        /* right click */
-        show_menu (self, GTK_WIDGET (button), event->button, event->time);
-        return TRUE;
-    }
+    sequence = gtk_gesture_single_get_current_sequence (GTK_GESTURE_SINGLE (gesture));
+    event = gtk_gesture_get_last_event (GTK_GESTURE (gesture), sequence);
 
-    if (event->button == 1)
-    {
-        schedule_menu_popup_timeout (self, GTK_WIDGET (button));
-    }
-
-    return FALSE;
+    show_menu (self, self->back_button, event);
 }
 
-static gboolean
-navigation_button_release_cb (GtkButton      *button,
-                              GdkEventButton *event,
-                              gpointer        user_data)
+static void
+forward_button_longpress_cb (GtkGestureLongPress *gesture,
+                             double               x,
+                             double               y,
+                             gpointer             user_data)
 {
     NautilusToolbar *self = user_data;
+    GdkEventSequence *sequence;
+    const GdkEvent *event;
 
-    unschedule_menu_popup_timeout (self);
+    sequence = gtk_gesture_single_get_current_sequence (GTK_GESTURE_SINGLE (gesture));
+    event = gtk_gesture_get_last_event (GTK_GESTURE (gesture), sequence);
 
-    return FALSE;
+    show_menu (self, self->forward_button, event);
 }
 
 static gboolean
@@ -632,8 +557,32 @@ update_operations (NautilusToolbar *self)
          * property set. */
         if (gtk_widget_is_visible (GTK_WIDGET (self)))
         {
-            gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (self->operations_button),
-                                          TRUE);
+            GtkAllocation rect;
+            IdeBoxTheatric *theatric;
+
+            gtk_widget_get_allocation (GTK_WIDGET (self->operations_button), &rect);
+            theatric = g_object_new (IDE_TYPE_BOX_THEATRIC,
+                                     "alpha", 0.9,
+                                     "background", "#fdfdfd",
+                                     "target", self->operations_button,
+                                     "height", rect.height,
+                                     "width", rect.width,
+                                     "x", rect.x,
+                                     "y", rect.y,
+                                     NULL);
+
+            egg_object_animate_full (theatric,
+                                     EGG_ANIMATION_EASE_IN_CUBIC,
+                                     250,
+                                     gtk_widget_get_frame_clock (GTK_WIDGET (self->operations_button)),
+                                     g_object_unref,
+                                     theatric,
+                                     "x", rect.x - ANIMATION_X_GROW,
+                                     "width", rect.width + (ANIMATION_X_GROW * 2),
+                                     "y", rect.y - ANIMATION_Y_GROW,
+                                     "height", rect.height + (ANIMATION_Y_GROW * 2),
+                                     "alpha", 0.0,
+                                     NULL);
         }
     }
 
@@ -881,38 +830,123 @@ undo_manager_changed (NautilusToolbar *self)
 
     /* Set the label of the undo and redo menu items, and activate them appropriately
      */
-    undo_label = undo_active && undo_label != NULL ? undo_label : g_strdup (_("_Undo"));
+    if (!undo_active || undo_label == NULL)
+    {
+        g_free (undo_label);
+        undo_label = g_strdup (_("_Undo"));
+    }
     update_menu_item (self->undo_button, self, "undo", undo_active, undo_label);
 
-    redo_label = redo_active && redo_label != NULL ? redo_label : g_strdup (_("_Redo"));
+    if (!redo_active || redo_label == NULL)
+    {
+        g_free (redo_label);
+        redo_label = g_strdup (_("_Redo"));
+    }
     update_menu_item (self->redo_button, self, "redo", redo_active, redo_label);
 }
 
 static void
-nautilus_toolbar_init (NautilusToolbar *self)
+on_notify_width_maximized (NautilusContainerMaxWidth *container,
+                           GParamSpec                *pspec,
+                           gpointer                   user_data)
+{
+    NautilusToolbar *self;
+    GtkStyleContext *context;
+    gboolean width_maximized;
+
+    self = NAUTILUS_TOOLBAR (user_data);
+    context = gtk_widget_get_style_context (self->path_bar_container);
+    width_maximized = nautilus_container_max_width_get_width_maximized (container);
+
+    g_return_if_fail (gtk_style_context_has_class (context, "width-maximized") != width_maximized);
+
+    if (width_maximized)
+    {
+        gtk_style_context_add_class (context, "width-maximized");
+    }
+    else
+    {
+        gtk_style_context_remove_class (context, "width-maximized");
+    }
+}
+
+static void
+on_location_entry_close (GtkWidget       *close_button,
+                         NautilusToolbar *self)
+{
+    nautilus_toolbar_set_show_location_entry (self, FALSE);
+}
+
+static gboolean
+on_location_entry_populate_popup (GtkEntry  *entry,
+                                  GtkWidget *widget,
+                                  gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    toolbar->location_entry_should_auto_hide = FALSE;
+
+    return GDK_EVENT_PROPAGATE;
+}
+
+static void
+on_location_entry_focus_changed (GObject    *object,
+                                 GParamSpec *pspec,
+                                 gpointer    user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = NAUTILUS_TOOLBAR (user_data);
+
+    if (gtk_widget_has_focus (GTK_WIDGET (object)))
+    {
+        toolbar->location_entry_should_auto_hide = TRUE;
+    }
+    else if (toolbar->location_entry_should_auto_hide)
+    {
+        nautilus_toolbar_set_show_location_entry (toolbar, FALSE);
+    }
+}
+
+static void
+nautilus_toolbar_constructed (GObject *object)
 {
     GtkBuilder *builder;
-    GtkWidget *menu_popover;
+    NautilusToolbar *self = NAUTILUS_TOOLBAR (object);
 
-    gtk_widget_init_template (GTK_WIDGET (self));
+    builder = gtk_builder_new_from_resource ("/org/gnome/nautilus/ui/nautilus-toolbar-switcher.ui");
+    self->toolbar_switcher = GTK_WIDGET (gtk_builder_get_object (builder, "toolbar_switcher"));
+    self->search_container = GTK_WIDGET (gtk_builder_get_object (builder, "search_container"));
+    self->path_bar_container = GTK_WIDGET (gtk_builder_get_object (builder, "path_bar_container"));
+    self->location_entry_container = GTK_WIDGET (gtk_builder_get_object (builder, "location_entry_container"));
 
-    builder = gtk_builder_new_from_resource ("/org/gnome/nautilus/ui/nautilus-toolbar-menu.ui");
-    menu_popover = GTK_WIDGET (gtk_builder_get_object (builder, "menu_popover"));
-    self->view_menu_zoom_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_zoom_section"));
-    self->view_menu_undo_redo_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_undo_redo_section"));
-    self->view_menu_extended_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_extended_section"));
-    self->undo_button = GTK_WIDGET (gtk_builder_get_object (builder, "undo"));
-    self->redo_button = GTK_WIDGET (gtk_builder_get_object (builder, "redo"));
-    gtk_menu_button_set_popover (GTK_MENU_BUTTON (self->view_button), menu_popover);
-    g_object_unref (builder);
+    self->toolbar_switcher_container_max_width = nautilus_container_max_width_new ();
+    nautilus_container_max_width_set_max_width (self->toolbar_switcher_container_max_width,
+                                                SWITCHER_MAX_WIDTH);
+    gtk_container_add (GTK_CONTAINER (self->toolbar_switcher_container_max_width),
+                       self->toolbar_switcher);
+    gtk_container_add (GTK_CONTAINER (self->toolbar_switcher_container),
+                       GTK_WIDGET (self->toolbar_switcher_container_max_width));
 
     self->path_bar = g_object_new (NAUTILUS_TYPE_PATH_BAR, NULL);
     gtk_container_add (GTK_CONTAINER (self->path_bar_container),
                        self->path_bar);
+    g_signal_connect (self->toolbar_switcher_container_max_width,
+                      "notify::width-maximized",
+                      G_CALLBACK (on_notify_width_maximized),
+                      self);
 
     self->location_entry = nautilus_location_entry_new ();
     gtk_container_add (GTK_CONTAINER (self->location_entry_container),
                        self->location_entry);
+    self->location_entry_close_button = gtk_button_new_from_icon_name ("window-close-symbolic",
+                                                                       GTK_ICON_SIZE_BUTTON);
+    gtk_container_add (GTK_CONTAINER (self->location_entry_container),
+                       self->location_entry_close_button);
+    g_signal_connect (self->location_entry_close_button, "clicked",
+                      G_CALLBACK (on_location_entry_close), self);
 
     self->progress_manager = nautilus_progress_info_manager_dup_singleton ();
     g_signal_connect (self->progress_manager, "new-progress-info",
@@ -922,25 +956,49 @@ nautilus_toolbar_init (NautilusToolbar *self)
 
     update_operations (self);
 
+    self->back_button_longpress_gesture = gtk_gesture_long_press_new (self->back_button);
+    g_signal_connect (self->back_button_longpress_gesture, "pressed",
+                      G_CALLBACK (back_button_longpress_cb), self);
+
+    self->forward_button_longpress_gesture = gtk_gesture_long_press_new (self->forward_button);
+    g_signal_connect (self->forward_button_longpress_gesture, "pressed",
+                      G_CALLBACK (forward_button_longpress_cb), self);
+
     g_object_set_data (G_OBJECT (self->back_button), "nav-direction",
                        GUINT_TO_POINTER (NAUTILUS_NAVIGATION_DIRECTION_BACK));
     g_object_set_data (G_OBJECT (self->forward_button), "nav-direction",
                        GUINT_TO_POINTER (NAUTILUS_NAVIGATION_DIRECTION_FORWARD));
-    g_signal_connect (self->back_button, "button-press-event",
+
+
+    self->back_button_multi_press_gesture = gtk_gesture_multi_press_new (self->back_button);
+    gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (self->back_button_multi_press_gesture),
+                                   GDK_BUTTON_SECONDARY);
+    g_signal_connect (self->back_button_multi_press_gesture, "pressed",
                       G_CALLBACK (navigation_button_press_cb), self);
-    g_signal_connect (self->back_button, "button-release-event",
-                      G_CALLBACK (navigation_button_release_cb), self);
-    g_signal_connect (self->forward_button, "button-press-event",
+
+    self->forward_button_multi_press_gesture = gtk_gesture_multi_press_new (self->forward_button);
+    gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (self->forward_button_multi_press_gesture),
+                                   GDK_BUTTON_SECONDARY);
+    g_signal_connect (self->forward_button_multi_press_gesture, "pressed",
                       G_CALLBACK (navigation_button_press_cb), self);
-    g_signal_connect (self->forward_button, "button-release-event",
-                      G_CALLBACK (navigation_button_release_cb), self);
+
     g_signal_connect (self->operations_popover, "show",
                       (GCallback) gtk_widget_grab_focus, NULL);
     g_signal_connect_swapped (self->operations_popover, "closed",
                               (GCallback) gtk_widget_grab_focus, self);
+    g_signal_connect (self->location_entry, "populate-popup",
+                      G_CALLBACK (on_location_entry_populate_popup), self);
+    g_signal_connect (self->location_entry, "notify::has-focus",
+                      G_CALLBACK (on_location_entry_focus_changed), self);
 
     gtk_widget_show_all (GTK_WIDGET (self));
     toolbar_update_appearance (self);
+}
+
+static void
+nautilus_toolbar_init (NautilusToolbar *self)
+{
+    gtk_widget_init_template (GTK_WIDGET (self));
 }
 
 void
@@ -983,6 +1041,58 @@ nautilus_toolbar_get_property (GObject    *object,
 }
 
 static void
+on_window_slot_destroyed (gpointer  data,
+                          GObject  *where_the_object_was)
+{
+    NautilusToolbar *self;
+
+    self = NAUTILUS_TOOLBAR (data);
+
+    /* The window slot was finalized, and the binding has already been removed.
+     * Null it here, so that dispose() does not trip over itself when removing it.
+     */
+    self->icon_binding = NULL;
+
+    nautilus_toolbar_set_window_slot_real (self, NULL);
+}
+
+static void
+on_window_focus_changed (GObject    *object,
+                         GParamSpec *pspec,
+                         gpointer    user_data)
+{
+    GtkWidget *widget;
+    NautilusToolbar *toolbar;
+
+    widget = GTK_WIDGET (object);
+    toolbar = NAUTILUS_TOOLBAR (user_data);
+
+    if (g_settings_get_boolean (nautilus_preferences,
+                                NAUTILUS_PREFERENCES_ALWAYS_USE_LOCATION_ENTRY))
+    {
+        return;
+    }
+
+    /* The working assumption being made here is, if the location entry is visible,
+     * the user must have switched windows while having keyboard focus on the entry
+     * (because otherwise it would be invisible),
+     * so we focus the entry explicitly to reset the “should auto-hide” flag.
+     */
+    if (gtk_widget_has_focus (widget) && toolbar->show_location_entry)
+    {
+        gtk_widget_grab_focus (toolbar->location_entry);
+    }
+    /* The location entry in general is hidden when it loses focus,
+     * but hiding it when switching windows could be undesirable, as the user
+     * might want to copy a path from somewhere. This here prevents that from happening.
+     */
+    else
+    {
+        toolbar->location_entry_should_auto_hide = FALSE;
+    }
+}
+
+static void
 nautilus_toolbar_set_property (GObject      *object,
                                guint         property_id,
                                const GValue *value,
@@ -994,13 +1104,29 @@ nautilus_toolbar_set_property (GObject      *object,
     {
         case PROP_WINDOW:
         {
+            if (self->window != NULL)
+            {
+                g_signal_handlers_disconnect_by_func (self->window,
+                                                      on_window_focus_changed, self);
+            }
             self->window = g_value_get_object (value);
+            if (self->window != NULL)
+            {
+                g_signal_connect (self->window, "notify::has-focus",
+                                  G_CALLBACK (on_window_focus_changed), self);
+            }
         }
         break;
 
         case PROP_SHOW_LOCATION_ENTRY:
         {
             nautilus_toolbar_set_show_location_entry (self, g_value_get_boolean (value));
+        }
+        break;
+
+        case PROP_WINDOW_SLOT:
+        {
+            nautilus_toolbar_set_window_slot (self, g_value_get_object (value));
         }
         break;
 
@@ -1013,20 +1139,47 @@ nautilus_toolbar_set_property (GObject      *object,
 }
 
 static void
+nautilus_toolbar_dispose (GObject *object)
+{
+    NautilusToolbar *self;
+
+    self = NAUTILUS_TOOLBAR (object);
+
+    g_clear_object (&self->forward_button_multi_press_gesture);
+    g_clear_object (&self->back_button_multi_press_gesture);
+    g_clear_pointer (&self->icon_binding, g_binding_unbind);
+
+    G_OBJECT_CLASS (nautilus_toolbar_parent_class)->dispose (object);
+}
+
+static void
 nautilus_toolbar_finalize (GObject *obj)
 {
     NautilusToolbar *self = NAUTILUS_TOOLBAR (obj);
 
     g_signal_handlers_disconnect_by_func (nautilus_preferences,
                                           toolbar_update_appearance, self);
+
+    if (self->window_slot != NULL)
+    {
+        g_signal_handlers_disconnect_by_data (self->window_slot, self);
+        g_object_weak_unref (G_OBJECT (self->window_slot),
+                             on_window_slot_destroyed, self);
+        self->window_slot = NULL;
+    }
     disconnect_progress_infos (self);
-    unschedule_menu_popup_timeout (self);
     unschedule_remove_finished_operations (self);
     unschedule_operations_start (self);
     unschedule_operations_button_attention_style (self);
 
     g_signal_handlers_disconnect_by_data (self->progress_manager, self);
     g_clear_object (&self->progress_manager);
+
+    g_signal_handlers_disconnect_by_func (self->window,
+                                          on_window_focus_changed, self);
+
+    g_clear_object (&self->back_button_longpress_gesture);
+    g_clear_object (&self->forward_button_longpress_gesture);
 
     G_OBJECT_CLASS (nautilus_toolbar_parent_class)->finalize (obj);
 }
@@ -1041,7 +1194,9 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
     oclass = G_OBJECT_CLASS (klass);
     oclass->get_property = nautilus_toolbar_get_property;
     oclass->set_property = nautilus_toolbar_set_property;
+    oclass->dispose = nautilus_toolbar_dispose;
     oclass->finalize = nautilus_toolbar_finalize;
+    oclass->constructed = nautilus_toolbar_constructed;
 
     properties[PROP_WINDOW] =
         g_param_spec_object ("window",
@@ -1057,6 +1212,14 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
                               FALSE,
                               G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+    properties [PROP_WINDOW_SLOT] =
+      g_param_spec_object ("window-slot",
+                           "Window slot currently active",
+                           "Window slot currently acive",
+                           NAUTILUS_TYPE_WINDOW_SLOT,
+                           (G_PARAM_READWRITE |
+                            G_PARAM_STATIC_STRINGS));
+
     g_object_class_install_properties (oclass, NUM_PROPERTIES, properties);
 
     gtk_widget_class_set_template_from_resource (widget_class,
@@ -1070,10 +1233,15 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_button);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_toggle_button);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_toggle_icon);
-    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, path_bar_container);
-    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, location_entry_container);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, back_button);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, forward_button);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, toolbar_switcher_container);
+
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_menu_zoom_section);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_menu_undo_redo_section);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_menu_extended_section);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, undo_button);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, redo_button);
 
     gtk_widget_class_bind_template_callback (widget_class, on_operations_icon_draw);
     gtk_widget_class_bind_template_callback (widget_class, on_operations_button_toggled);
@@ -1083,9 +1251,6 @@ GtkWidget *
 nautilus_toolbar_new ()
 {
     return g_object_new (NAUTILUS_TYPE_TOOLBAR,
-                         "show-close-button", TRUE,
-                         "custom-title", gtk_label_new (NULL),
-                         "valign", GTK_ALIGN_CENTER,
                          NULL);
 }
 
@@ -1114,6 +1279,88 @@ nautilus_toolbar_set_show_location_entry (NautilusToolbar *self,
     }
 }
 
+static void
+container_remove_all_children (GtkContainer *container)
+{
+    GList *children;
+    GList *child;
+
+    children = gtk_container_get_children (container);
+    for (child = children; child != NULL; child = g_list_next (child))
+    {
+        gtk_container_remove (container, GTK_WIDGET (child->data));
+    }
+    g_list_free (children);
+}
+
+static void
+slot_on_extensions_background_menu_changed (NautilusToolbar    *self,
+                                            GParamSpec         *param,
+                                            NautilusWindowSlot *slot)
+{
+    nautilus_path_bar_set_extensions_background_menu (NAUTILUS_PATH_BAR (self->path_bar),
+                                                      nautilus_window_slot_get_extensions_background_menu (slot));
+}
+
+static void
+slot_on_templates_menu_changed (NautilusToolbar    *self,
+                                GParamSpec         *param,
+                                NautilusWindowSlot *slot)
+{
+    nautilus_path_bar_set_templates_menu (NAUTILUS_PATH_BAR (self->path_bar),
+                                          nautilus_window_slot_get_templates_menu (slot));
+}
+
+static void
+on_slot_toolbar_menu_sections_changed (NautilusToolbar    *self,
+                                       GParamSpec         *param,
+                                       NautilusWindowSlot *slot)
+{
+    NautilusToolbarMenuSections *new_sections;
+
+    container_remove_all_children (GTK_CONTAINER (self->view_menu_zoom_section));
+    container_remove_all_children (GTK_CONTAINER (self->view_menu_extended_section));
+
+    new_sections = nautilus_window_slot_get_toolbar_menu_sections (slot);
+    if (new_sections == NULL)
+    {
+        return;
+    }
+
+    gtk_widget_set_visible (self->view_menu_undo_redo_section,
+                            new_sections->supports_undo_redo);
+
+    if (new_sections->zoom_section != NULL)
+    {
+        gtk_box_pack_start (GTK_BOX (self->view_menu_zoom_section),
+                            new_sections->zoom_section, FALSE, FALSE, 0);
+    }
+
+    if (new_sections->extended_section != NULL)
+    {
+        gtk_box_pack_start (GTK_BOX (self->view_menu_extended_section),
+                            new_sections->extended_section, FALSE, FALSE, 0);
+    }
+
+    gtk_widget_set_sensitive (self->view_button, new_sections->extended_section != NULL ||
+                                                 new_sections->zoom_section != NULL ||
+                                                 new_sections->supports_undo_redo);
+}
+
+
+static void
+disconnect_toolbar_menu_sections_change_handler (NautilusToolbar *self)
+{
+    if (self->window_slot == NULL)
+    {
+        return;
+    }
+
+    g_signal_handlers_disconnect_by_func (self->window_slot,
+                                          G_CALLBACK (on_slot_toolbar_menu_sections_changed),
+                                          self);
+}
+
 static gboolean
 nautilus_toolbar_view_toggle_icon_transform_to (GBinding     *binding,
                                                 const GValue *from_value,
@@ -1134,93 +1381,84 @@ nautilus_toolbar_view_toggle_icon_transform_to (GBinding     *binding,
     return TRUE;
 }
 
+/* Called from on_window_slot_destroyed(), since bindings and signal handlers
+ * are automatically removed once the slot goes away.
+ */
 static void
-container_remove_all_children (GtkContainer *container)
-{
-    GList *children;
-    GList *child;
-
-    children = gtk_container_get_children (container);
-    for (child = children; child != NULL; child = g_list_next (child))
-    {
-        gtk_container_remove (container, GTK_WIDGET (child->data));
-    }
-    g_list_free (children);
-}
-
-static void
-on_slot_toolbar_menu_sections_changed (NautilusToolbar    *toolbar,
-                                       GParamSpec         *param,
+nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                        NautilusWindowSlot *slot)
 {
-    NautilusToolbarMenuSections *new_sections;
+    g_autoptr (GList) children = NULL;
 
-    container_remove_all_children (GTK_CONTAINER (toolbar->view_menu_zoom_section));
-    container_remove_all_children (GTK_CONTAINER (toolbar->view_menu_extended_section));
+    self->window_slot = slot;
 
-    new_sections = nautilus_window_slot_get_toolbar_menu_sections (slot);
-    if (new_sections == NULL)
+    if (self->window_slot != NULL)
     {
-        return;
+        g_object_weak_ref (G_OBJECT (self->window_slot),
+                           on_window_slot_destroyed,
+                           self);
+
+        self->icon_binding = g_object_bind_property_full (self->window_slot, "icon",
+                                                          self->view_toggle_icon, "gicon",
+                                                          G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE,
+                                                          (GBindingTransformFunc) nautilus_toolbar_view_toggle_icon_transform_to,
+                                                          NULL,
+                                                          self,
+                                                          NULL);
+
+        on_slot_toolbar_menu_sections_changed (self, NULL, self->window_slot);
+        g_signal_connect_swapped (self->window_slot, "notify::toolbar-menu-sections",
+                                  G_CALLBACK (on_slot_toolbar_menu_sections_changed), self);
+        g_signal_connect_swapped (self->window_slot, "notify::extensions-background-menu",
+                                  G_CALLBACK (slot_on_extensions_background_menu_changed), self);
+        g_signal_connect_swapped (self->window_slot, "notify::templates-menu",
+                                  G_CALLBACK (slot_on_templates_menu_changed), self);
+        g_signal_connect_swapped (self->window_slot, "notify::searching",
+                                  G_CALLBACK (toolbar_update_appearance), self);
+
     }
 
-    gtk_widget_set_visible (toolbar->view_menu_undo_redo_section,
-                            new_sections->supports_undo_redo);
-
-    if (new_sections->zoom_section != NULL)
+    children = gtk_container_get_children (GTK_CONTAINER (self->search_container));
+    if (children != NULL)
     {
-        gtk_box_pack_start (GTK_BOX (toolbar->view_menu_zoom_section), new_sections->zoom_section, FALSE, FALSE, 0);
+        gtk_container_remove (GTK_CONTAINER (self->search_container),
+                              children->data);
     }
 
-    if (new_sections->extended_section != NULL)
+    if (self->window_slot != NULL)
     {
-        gtk_box_pack_start (GTK_BOX (toolbar->view_menu_extended_section), new_sections->extended_section, FALSE, FALSE, 0);
-    }
-}
-
-static void
-disconnect_toolbar_menu_sections_change_handler (NautilusToolbar *toolbar)
-{
-    if (toolbar->active_slot == NULL)
-    {
-        return;
+        gtk_container_add (GTK_CONTAINER (self->search_container),
+                           GTK_WIDGET (nautilus_window_slot_get_query_editor (self->window_slot)));
     }
 
-    g_signal_handlers_disconnect_by_func (toolbar->active_slot,
-                                          G_CALLBACK (on_slot_toolbar_menu_sections_changed),
-                                          toolbar);
+    toolbar_update_appearance (self);
+
+    g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_WINDOW_SLOT]);
 }
 
 void
-nautilus_toolbar_set_active_slot (NautilusToolbar    *toolbar,
-                                  NautilusWindowSlot *slot)
+nautilus_toolbar_set_window_slot (NautilusToolbar    *self,
+                                  NautilusWindowSlot *window_slot)
 {
-    g_return_if_fail (NAUTILUS_IS_TOOLBAR (toolbar));
+    g_return_if_fail (NAUTILUS_IS_TOOLBAR (self));
+    g_return_if_fail (window_slot == NULL || NAUTILUS_IS_WINDOW_SLOT (window_slot));
 
-    g_clear_pointer (&toolbar->icon_binding, g_binding_unbind);
-    g_clear_pointer (&toolbar->view_widget_binding, g_binding_unbind);
-
-    if (toolbar->active_slot != slot)
+    if (self->window_slot == window_slot)
     {
-        disconnect_toolbar_menu_sections_change_handler (toolbar);
-        toolbar->active_slot = slot;
-
-        if (slot)
-        {
-            toolbar->icon_binding =
-                g_object_bind_property_full (slot, "icon",
-                                             toolbar->view_toggle_icon, "gicon",
-                                             G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE,
-                                             (GBindingTransformFunc) nautilus_toolbar_view_toggle_icon_transform_to,
-                                             NULL,
-                                             toolbar,
-                                             NULL);
-
-            on_slot_toolbar_menu_sections_changed (toolbar, NULL, slot);
-            g_signal_connect_swapped (slot, "notify::toolbar-menu-sections",
-                                      G_CALLBACK (on_slot_toolbar_menu_sections_changed), toolbar);
-        }
+        return;
     }
+
+    g_clear_pointer (&self->icon_binding, g_binding_unbind);
+
+    disconnect_toolbar_menu_sections_change_handler (self);
+    if (self->window_slot != NULL)
+    {
+        g_signal_handlers_disconnect_by_data (self->window_slot, self);
+        g_object_weak_unref (G_OBJECT (self->window_slot),
+                             on_window_slot_destroyed, self);
+    }
+
+    nautilus_toolbar_set_window_slot_real (self, window_slot);
 }
 
 gboolean

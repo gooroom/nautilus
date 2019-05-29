@@ -21,8 +21,7 @@
  *
  */
 
-#ifndef __NAUTILUS_TOOLBAR_H__
-#define __NAUTILUS_TOOLBAR_H__
+#pragma once
 
 #include <gtk/gtk.h>
 
@@ -51,6 +50,6 @@ gboolean   nautilus_toolbar_is_operations_button_active (NautilusToolbar *toolba
 
 void       nautilus_toolbar_on_window_constructed       (NautilusToolbar *toolbar);
 
+void nautilus_toolbar_set_window_slot (NautilusToolbar    *self,
+                                       NautilusWindowSlot *window_slot);
 G_END_DECLS
-
-#endif /* __NAUTILUS_TOOLBAR_H__ */

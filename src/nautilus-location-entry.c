@@ -337,13 +337,13 @@ drag_data_get_callback (GtkWidget        *widget,
     {
         case NAUTILUS_DND_URI_LIST:
         case NAUTILUS_DND_TEXT_PLAIN:
-            {
-                gtk_selection_data_set (selection_data,
-                                        gtk_selection_data_get_target (selection_data),
-                                        8, (guchar *) uri,
-                                        strlen (uri));
-            }
-            break;
+        {
+            gtk_selection_data_set (selection_data,
+                                    gtk_selection_data_get_target (selection_data),
+                                    8, (guchar *) uri,
+                                    strlen (uri));
+        }
+        break;
 
         default:
             g_assert_not_reached ();
@@ -411,9 +411,21 @@ try_to_expand_path (gpointer callback_data)
  * reason. This is a clone of code from GtkEntry.
  */
 static gboolean
-entry_would_have_inserted_characters (const GdkEventKey *event)
+entry_would_have_inserted_characters (const GdkEvent *event)
 {
-    switch (event->keyval)
+    guint keyval;
+    GdkModifierType state;
+
+    if (G_UNLIKELY (!gdk_event_get_keyval (event, &keyval)))
+    {
+        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
+    }
+    if (G_UNLIKELY (!gdk_event_get_state (event, &state)))
+    {
+        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
+    }
+
+    switch (keyval)
     {
         case GDK_KEY_BackSpace:
         case GDK_KEY_Clear:
@@ -428,24 +440,26 @@ entry_would_have_inserted_characters (const GdkEventKey *event)
         case GDK_KEY_KP_Left:
         case GDK_KEY_KP_Right:
         case GDK_KEY_Return:
-            {
-                return FALSE;
-            }
+        {
+            return FALSE;
+        }
 
         default:
-            if (event->keyval >= 0x20 && event->keyval <= 0xFF)
+            if (keyval >= 0x20 && keyval <= 0xFF)
             {
-                if ((event->state & GDK_CONTROL_MASK) != 0)
+                if ((state & GDK_CONTROL_MASK) != 0)
                 {
                     return FALSE;
                 }
-                if ((event->state & GDK_MOD1_MASK) != 0)
+                if ((state & GDK_MOD1_MASK) != 0)
                 {
                     return FALSE;
                 }
             }
-            return event->length > 0;
     }
+
+    /* GTK+ 4 TODO: gdk_event_get_string () and check if length > 0. */
+    return ((const GdkEventKey *) event)->length;
 }
 
 static gboolean
@@ -479,64 +493,6 @@ got_completion_data_callback (GFilenameCompleter    *completer,
         priv->idle_id = 0;
     }
     try_to_expand_path (entry);
-}
-
-static void
-editable_event_after_callback (GtkEntry              *entry,
-                               GdkEvent              *event,
-                               NautilusLocationEntry *location_entry)
-{
-    NautilusLocationEntryPrivate *priv;
-    GtkEditable *editable;
-    GdkEventKey *keyevent;
-
-    if (event->type != GDK_KEY_PRESS)
-    {
-        return;
-    }
-
-    priv = nautilus_location_entry_get_instance_private (location_entry);
-    editable = GTK_EDITABLE (entry);
-    keyevent = (GdkEventKey *) event;
-
-    /* After typing the right arrow key we move the selection to
-     * the end, if we have a valid selection - since this is most
-     * likely an auto-completion. We ignore shift / control since
-     * they can validly be used to extend the selection.
-     */
-    if ((keyevent->keyval == GDK_KEY_Right || keyevent->keyval == GDK_KEY_End) &&
-        !(keyevent->state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) &&
-        gtk_editable_get_selection_bounds (editable, NULL, NULL))
-    {
-        set_position_and_selection_to_end (editable);
-    }
-
-    /* Only do expanding when we are typing at the end of the
-     * text. Do the expand at idle time to avoid slowing down
-     * typing when the directory is large. Only trigger the expand
-     * when we type a key that would have inserted characters.
-     */
-    if (position_and_selection_are_at_end (editable))
-    {
-        if (entry_would_have_inserted_characters (keyevent))
-        {
-            if (priv->idle_id == 0)
-            {
-                priv->idle_id = g_idle_add (try_to_expand_path, location_entry);
-            }
-        }
-    }
-    else
-    {
-        /* FIXME: Also might be good to do this when you click
-         * to change the position or selection.
-         */
-        if (priv->idle_id != 0)
-        {
-            g_source_remove (priv->idle_id);
-            priv->idle_id = 0;
-        }
-    }
 }
 
 static void
@@ -579,6 +535,30 @@ destroy (GtkWidget *object)
 }
 
 static void
+on_has_focus_changed (GObject    *object,
+                      GParamSpec *pspec,
+                      gpointer    user_data)
+{
+    NautilusLocationEntry *entry;
+    NautilusLocationEntryPrivate *priv;
+
+    if (!gtk_widget_has_focus (GTK_WIDGET (object)))
+    {
+        return;
+    }
+
+    entry = NAUTILUS_LOCATION_ENTRY (object);
+    priv = nautilus_location_entry_get_instance_private (entry);
+
+    if (priv->has_special_text)
+    {
+        priv->setting_special_text = TRUE;
+        gtk_entry_set_text (GTK_ENTRY (entry), "");
+        priv->setting_special_text = FALSE;
+    }
+}
+
+static void
 nautilus_location_entry_text_changed (NautilusLocationEntry *entry,
                                       GParamSpec            *pspec)
 {
@@ -609,16 +589,16 @@ nautilus_location_entry_icon_release (GtkEntry             *gentry,
     switch (priv->secondary_action)
     {
         case NAUTILUS_LOCATION_ENTRY_ACTION_GOTO:
-            {
-                g_signal_emit_by_name (gentry, "activate", gentry);
-            }
-            break;
+        {
+            g_signal_emit_by_name (gentry, "activate", gentry);
+        }
+        break;
 
         case NAUTILUS_LOCATION_ENTRY_ACTION_CLEAR:
-            {
-                gtk_entry_set_text (gentry, "");
-            }
-            break;
+        {
+            gtk_entry_set_text (gentry, "");
+        }
+        break;
 
         default:
             g_assert_not_reached ();
@@ -626,38 +606,42 @@ nautilus_location_entry_icon_release (GtkEntry             *gentry,
 }
 
 static gboolean
-nautilus_location_entry_focus_in (GtkWidget     *widget,
-                                  GdkEventFocus *event)
+nautilus_location_entry_on_event (GtkWidget *widget,
+                                  GdkEvent  *event)
 {
-    NautilusLocationEntry *entry = NAUTILUS_LOCATION_ENTRY (widget);
+    GtkWidgetClass *parent_widget_class;
+    NautilusLocationEntry *entry;
     NautilusLocationEntryPrivate *priv;
+    GtkEditable *editable;
+    gboolean selected;
+    guint keyval;
+    GdkModifierType state;
+    gboolean handled;
 
-    priv = nautilus_location_entry_get_instance_private (entry);
+    parent_widget_class = GTK_WIDGET_CLASS (nautilus_location_entry_parent_class);
 
-    if (priv->has_special_text)
+    if (gdk_event_get_event_type (event) != GDK_KEY_PRESS)
     {
-        priv->setting_special_text = TRUE;
-        gtk_entry_set_text (GTK_ENTRY (entry), "");
-        priv->setting_special_text = FALSE;
+        return parent_widget_class->event (widget, event);
     }
 
-    return GTK_WIDGET_CLASS (nautilus_location_entry_parent_class)->focus_in_event (widget, event);
-}
-
-static gboolean
-nautilus_location_entry_on_key_press (GtkWidget   *widget,
-                                      GdkEventKey *event)
-{
-    GtkEditable *editable;
-    GtkWidgetClass *parent_widget_class;
-    int position;
-    gboolean result;
-
+    entry = NAUTILUS_LOCATION_ENTRY (widget);
+    priv = nautilus_location_entry_get_instance_private (entry);
     editable = GTK_EDITABLE (widget);
+    selected = gtk_editable_get_selection_bounds (editable, NULL, NULL);
 
     if (!gtk_editable_get_editable (editable))
     {
         return FALSE;
+    }
+
+    if (G_UNLIKELY (!gdk_event_get_keyval (event, &keyval)))
+    {
+        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
+    }
+    if (G_UNLIKELY (!gdk_event_get_state (event, &state)))
+    {
+        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
     }
 
     /* The location bar entry wants TAB to work kind of
@@ -666,19 +650,58 @@ nautilus_location_entry_on_key_press (GtkWidget   *widget,
      * should position the insertion point at the end of
      * the selection.
      */
-    if (event->keyval == GDK_KEY_Tab &&
-        gtk_editable_get_selection_bounds (editable, NULL, NULL))
+    if (keyval == GDK_KEY_Tab && selected)
     {
+        int position;
+
         position = strlen (gtk_entry_get_text (GTK_ENTRY (editable)));
         gtk_editable_select_region (editable, position, position);
 
-        return TRUE;
+        return GDK_EVENT_STOP;
     }
 
-    parent_widget_class = GTK_WIDGET_CLASS (nautilus_location_entry_parent_class);
-    result = parent_widget_class->key_press_event (widget, event);
+    if ((keyval == GDK_KEY_Right || keyval == GDK_KEY_End) &&
+        !(state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) && selected)
+    {
+        set_position_and_selection_to_end (editable);
+    }
 
-    return result;
+    /* GTK+ 4 TODO: Calling the event vfunc is not enough, we need the entry
+     *              to handle the key press and insert the text first.
+     *
+     * Chaining up here is required either way, since the code below
+     * used to be in the handler for ::event-after, which is no longer a thing.
+     */
+    handled = parent_widget_class->key_press_event (widget, (GdkEventKey *) event);
+
+    /* Only do expanding when we are typing at the end of the
+     * text. Do the expand at idle time to avoid slowing down
+     * typing when the directory is large. Only trigger the expand
+     * when we type a key that would have inserted characters.
+     */
+    if (position_and_selection_are_at_end (editable))
+    {
+        if (entry_would_have_inserted_characters (event))
+        {
+            if (priv->idle_id == 0)
+            {
+                priv->idle_id = g_idle_add (try_to_expand_path, widget);
+            }
+        }
+    }
+    else
+    {
+        /* FIXME: Also might be good to do this when you click
+         * to change the position or selection.
+         */
+        if (priv->idle_id != 0)
+        {
+            g_source_remove (priv->idle_id);
+            priv->idle_id = 0;
+        }
+    }
+
+    return handled;
 }
 
 static void
@@ -730,9 +753,8 @@ nautilus_location_entry_class_init (NautilusLocationEntryClass *class)
     GtkBindingSet *binding_set;
 
     widget_class = GTK_WIDGET_CLASS (class);
-    widget_class->focus_in_event = nautilus_location_entry_focus_in;
     widget_class->destroy = destroy;
-    widget_class->key_press_event = nautilus_location_entry_on_key_press;
+    widget_class->event = nautilus_location_entry_on_event;
 
     gobject_class = G_OBJECT_CLASS (class);
     gobject_class->finalize = finalize;
@@ -780,20 +802,20 @@ nautilus_location_entry_set_secondary_action (NautilusLocationEntry       *entry
     switch (secondary_action)
     {
         case NAUTILUS_LOCATION_ENTRY_ACTION_CLEAR:
-            {
-                gtk_entry_set_icon_from_icon_name (GTK_ENTRY (entry),
-                                                   GTK_ENTRY_ICON_SECONDARY,
-                                                   "edit-clear-symbolic");
-            }
-            break;
+        {
+            gtk_entry_set_icon_from_icon_name (GTK_ENTRY (entry),
+                                               GTK_ENTRY_ICON_SECONDARY,
+                                               "edit-clear-symbolic");
+        }
+        break;
 
         case NAUTILUS_LOCATION_ENTRY_ACTION_GOTO:
-            {
-                gtk_entry_set_icon_from_icon_name (GTK_ENTRY (entry),
-                                                   GTK_ENTRY_ICON_SECONDARY,
-                                                   "go-next-symbolic");
-            }
-            break;
+        {
+            gtk_entry_set_icon_from_icon_name (GTK_ENTRY (entry),
+                                               GTK_ENTRY_ICON_SECONDARY,
+                                               "go-next-symbolic");
+        }
+        break;
 
         default:
             g_assert_not_reached ();
@@ -842,8 +864,8 @@ nautilus_location_entry_init (NautilusLocationEntry *entry)
     nautilus_location_entry_set_secondary_action (entry,
                                                   NAUTILUS_LOCATION_ENTRY_ACTION_CLEAR);
 
-    g_signal_connect (entry, "event-after",
-                      G_CALLBACK (editable_event_after_callback), entry);
+    g_signal_connect (entry, "notify::has-focus",
+                      G_CALLBACK (on_has_focus_changed), NULL);
 
     g_signal_connect (entry, "notify::text",
                       G_CALLBACK (nautilus_location_entry_text_changed), NULL);

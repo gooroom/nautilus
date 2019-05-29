@@ -18,17 +18,25 @@
  *
  *  Author: Michael Meeks <michael@ximian.com>
  */
-#include <config.h>
 
 #include "nautilus-canvas-view-container.h"
 
-#include <string.h>
-#include <glib/gi18n.h>
-#include <gio/gio.h>
 #include <eel/eel-glib-extensions.h>
+#include <gio/gio.h>
+#include <glib/gi18n.h>
+#include <string.h>
+
+#include "nautilus-canvas-view.h"
+#include "nautilus-enums.h"
 #include "nautilus-global-preferences.h"
-#include "nautilus-file-attributes.h"
 #include "nautilus-thumbnails.h"
+
+struct _NautilusCanvasViewContainer
+{
+    NautilusCanvasContainer parent;
+
+    NautilusCanvasView *view;
+};
 
 G_DEFINE_TYPE (NautilusCanvasViewContainer, nautilus_canvas_view_container, NAUTILUS_TYPE_CANVAS_CONTAINER);
 
@@ -244,14 +252,6 @@ nautilus_canvas_view_container_get_icon_text (NautilusCanvasContainer  *containe
 
     if (!use_additional)
     {
-        return;
-    }
-
-    if (nautilus_file_is_nautilus_link (file))
-    {
-        /* Don't show the normal extra information for desktop files,
-         * it doesn't make sense. */
-        *additional_text = NULL;
         return;
     }
 
