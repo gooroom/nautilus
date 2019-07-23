@@ -1,3 +1,13 @@
+nautilus (3.22.3-1+deb9u1+grm1u3) stretch-security; urgency=medium
+
+  [ JunSung Choi ]
+  * [8ef2380b] Remove bookmark UI
+  * [ebe00404] Released 3.22.3-1+deb9u1+grm1u3
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 23 Jul 2019 19:02:13 +0900
+
 nautilus (3.22.3-1+deb9u1+grm1u2) stretch-security; urgency=medium
 
   [ cjheo ]
