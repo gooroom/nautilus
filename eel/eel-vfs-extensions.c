@@ -38,6 +38,12 @@
 #include <stdlib.h>
 
 gboolean
+eel_uri_is_starred (const gchar *uri)
+{
+    return g_str_has_prefix (uri, "starred:");
+}
+
+gboolean
 eel_uri_is_trash (const char *uri)
 {
     return g_str_has_prefix (uri, "trash:");
@@ -62,51 +68,35 @@ eel_uri_is_other_locations (const char *uri)
 }
 
 gboolean
-eel_uri_is_desktop (const char *uri)
+eel_uri_is_in_xdg_dirs (const gchar *uri)
 {
-    return g_str_has_prefix (uri, EEL_DESKTOP_URI);
-}
+    GUserDirectory dir;
+    g_autoptr (GFile) location = NULL;
+    gboolean has_prefix = FALSE;
 
-char *
-eel_make_valid_utf8 (const char *name)
-{
-    GString *string;
-    const char *remainder, *invalid;
-    int remaining_bytes, valid_bytes;
-
-    string = NULL;
-    remainder = name;
-    remaining_bytes = strlen (name);
-
-    while (remaining_bytes != 0)
+    location = g_file_new_for_uri (uri);
+    for (dir = 0; dir < G_USER_N_DIRECTORIES; dir++)
     {
-        if (g_utf8_validate (remainder, remaining_bytes, &invalid))
+        g_autoptr (GFile) xdg_dir_location = NULL;
+        const gchar *path;
+
+        path = g_get_user_special_dir (dir);
+        if (path == NULL)
+        {
+            continue;
+        }
+
+        xdg_dir_location = g_file_new_for_path (path);
+        has_prefix = g_file_has_prefix (location, xdg_dir_location) ||
+                     g_file_equal (location, xdg_dir_location);
+
+        if (has_prefix)
         {
             break;
         }
-        valid_bytes = invalid - remainder;
-
-        if (string == NULL)
-        {
-            string = g_string_sized_new (remaining_bytes);
-        }
-        g_string_append_len (string, remainder, valid_bytes);
-        g_string_append_c (string, '?');
-
-        remaining_bytes -= valid_bytes + 1;
-        remainder = invalid + 1;
     }
 
-    if (string == NULL)
-    {
-        return g_strdup (name);
-    }
-
-    g_string_append (string, remainder);
-    g_string_append (string, _(" (invalid Unicode)"));
-    g_assert (g_utf8_validate (string->str, -1, NULL));
-
-    return g_string_free (string, FALSE);
+    return has_prefix;
 }
 
 char *

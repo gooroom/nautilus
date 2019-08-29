@@ -20,10 +20,8 @@
    Authors: Dave Camp <dave@ximian.com>
 */
 
-#ifndef NAUTILUS_COLUMN_UTILITIES_H
-#define NAUTILUS_COLUMN_UTILITIES_H
+#pragma once
 
-#include <libnautilus-extension/nautilus-column.h>
 #include "nautilus-file.h"
 
 GList *nautilus_get_all_columns       (void);
@@ -34,6 +32,3 @@ void   nautilus_column_list_free      (GList       *columns);
 
 GList *nautilus_sort_columns          (GList       *columns,
 				       char       **column_order);
-
-
-#endif /* NAUTILUS_COLUMN_UTILITIES_H */

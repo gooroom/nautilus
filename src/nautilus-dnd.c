@@ -25,7 +25,6 @@
 #include "nautilus-dnd.h"
 
 #include "nautilus-program-choosing.h"
-#include "nautilus-link.h"
 #include <eel/eel-glib-extensions.h>
 #include <eel/eel-gtk-extensions.h>
 #include <eel/eel-string.h>
@@ -72,7 +71,7 @@ nautilus_drag_init (NautilusDragInfo     *drag_info,
                                           NAUTILUS_ICON_DND_TEXT);
     }
 
-    drag_info->drop_occured = FALSE;
+    drag_info->drop_occurred = FALSE;
     drag_info->need_to_destroy = FALSE;
 }
 
@@ -332,42 +331,6 @@ nautilus_drag_items_local (const char  *target_uri_string,
                                               ((NautilusDragSelectionItem *) selection_list->data)->uri);
 }
 
-gboolean
-nautilus_drag_items_on_desktop (const GList *selection_list)
-{
-    char *uri;
-    GFile *desktop, *item, *parent;
-    gboolean result;
-
-    /* check if the first item on the list is in trash.
-     * FIXME:
-     * we should really test each item but that would be slow for large selections
-     * and currently dropped items can only be from the same container
-     */
-    uri = ((NautilusDragSelectionItem *) selection_list->data)->uri;
-    if (eel_uri_is_desktop (uri))
-    {
-        return TRUE;
-    }
-
-    desktop = nautilus_get_desktop_location ();
-
-    item = g_file_new_for_uri (uri);
-    parent = g_file_get_parent (item);
-    g_object_unref (item);
-
-    result = FALSE;
-
-    if (parent)
-    {
-        result = g_file_equal (desktop, parent);
-        g_object_unref (parent);
-    }
-    g_object_unref (desktop);
-
-    return result;
-}
-
 GdkDragAction
 nautilus_drag_default_drop_action_for_netscape_url (GdkDragContext *context)
 {
@@ -535,14 +498,6 @@ nautilus_drag_default_drop_action_for_icons (GdkDragContext *context,
     dropped_file = ((NautilusDragSelectionItem *) items->data)->file;
     target_file = nautilus_file_get_by_uri (target_uri_string);
 
-    if (eel_uri_is_desktop (dropped_uri) &&
-        !eel_uri_is_desktop (target_uri_string))
-    {
-        /* Desktop items only move on the desktop */
-        *action = 0;
-        return;
-    }
-
     /*
      * Check for trash URI.  We do a find_directory for any Trash directory.
      * Passing 0 permissions as gnome-vfs would override the permissions
@@ -557,35 +512,6 @@ nautilus_drag_default_drop_action_for_icons (GdkDragContext *context,
         }
         nautilus_file_unref (target_file);
         return;
-    }
-    else if (dropped_file != NULL && nautilus_file_is_launcher (dropped_file))
-    {
-        if (actions & GDK_ACTION_MOVE)
-        {
-            *action = GDK_ACTION_MOVE;
-        }
-        nautilus_file_unref (target_file);
-        return;
-    }
-    else if (eel_uri_is_desktop (target_uri_string))
-    {
-        target = nautilus_get_desktop_location ();
-
-        nautilus_file_unref (target_file);
-        target_file = nautilus_file_get (target);
-
-        if (eel_uri_is_desktop (dropped_uri))
-        {
-            /* Only move to Desktop icons */
-            if (actions & GDK_ACTION_MOVE)
-            {
-                *action = GDK_ACTION_MOVE;
-            }
-
-            g_object_unref (target);
-            nautilus_file_unref (target_file);
-            return;
-        }
     }
     else if (target_file != NULL && nautilus_file_is_archive (target_file))
     {
@@ -709,7 +635,13 @@ cache_one_item (const char *uri,
     NautilusDragSelectionItem *item;
 
     item = nautilus_drag_selection_item_new ();
-    item->uri = g_strdup (uri);
+    item->uri = nautilus_uri_to_native_uri (uri);
+
+    if (item->uri == NULL)
+    {
+        item->uri = g_strdup (uri);
+    }
+
     item->file = nautilus_file_get_by_uri (uri);
     item->icon_x = x;
     item->icon_y = y;
@@ -889,8 +821,8 @@ nautilus_drag_drop_action_ask (GtkWidget     *widget,
 
     gtk_grab_add (menu);
 
-    gtk_menu_popup (GTK_MENU (menu), NULL, NULL,
-                    NULL, NULL, 0, GDK_CURRENT_TIME);
+    gtk_menu_popup_at_pointer (GTK_MENU (menu),
+                               NULL);
 
     g_main_loop_run (damd.loop);
 
@@ -1043,23 +975,4 @@ nautilus_drag_autoscroll_stop (NautilusDragInfo *drag_info)
         g_source_remove (drag_info->auto_scroll_timeout_id);
         drag_info->auto_scroll_timeout_id = 0;
     }
-}
-
-gboolean
-nautilus_drag_selection_includes_special_link (GList *selection_list)
-{
-    GList *node;
-    char *uri;
-
-    for (node = selection_list; node != NULL; node = node->next)
-    {
-        uri = ((NautilusDragSelectionItem *) node->data)->uri;
-
-        if (eel_uri_is_desktop (uri))
-        {
-            return TRUE;
-        }
-    }
-
-    return FALSE;
 }

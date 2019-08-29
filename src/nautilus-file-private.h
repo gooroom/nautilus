@@ -19,8 +19,7 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#ifndef NAUTILUS_FILE_PRIVATE_H
-#define NAUTILUS_FILE_PRIVATE_H
+#pragma once
 
 #include "nautilus-directory.h"
 #include "nautilus-file.h"
@@ -30,7 +29,7 @@
 #include <eel/eel-string.h>
 
 #define NAUTILUS_FILE_DEFAULT_ATTRIBUTES				\
-	"standard::*,access::*,mountable::*,time::*,unix::*,owner::*,selinux::*,thumbnail::*,id::filesystem,trash::orig-path,trash::deletion-date,metadata::*"
+	"standard::*,access::*,mountable::*,time::*,unix::*,owner::*,selinux::*,thumbnail::*,id::filesystem,trash::orig-path,trash::deletion-date,metadata::*,recent::*"
 
 /* These are in the typical sort order. Known things come first, then
  * things where we can't know, finally things where we don't yet know.
@@ -162,21 +161,14 @@ struct NautilusFileDetails
 
 	eel_boolean_bit mount_is_up_to_date           : 1;
 	
-	eel_boolean_bit got_link_info                 : 1;
-	eel_boolean_bit link_info_is_up_to_date       : 1;
 	eel_boolean_bit got_custom_display_name       : 1;
 	eel_boolean_bit got_custom_activation_uri     : 1;
 
 	eel_boolean_bit thumbnail_is_up_to_date       : 1;
-	eel_boolean_bit thumbnail_wants_original      : 1;
-	eel_boolean_bit thumbnail_tried_original      : 1;
 	eel_boolean_bit thumbnailing_failed           : 1;
 	
 	eel_boolean_bit is_thumbnailing               : 1;
 
-	eel_boolean_bit is_launcher                   : 1;
-	eel_boolean_bit is_trusted_link               : 1;
-	eel_boolean_bit is_foreign_link               : 1;
 	eel_boolean_bit is_symlink                    : 1;
 	eel_boolean_bit is_mountpoint                 : 1;
 	eel_boolean_bit is_hidden                     : 1;
@@ -202,11 +194,14 @@ struct NautilusFileDetails
 	eel_boolean_bit filesystem_readonly           : 1;
 	eel_boolean_bit filesystem_use_preview        : 2; /* GFilesystemPreviewType */
 	eel_boolean_bit filesystem_info_is_up_to_date : 1;
-        eel_ref_str     filesystem_type;
+	eel_boolean_bit filesystem_remote             : 1;
+	eel_ref_str     filesystem_type;
 
 	time_t trash_time; /* 0 is unknown */
+	time_t recency; /* 0 is unknown */
 
 	gdouble search_relevance;
+	gchar *fts_snippet;
 
 	guint64 free_space; /* (guint)-1 for unknown */
 	time_t free_space_read; /* The time free_space was updated, or 0 for never */
@@ -257,6 +252,8 @@ gboolean      nautilus_file_set_display_name               (NautilusFile        
 							    const char             *display_name,
 							    const char             *edit_name,
 							    gboolean                custom);
+NautilusDirectory *
+              nautilus_file_get_directory                  (NautilusFile           *file);
 void          nautilus_file_set_directory                  (NautilusFile           *file,
 							    NautilusDirectory      *directory);
 void          nautilus_file_set_mount                      (NautilusFile           *file,
@@ -287,5 +284,3 @@ void                   nautilus_file_operation_complete (NautilusFileOperation  
 							 GFile                         *result_location,
 							 GError                        *error);
 void                   nautilus_file_operation_cancel   (NautilusFileOperation         *op);
-
-#endif

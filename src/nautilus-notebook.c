@@ -53,7 +53,26 @@ enum
 
 static guint signals[LAST_SIGNAL];
 
+struct _NautilusNotebook
+{
+    GtkNotebook parent_instance;
+
+    GtkGesture *multi_press_gesture;
+};
+
 G_DEFINE_TYPE (NautilusNotebook, nautilus_notebook, GTK_TYPE_NOTEBOOK);
+
+static void
+nautilus_notebook_dispose (GObject *object)
+{
+    NautilusNotebook *notebook;
+
+    notebook = NAUTILUS_NOTEBOOK (object);
+
+    g_clear_object (&notebook->multi_press_gesture);
+
+    G_OBJECT_CLASS (nautilus_notebook_parent_class)->dispose (object);
+}
 
 static void
 nautilus_notebook_class_init (NautilusNotebookClass *klass)
@@ -61,6 +80,8 @@ nautilus_notebook_class_init (NautilusNotebookClass *klass)
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
     GtkContainerClass *container_class = GTK_CONTAINER_CLASS (klass);
     GtkNotebookClass *notebook_class = GTK_NOTEBOOK_CLASS (klass);
+
+    object_class->dispose = nautilus_notebook_dispose;
 
     container_class->remove = nautilus_notebook_remove;
 
@@ -70,7 +91,7 @@ nautilus_notebook_class_init (NautilusNotebookClass *klass)
         g_signal_new ("tab-close-request",
                       G_OBJECT_CLASS_TYPE (object_class),
                       G_SIGNAL_RUN_LAST,
-                      G_STRUCT_OFFSET (NautilusNotebookClass, tab_close_request),
+                      0,
                       NULL, NULL,
                       g_cclosure_marshal_VOID__OBJECT,
                       G_TYPE_NONE,
@@ -83,19 +104,15 @@ find_tab_num_at_pos (NautilusNotebook *notebook,
                      gint              abs_x,
                      gint              abs_y)
 {
-    GtkPositionType tab_pos;
     int page_num = 0;
     GtkNotebook *nb = GTK_NOTEBOOK (notebook);
     GtkWidget *page;
     GtkAllocation allocation;
 
-    tab_pos = gtk_notebook_get_tab_pos (GTK_NOTEBOOK (notebook));
-
     while ((page = gtk_notebook_get_nth_page (nb, page_num)))
     {
         GtkWidget *tab;
         gint max_x, max_y;
-        gint x_root, y_root;
 
         tab = gtk_notebook_get_tab_label (nb, page);
         g_return_val_if_fail (tab != NULL, -1);
@@ -106,22 +123,12 @@ find_tab_num_at_pos (NautilusNotebook *notebook,
             continue;
         }
 
-        gdk_window_get_origin (gtk_widget_get_window (tab),
-                               &x_root, &y_root);
         gtk_widget_get_allocation (tab, &allocation);
 
-        max_x = x_root + allocation.x + allocation.width;
-        max_y = y_root + allocation.y + allocation.height;
+        max_x = allocation.x + allocation.width;
+        max_y = allocation.y + allocation.height;
 
-        if (((tab_pos == GTK_POS_TOP)
-             || (tab_pos == GTK_POS_BOTTOM))
-            && (abs_x <= max_x))
-        {
-            return page_num;
-        }
-        else if (((tab_pos == GTK_POS_LEFT)
-                  || (tab_pos == GTK_POS_RIGHT))
-                 && (abs_y <= max_y))
+        if (abs_x <= max_x && abs_y <= max_y)
         {
             return page_num;
         }
@@ -131,32 +138,53 @@ find_tab_num_at_pos (NautilusNotebook *notebook,
     return AFTER_ALL_TABS;
 }
 
-static gboolean
-button_press_cb (NautilusNotebook *notebook,
-                 GdkEventButton   *event,
-                 gpointer          data)
+static void
+button_press_cb (GtkGestureMultiPress *gesture,
+                 gint                  n_press,
+                 gdouble               x,
+                 gdouble               y,
+                 gpointer              user_data)
 {
+    guint button;
+    GdkEventSequence *sequence;
+    const GdkEvent *event;
+    GtkWidget *widget;
+    NautilusNotebook *notebook;
     int tab_clicked;
+    GdkModifierType state;
 
-    tab_clicked = find_tab_num_at_pos (notebook, event->x_root, event->y_root);
+    button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (gesture));
+    sequence = gtk_gesture_single_get_current_sequence (GTK_GESTURE_SINGLE (gesture));
+    event = gtk_gesture_get_last_event (GTK_GESTURE (gesture), sequence);
+    widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
+    notebook = NAUTILUS_NOTEBOOK (widget);
+    tab_clicked = find_tab_num_at_pos (notebook, x, y);
 
-    if (event->type == GDK_BUTTON_PRESS &&
-        event->button == 3 &&
-        (event->state & gtk_accelerator_get_default_mod_mask ()) == 0)
+    gdk_event_get_state (event, &state);
+
+    if (n_press != 1)
     {
-        if (tab_clicked == -1)
-        {
-            /* consume event, so that we don't pop up the context menu when
-             * the mouse if not over a tab label
-             */
-            return TRUE;
-        }
+        return;
+    }
 
+    if (tab_clicked == -1)
+    {
+        return;
+    }
+
+    if (button == GDK_BUTTON_SECONDARY &&
+        (state & gtk_accelerator_get_default_mod_mask ()) == 0)
+    {
         /* switch to the page the mouse is over, but don't consume the event */
         gtk_notebook_set_current_page (GTK_NOTEBOOK (notebook), tab_clicked);
     }
+    else if (button == GDK_BUTTON_MIDDLE)
+    {
+        GtkWidget *slot;
 
-    return FALSE;
+        slot = gtk_notebook_get_nth_page (GTK_NOTEBOOK (notebook), tab_clicked);
+        g_signal_emit (notebook, signals[TAB_CLOSE_REQUEST], 0, slot);
+    }
 }
 
 static void
@@ -166,8 +194,13 @@ nautilus_notebook_init (NautilusNotebook *notebook)
     gtk_notebook_set_show_border (GTK_NOTEBOOK (notebook), FALSE);
     gtk_notebook_set_show_tabs (GTK_NOTEBOOK (notebook), FALSE);
 
-    g_signal_connect (notebook, "button-press-event",
-                      (GCallback) button_press_cb, NULL);
+    notebook->multi_press_gesture = gtk_gesture_multi_press_new (GTK_WIDGET (notebook));
+
+    gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (notebook->multi_press_gesture),
+                                                GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (notebook->multi_press_gesture), 0);
+
+    g_signal_connect (notebook->multi_press_gesture, "pressed", G_CALLBACK (button_press_cb), NULL);
 }
 
 gboolean
@@ -187,6 +220,14 @@ nautilus_notebook_contains_slot (NautilusNotebook   *notebook,
     g_list_free (children);
 
     return found;
+}
+
+gboolean
+nautilus_notebook_content_area_hit (NautilusNotebook *notebook,
+                                    gint              x,
+                                    gint              y)
+{
+    return find_tab_num_at_pos (notebook, x, y) == -1;
 }
 
 void
@@ -258,7 +299,7 @@ nautilus_notebook_sync_tab_label (NautilusNotebook   *notebook,
          */
         location_name = g_file_get_parse_name (location);
         title_name = nautilus_window_slot_get_title (slot);
-        if (g_str_has_prefix (location_name, EEL_SEARCH_URI))
+        if (eel_uri_is_search (location_name))
         {
             gtk_widget_set_tooltip_text (gtk_widget_get_parent (label), title_name);
         }
@@ -288,41 +329,38 @@ close_button_clicked_cb (GtkWidget          *widget,
 }
 
 static GtkWidget *
-build_tab_label (NautilusNotebook   *nb,
+build_tab_label (NautilusNotebook   *notebook,
                  NautilusWindowSlot *slot)
 {
-    GtkWidget *hbox, *label, *close_button, *image, *spinner, *icon;
     GtkWidget *box;
+    GtkWidget *label;
+    GtkWidget *close_button;
+    GtkWidget *image;
+    GtkWidget *spinner;
+    GtkWidget *icon;
 
+    /* When porting to Gtk+4, use GtkCenterBox instead */
     box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 4);
     gtk_widget_show (box);
 
-    /* set hbox spacing and label padding (see below) so that there's an
-     * equal amount of space around the label */
-    hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
-    gtk_widget_show (hbox);
-    gtk_widget_set_halign (hbox, GTK_ALIGN_CENTER);
-    gtk_box_pack_start (GTK_BOX (box), hbox, TRUE, TRUE, 0);
-
-    /* setup load feedback */
+    /* Spinner to be shown as load feedback */
     spinner = gtk_spinner_new ();
-    gtk_box_pack_start (GTK_BOX (hbox), spinner, FALSE, FALSE, 0);
+    gtk_box_pack_start (GTK_BOX (box), spinner, FALSE, FALSE, 0);
 
-    /* setup site icon, empty by default */
+    /* Dummy icon to allocate space for spinner */
     icon = gtk_image_new ();
-    gtk_box_pack_start (GTK_BOX (hbox), icon, FALSE, FALSE, 0);
+    gtk_box_pack_start (GTK_BOX (box), icon, FALSE, FALSE, 0);
     /* don't show the icon */
 
-    /* setup label */
+    /* Tab title */
     label = gtk_label_new (NULL);
     gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
     gtk_label_set_single_line_mode (GTK_LABEL (label), TRUE);
-    gtk_label_set_xalign (GTK_LABEL (label), 0.5);
-    gtk_label_set_yalign (GTK_LABEL (label), 0.5);
-    gtk_box_pack_start (GTK_BOX (hbox), label, FALSE, FALSE, 0);
+    gtk_label_set_width_chars (GTK_LABEL (label), 6);
+    gtk_box_set_center_widget (GTK_BOX (box), label);
     gtk_widget_show (label);
 
-    /* setup close button */
+    /* Tab close button */
     close_button = gtk_button_new ();
     gtk_button_set_relief (GTK_BUTTON (close_button),
                            GTK_RELIEF_NONE);
@@ -339,7 +377,7 @@ build_tab_label (NautilusNotebook   *nb,
     gtk_container_add (GTK_CONTAINER (close_button), image);
     gtk_widget_show (image);
 
-    gtk_box_pack_start (GTK_BOX (box), close_button, FALSE, FALSE, 0);
+    gtk_box_pack_end (GTK_BOX (box), close_button, FALSE, FALSE, 0);
     gtk_widget_show (close_button);
 
     g_object_set_data (G_OBJECT (box), "nautilus-notebook-tab", GINT_TO_POINTER (1));
@@ -398,6 +436,7 @@ nautilus_notebook_add_tab (NautilusNotebook   *notebook,
     gtk_container_child_set (GTK_CONTAINER (notebook),
                              GTK_WIDGET (slot),
                              "tab-expand", TRUE,
+                             "detachable", FALSE,
                              NULL);
 
     nautilus_notebook_sync_tab_label (notebook, slot);

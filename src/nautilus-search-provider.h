@@ -15,8 +15,7 @@
  *  License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NAUTILUS_SEARCH_PROVIDER_H
-#define NAUTILUS_SEARCH_PROVIDER_H
+#pragma once
 
 #include <glib-object.h>
 #include "nautilus-query.h"
@@ -29,6 +28,13 @@ typedef enum {
   NAUTILUS_SEARCH_PROVIDER_STATUS_RESTARTING
 } NautilusSearchProviderStatus;
 
+typedef enum {
+  NAUTILUS_SEARCH_ENGINE_ALL_ENGINES,
+  NAUTILUS_SEARCH_ENGINE_TRACKER_ENGINE,
+  NAUTILUS_SEARCH_ENGINE_RECENT_ENGINE,
+  NAUTILUS_SEARCH_ENGINE_MODEL_ENGINE,
+  NAUTILUS_SEARCH_ENGINE_SIMPLE_ENGINE,
+} NautilusSearchEngineTarget;
 
 #define NAUTILUS_TYPE_SEARCH_PROVIDER (nautilus_search_provider_get_type ())
 
@@ -93,5 +99,3 @@ void           nautilus_search_provider_error           (NautilusSearchProvider 
 gboolean       nautilus_search_provider_is_running      (NautilusSearchProvider *provider);
 
 G_END_DECLS
-
-#endif

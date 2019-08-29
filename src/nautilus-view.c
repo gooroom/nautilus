@@ -26,24 +26,24 @@ static void
 nautilus_view_default_init (NautilusViewInterface *iface)
 {
     /**
-     * NautilusView::is-loading:
+     * NautilusView::loading:
      *
      * %TRUE if the view is loading the location, %FALSE otherwise.
      */
     g_object_interface_install_property (iface,
-                                         g_param_spec_boolean ("is-loading",
+                                         g_param_spec_boolean ("loading",
                                                                "Current view is loading",
                                                                "Whether the current view is loading the location or not",
                                                                FALSE,
                                                                G_PARAM_READABLE));
 
     /**
-     * NautilusView::is-searching:
+     * NautilusView::searching:
      *
      * %TRUE if the view is searching, %FALSE otherwise.
      */
     g_object_interface_install_property (iface,
-                                         g_param_spec_boolean ("is-searching",
+                                         g_param_spec_boolean ("searching",
                                                                "Current view is searching",
                                                                "Whether the current view is searching or not",
                                                                FALSE,
@@ -62,6 +62,17 @@ nautilus_view_default_init (NautilusViewInterface *iface)
                                                               G_PARAM_READWRITE));
 
     /**
+     * NautilusView::selection:
+     *
+     * The current selection of the view.
+     */
+    g_object_interface_install_property (iface,
+                                         g_param_spec_pointer ("selection",
+                                                               "Selection of the view",
+                                                               "The current selection of the view",
+                                                               G_PARAM_READWRITE));
+
+    /**
      * NautilusView::search-query:
      *
      * The search query being performed, or NULL.
@@ -71,6 +82,29 @@ nautilus_view_default_init (NautilusViewInterface *iface)
                                                               "Search query being performed",
                                                               "The search query being performed on the view",
                                                               NAUTILUS_TYPE_QUERY,
+                                                              G_PARAM_READWRITE));
+
+    /**
+     * NautilusView::extensions-background-menu:
+     *
+     * Menu for the background click of extensions
+     */
+    g_object_interface_install_property (iface,
+                                         g_param_spec_object ("extensions-background-menu",
+                                                              "Menu for the background click of extensions",
+                                                              "Menu for the background click of extensions",
+                                                              G_TYPE_MENU,
+                                                              G_PARAM_READWRITE));
+    /**
+     * NautilusView::templates-menu:
+     *
+     * Menu of templates
+     */
+    g_object_interface_install_property (iface,
+                                         g_param_spec_object ("templates-menu",
+                                                              "Menu of templates",
+                                                              "Menu of templates",
+                                                              G_TYPE_MENU,
                                                               G_PARAM_READWRITE));
 }
 
@@ -135,6 +169,42 @@ nautilus_view_get_toolbar_menu_sections (NautilusView *view)
     g_return_val_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->get_toolbar_menu_sections, NULL);
 
     return NAUTILUS_VIEW_GET_IFACE (view)->get_toolbar_menu_sections (view);
+}
+
+GMenu *
+nautilus_view_get_extensions_background_menu (NautilusView *view)
+{
+    g_return_val_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->get_extensions_background_menu, NULL);
+
+    return NAUTILUS_VIEW_GET_IFACE (view)->get_extensions_background_menu (view);
+}
+
+/* Protected */
+void
+nautilus_view_set_extensions_background_menu (NautilusView *view,
+                                              GMenu        *menu)
+{
+    g_return_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->set_extensions_background_menu);
+
+    NAUTILUS_VIEW_GET_IFACE (view)->set_extensions_background_menu (view, menu);
+}
+
+GMenu *
+nautilus_view_get_templates_menu (NautilusView *view)
+{
+    g_return_val_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->get_templates_menu, NULL);
+
+    return NAUTILUS_VIEW_GET_IFACE (view)->get_templates_menu (view);
+}
+
+/* Protected */
+void
+nautilus_view_set_templates_menu (NautilusView *view,
+                                  GMenu        *menu)
+{
+    g_return_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->set_templates_menu);
+
+    NAUTILUS_VIEW_GET_IFACE (view)->set_templates_menu (view, menu);
 }
 
 /**

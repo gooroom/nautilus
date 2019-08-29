@@ -25,9 +25,8 @@
 
 #include "nautilus-global-preferences.h"
 #include "nautilus-icon-info.h"
-#include "nautilus-recent.h"
-#include <eel/eel-gnome-extensions.h>
-#include <eel/eel-stock-dialogs.h>
+#include "nautilus-ui-utilities.h"
+#include <eel/eel-vfs-extensions.h>
 #include <gtk/gtk.h>
 #include <glib/gi18n.h>
 #include <gio/gio.h>
@@ -37,6 +36,47 @@
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 
+static void
+add_file_to_recent (NautilusFile *file,
+                    GAppInfo     *application)
+{
+    GtkRecentData recent_data;
+    char *uri;
+
+    uri = nautilus_file_get_activation_uri (file);
+    if (uri == NULL)
+    {
+        uri = nautilus_file_get_uri (file);
+    }
+
+    /* do not add trash:// etc */
+    if (eel_uri_is_trash (uri) ||
+        eel_uri_is_search (uri) ||
+        eel_uri_is_recent (uri))
+    {
+        g_free (uri);
+        return;
+    }
+
+    recent_data.display_name = NULL;
+    recent_data.description = NULL;
+
+    recent_data.mime_type = nautilus_file_get_mime_type (file);
+    recent_data.app_name = g_strdup (g_get_application_name ());
+    recent_data.app_exec = g_strdup (g_app_info_get_commandline (application));
+
+    recent_data.groups = NULL;
+    recent_data.is_private = FALSE;
+
+    gtk_recent_manager_add_full (gtk_recent_manager_get_default (),
+                                 uri, &recent_data);
+
+    g_free (recent_data.mime_type);
+    g_free (recent_data.app_name);
+    g_free (recent_data.app_exec);
+
+    g_free (uri);
+}
 void
 nautilus_launch_application_for_mount (GAppInfo  *app_info,
                                        GMount    *mount,
@@ -86,6 +126,32 @@ nautilus_launch_application (GAppInfo  *application,
     g_list_free_full (uris, g_free);
 }
 
+static GdkAppLaunchContext *
+get_launch_context (GtkWindow *parent_window)
+{
+    GdkDisplay *display;
+    GdkAppLaunchContext *launch_context;
+
+    if (parent_window != NULL)
+    {
+        display = gtk_widget_get_display (GTK_WIDGET (parent_window));
+    }
+    else
+    {
+        display = gdk_display_get_default ();
+    }
+
+    launch_context = gdk_display_get_app_launch_context (display);
+
+    if (parent_window != NULL)
+    {
+        gdk_app_launch_context_set_screen (launch_context,
+                                           gtk_window_get_screen (parent_window));
+    }
+
+    return launch_context;
+}
+
 void
 nautilus_launch_application_by_uri (GAppInfo  *application,
                                     GList     *uris,
@@ -97,8 +163,7 @@ nautilus_launch_application_by_uri (GAppInfo  *application,
     NautilusFile *file;
     gboolean result;
     GError *error;
-    GdkDisplay *display;
-    GdkAppLaunchContext *launch_context;
+    g_autoptr (GdkAppLaunchContext) launch_context = NULL;
     NautilusIconInfo *icon;
     int count, total;
 
@@ -121,22 +186,7 @@ nautilus_launch_application_by_uri (GAppInfo  *application,
     }
     locations = g_list_reverse (locations);
 
-    if (parent_window != NULL)
-    {
-        display = gtk_widget_get_display (GTK_WIDGET (parent_window));
-    }
-    else
-    {
-        display = gdk_display_get_default ();
-    }
-
-    launch_context = gdk_display_get_app_launch_context (display);
-
-    if (parent_window != NULL)
-    {
-        gdk_app_launch_context_set_screen (launch_context,
-                                           gtk_window_get_screen (parent_window));
-    }
+    launch_context = get_launch_context (parent_window);
 
     file = nautilus_file_get_by_uri (uris->data);
     icon = nautilus_file_get_icon (file,
@@ -172,14 +222,12 @@ nautilus_launch_application_by_uri (GAppInfo  *application,
                                          &error);
     }
 
-    g_object_unref (launch_context);
-
     if (result)
     {
         for (l = uris; l != NULL; l = l->next)
         {
             file = nautilus_file_get_by_uri (l->data);
-            nautilus_recent_add_file (file, application);
+            add_file_to_recent (file, application);
             nautilus_file_unref (file);
         }
     }
@@ -192,29 +240,32 @@ launch_application_from_command_internal (const gchar *full_command,
                                           GdkScreen   *screen,
                                           gboolean     use_terminal)
 {
-    GAppInfo *app;
-    GdkAppLaunchContext *ctx;
-    GdkDisplay *display;
+    GAppInfoCreateFlags flags;
+    g_autoptr (GError) error = NULL;
+    g_autoptr (GAppInfo) app = NULL;
 
+    flags = G_APP_INFO_CREATE_NONE;
     if (use_terminal)
     {
-        eel_gnome_open_terminal_on_screen (full_command, screen);
+        flags = G_APP_INFO_CREATE_NEEDS_TERMINAL;
     }
-    else
+
+    app = g_app_info_create_from_commandline (full_command, NULL, flags, &error);
+    if (app != NULL && !(use_terminal && screen == NULL))
     {
-        app = g_app_info_create_from_commandline (full_command, NULL, 0, NULL);
+        GdkDisplay *display;
+        g_autoptr (GdkAppLaunchContext) context = NULL;
 
-        if (app != NULL)
-        {
-            display = gdk_screen_get_display (screen);
-            ctx = gdk_display_get_app_launch_context (display);
-            gdk_app_launch_context_set_screen (ctx, screen);
+        display = gdk_screen_get_display (screen);
+        context = gdk_display_get_app_launch_context (display);
+        gdk_app_launch_context_set_screen (context, screen);
 
-            g_app_info_launch (app, NULL, G_APP_LAUNCH_CONTEXT (ctx), NULL);
+        g_app_info_launch (app, NULL, G_APP_LAUNCH_CONTEXT (context), &error);
+    }
 
-            g_object_unref (app);
-            g_object_unref (ctx);
-        }
+    if (error != NULL)
+    {
+        g_message ("Could not start application: %s", error->message);
     }
 }
 
@@ -325,11 +376,10 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
     {
         g_free (desktop_file_path);
         g_object_unref (desktop_file);
-        eel_show_error_dialog
-            (_("Sorry, but you cannot execute commands from "
-               "a remote site."),
-            _("This is disabled due to security considerations."),
-            parent_window);
+        show_dialog (_("Sorry, but you cannot execute commands from a remote site."),
+                     _("This is disabled due to security considerations."),
+                     parent_window,
+                     GTK_MESSAGE_ERROR);
 
         return;
     }
@@ -339,10 +389,10 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
     g_free (desktop_file_path);
     if (app_info == NULL)
     {
-        eel_show_error_dialog
-            (_("There was an error launching the application."),
-            NULL,
-            parent_window);
+        show_dialog (_("There was an error launching the application."),
+                     NULL,
+                     parent_window,
+                     GTK_MESSAGE_ERROR);
         return;
     }
 
@@ -368,11 +418,10 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
         if (count == 0)
         {
             /* all files are non-local */
-            eel_show_error_dialog
-                (_("This drop target only supports local files."),
-                _("To open non-local files copy them to a local folder and then"
-                  " drop them again."),
-                parent_window);
+            show_dialog (_("This drop target only supports local files."),
+                         _("To open non-local files copy them to a local folder and then drop them again."),
+                         parent_window,
+                         GTK_MESSAGE_ERROR);
 
             g_list_free_full (files, g_object_unref);
             g_object_unref (app_info);
@@ -381,11 +430,11 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
         else if (count != total)
         {
             /* some files are non-local */
-            eel_show_warning_dialog
-                (_("This drop target only supports local files."),
-                _("To open non-local files copy them to a local folder and then"
-                  " drop them again. The local files you dropped have already been opened."),
-                parent_window);
+            show_dialog (_("This drop target only supports local files."),
+                         _("To open non-local files copy them to a local folder and then"
+                         " drop them again. The local files you dropped have already been opened."),
+                         parent_window,
+                         GTK_MESSAGE_WARNING);
         }
     }
 
@@ -417,10 +466,10 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
     if (error != NULL)
     {
         message = g_strconcat (_("Details: "), error->message, NULL);
-        eel_show_error_dialog
-            (_("There was an error launching the application."),
-            message,
-            parent_window);
+        show_dialog (_("There was an error launching the application."),
+                     message,
+                     parent_window,
+                     GTK_MESSAGE_ERROR);
 
         g_error_free (error);
         g_free (message);
@@ -430,3 +479,236 @@ nautilus_launch_desktop_file (GdkScreen   *screen,
     g_object_unref (context);
     g_object_unref (app_info);
 }
+
+/* HAX
+ *
+ * TODO: remove everything below once it’s doable from GTK+.
+ *
+ * Context: https://bugzilla.gnome.org/show_bug.cgi?id=781132 and
+ *          https://bugzilla.gnome.org/show_bug.cgi?id=779312
+ *
+ * In a sandboxed environment, this is needed to able to get the actual
+ * result of the operation, since gtk_show_uri_on_window () neither blocks
+ * nor returns a useful value.
+ */
+
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
+
+typedef void (*GtkWindowHandleExported) (GtkWindow  *window,
+                                         const char *handle,
+                                         gpointer    user_data);
+
+#ifdef GDK_WINDOWING_WAYLAND
+typedef struct
+{
+    GtkWindow *window;
+    GtkWindowHandleExported callback;
+    gpointer user_data;
+} WaylandWindowHandleExportedData;
+
+static void
+wayland_window_handle_exported (GdkWindow  *window,
+                                const char *wayland_handle_str,
+                                gpointer    user_data)
+{
+    WaylandWindowHandleExportedData *data = user_data;
+    char *handle_str;
+
+    handle_str = g_strdup_printf ("wayland:%s", wayland_handle_str);
+    data->callback (data->window, handle_str, data->user_data);
+    g_free (handle_str);
+}
+#endif
+
+static gboolean
+window_export_handle (GtkWindow               *window,
+                      GtkWindowHandleExported  callback,
+                      gpointer                 user_data)
+{
+#ifdef GDK_WINDOWING_X11
+    if (GDK_IS_X11_DISPLAY (gtk_widget_get_display (GTK_WIDGET (window))))
+    {
+        GdkWindow *gdk_window = gtk_widget_get_window (GTK_WIDGET (window));
+        char *handle_str;
+        guint32 xid = (guint32) gdk_x11_window_get_xid (gdk_window);
+
+        handle_str = g_strdup_printf ("x11:%x", xid);
+        callback (window, handle_str, user_data);
+
+        return TRUE;
+    }
+#endif
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY (gtk_widget_get_display (GTK_WIDGET (window))))
+    {
+        GdkWindow *gdk_window = gtk_widget_get_window (GTK_WIDGET (window));
+        WaylandWindowHandleExportedData *data;
+
+        data = g_new0 (WaylandWindowHandleExportedData, 1);
+        data->window = window;
+        data->callback = callback;
+        data->user_data = user_data;
+
+        if (!gdk_wayland_window_export_handle (gdk_window,
+                                               wayland_window_handle_exported,
+                                               data,
+                                               g_free))
+        {
+            g_free (data);
+            return FALSE;
+        }
+        else
+        {
+            return TRUE;
+        }
+    }
+#endif
+
+    g_warning ("Couldn't export handle, unsupported windowing system");
+
+    return FALSE;
+}
+
+static void
+gtk_window_unexport_handle (GtkWindow *window)
+{
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY (gtk_widget_get_display (GTK_WIDGET (window))))
+    {
+        GdkWindow *gdk_window = gtk_widget_get_window (GTK_WIDGET (window));
+
+        gdk_wayland_window_unexport_handle (gdk_window);
+    }
+#endif
+}
+
+static void
+on_launch_default_for_uri (GObject      *source,
+                           GAsyncResult *result,
+                           gpointer      data)
+{
+    GTask *task;
+    GtkWindow *window;
+    gboolean success;
+    GError *error = NULL;
+
+    task = data;
+    window = g_task_get_source_object (task);
+
+    success = g_app_info_launch_default_for_uri_finish (result, &error);
+
+    if (window)
+    {
+        gtk_window_unexport_handle (window);
+    }
+
+    if (success)
+    {
+        g_task_return_boolean (task, success);
+    }
+    else
+    {
+        g_task_return_error (task, error);
+    }
+
+    /* Reffed in the call to window_export_handle */
+    g_object_unref (task);
+}
+
+static void
+on_window_handle_export (GtkWindow  *window,
+                         const char *handle_str,
+                         gpointer    user_data)
+{
+    GTask *task = user_data;
+    GAppLaunchContext *context = g_task_get_task_data (task);
+    const char *uri;
+
+    uri = g_object_get_data (G_OBJECT (context), "uri");
+
+    g_app_launch_context_setenv (context, "PARENT_WINDOW_ID", handle_str);
+
+    g_app_info_launch_default_for_uri_async (uri,
+                                             context,
+                                             g_task_get_cancellable (task),
+                                             on_launch_default_for_uri,
+                                             task);
+}
+
+static void
+launch_default_for_uri_thread_func (GTask        *task,
+                                    gpointer      source_object,
+                                    gpointer      task_data,
+                                    GCancellable *cancellable)
+{
+    GAppLaunchContext *launch_context;
+    const char *uri;
+    gboolean success;
+    GError *error = NULL;
+
+    launch_context = task_data;
+    uri = g_object_get_data (G_OBJECT (launch_context), "uri");
+    success = g_app_info_launch_default_for_uri (uri, launch_context, &error);
+
+    if (success)
+    {
+        g_task_return_boolean (task, success);
+    }
+    else
+    {
+        g_task_return_error (task, error);
+    }
+}
+
+void
+nautilus_launch_default_for_uri_async  (const char         *uri,
+                                        GtkWindow          *parent_window,
+                                        GCancellable       *cancellable,
+                                        GAsyncReadyCallback callback,
+                                        gpointer            callback_data)
+{
+    g_autoptr (GdkAppLaunchContext) launch_context = NULL;
+    g_autoptr (GTask) task = NULL;
+
+    g_return_if_fail (uri != NULL);
+
+    launch_context = get_launch_context (parent_window);
+    task = g_task_new (parent_window, cancellable, callback, callback_data);
+
+    gdk_app_launch_context_set_timestamp (launch_context, GDK_CURRENT_TIME);
+
+    g_object_set_data_full (G_OBJECT (launch_context),
+                            "uri", g_strdup (uri), g_free);
+    g_task_set_task_data (task,
+                          g_object_ref (launch_context), g_object_unref);
+
+    if (parent_window != NULL)
+    {
+        gboolean handle_exported;
+
+        handle_exported = window_export_handle (parent_window,
+                                                on_window_handle_export,
+                                                g_object_ref (task));
+
+        if (handle_exported)
+        {
+            /* Launching will now be handled from the callback */
+            return;
+        }
+    }
+
+    g_task_run_in_thread (task, launch_default_for_uri_thread_func);
+}
+
+gboolean
+nautilus_launch_default_for_uri_finish (GAsyncResult  *result,
+                                        GError       **error)
+{
+    g_return_val_if_fail (G_IS_ASYNC_RESULT (result), FALSE);
+
+    return g_task_propagate_boolean (G_TASK (result), error);
+}
+
+/* END OF HAX */

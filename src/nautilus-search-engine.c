@@ -20,23 +20,22 @@
  */
 
 #include <config.h>
-
-#include <glib/gi18n.h>
-#include "nautilus-search-provider.h"
 #include "nautilus-search-engine.h"
-#include "nautilus-search-engine-simple.h"
+#include "nautilus-search-engine-private.h"
+
+#include "nautilus-file-utilities.h"
 #include "nautilus-search-engine-model.h"
+#include <glib/gi18n.h>
 #define DEBUG_FLAG NAUTILUS_DEBUG_SEARCH
 #include "nautilus-debug.h"
-
-#ifdef ENABLE_TRACKER
+#include "nautilus-search-engine-recent.h"
+#include "nautilus-search-engine-simple.h"
 #include "nautilus-search-engine-tracker.h"
-#endif
 
-typedef struct {
-#ifdef ENABLE_TRACKER
+typedef struct
+{
     NautilusSearchEngineTracker *tracker;
-#endif
+    NautilusSearchEngineRecent *recent;
     NautilusSearchEngineSimple *simple;
     NautilusSearchEngineModel *model;
 
@@ -77,15 +76,14 @@ nautilus_search_engine_set_query (NautilusSearchProvider *provider,
     engine = NAUTILUS_SEARCH_ENGINE (provider);
     priv = nautilus_search_engine_get_instance_private (engine);
 
-#ifdef ENABLE_TRACKER
     nautilus_search_provider_set_query (NAUTILUS_SEARCH_PROVIDER (priv->tracker), query);
-#endif
+    nautilus_search_provider_set_query (NAUTILUS_SEARCH_PROVIDER (priv->recent), query);
     nautilus_search_provider_set_query (NAUTILUS_SEARCH_PROVIDER (priv->model), query);
     nautilus_search_provider_set_query (NAUTILUS_SEARCH_PROVIDER (priv->simple), query);
 }
 
 static void
-search_engine_start_real (NautilusSearchEngine *engine)
+search_engine_start_real_setup (NautilusSearchEngine *engine)
 {
     NautilusSearchEnginePrivate *priv;
 
@@ -97,23 +95,141 @@ search_engine_start_real (NautilusSearchEngine *engine)
 
     priv->restart = FALSE;
 
-    DEBUG ("Search engine start real");
+    DEBUG ("Search engine start real setup");
 
     g_object_ref (engine);
+}
 
-#ifdef ENABLE_TRACKER
-    nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->tracker));
+static void
+search_engine_start_real_tracker (NautilusSearchEngine *engine)
+{
+    NautilusSearchEnginePrivate *priv;
+
+    priv = nautilus_search_engine_get_instance_private (engine);
+    
     priv->providers_running++;
-#endif
+    nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->tracker));
+}
+
+static void
+search_engine_start_real_recent (NautilusSearchEngine *engine)
+{
+    NautilusSearchEnginePrivate *priv;
+
+    priv = nautilus_search_engine_get_instance_private (engine);
+    
+    priv->providers_running++;
+    nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->recent));
+}
+
+static void
+search_engine_start_real_model (NautilusSearchEngine *engine)
+{
+    NautilusSearchEnginePrivate *priv;
+
+    priv = nautilus_search_engine_get_instance_private (engine);
     if (nautilus_search_engine_model_get_model (priv->model))
     {
-        nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->model));
         priv->providers_running++;
+        nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->model));
     }
+}
+
+static void
+search_engine_start_real_simple (NautilusSearchEngine *engine)
+{
+    NautilusSearchEnginePrivate *priv;
+
+    priv = nautilus_search_engine_get_instance_private (engine);
+    priv->providers_running++;
 
     nautilus_search_provider_start (NAUTILUS_SEARCH_PROVIDER (priv->simple));
-    priv->providers_running++;
 }
+
+static void
+search_engine_start_real (NautilusSearchEngine       *engine,
+                          NautilusSearchEngineTarget  target_engine)
+{
+    search_engine_start_real_setup (engine);
+
+    switch (target_engine)
+    {
+        case NAUTILUS_SEARCH_ENGINE_TRACKER_ENGINE:
+        {
+            search_engine_start_real_tracker (engine);
+        }
+        break;
+
+        case NAUTILUS_SEARCH_ENGINE_RECENT_ENGINE:
+        {
+            search_engine_start_real_recent (engine);
+        }
+        break;
+
+        case NAUTILUS_SEARCH_ENGINE_MODEL_ENGINE:
+        {
+            search_engine_start_real_model (engine);
+        }
+        break;
+
+        case NAUTILUS_SEARCH_ENGINE_SIMPLE_ENGINE:
+        {
+            search_engine_start_real_simple (engine);
+        }
+        break;
+
+        case NAUTILUS_SEARCH_ENGINE_ALL_ENGINES:
+        default:
+        {
+            search_engine_start_real_tracker (engine);
+            search_engine_start_real_recent (engine);
+            search_engine_start_real_model (engine);
+            search_engine_start_real_simple (engine);
+        }
+    }
+}
+
+void
+nautilus_search_engine_start_by_target (NautilusSearchProvider     *provider,
+                                        NautilusSearchEngineTarget  target_engine)
+{
+    NautilusSearchEngine *engine;
+    NautilusSearchEnginePrivate *priv;
+    gint num_finished;
+
+    engine = NAUTILUS_SEARCH_ENGINE (provider);
+    priv = nautilus_search_engine_get_instance_private (engine);
+
+    DEBUG ("Search engine start");
+
+    num_finished = priv->providers_error + priv->providers_finished;
+
+    if (priv->running)
+    {
+        if (num_finished == priv->providers_running &&
+            priv->restart)
+        {
+            search_engine_start_real (engine, target_engine);
+        }
+
+        return;
+    }
+
+    priv->running = TRUE;
+
+    g_object_notify (G_OBJECT (provider), "running");
+
+    if (num_finished < priv->providers_running)
+    {
+        priv->restart = TRUE;
+    }
+    else
+    {
+        search_engine_start_real (engine, target_engine);
+    }
+}
+
+
 
 static void
 nautilus_search_engine_start (NautilusSearchProvider *provider)
@@ -134,7 +250,7 @@ nautilus_search_engine_start (NautilusSearchProvider *provider)
         if (num_finished == priv->providers_running &&
             priv->restart)
         {
-            search_engine_start_real (engine);
+            search_engine_start_real (engine, NAUTILUS_SEARCH_ENGINE_ALL_ENGINES);
         }
 
         return;
@@ -150,7 +266,7 @@ nautilus_search_engine_start (NautilusSearchProvider *provider)
     }
     else
     {
-        search_engine_start_real (engine);
+        search_engine_start_real (engine, NAUTILUS_SEARCH_ENGINE_ALL_ENGINES);
     }
 }
 
@@ -165,9 +281,8 @@ nautilus_search_engine_stop (NautilusSearchProvider *provider)
 
     DEBUG ("Search engine stop");
 
-#ifdef ENABLE_TRACKER
     nautilus_search_provider_stop (NAUTILUS_SEARCH_PROVIDER (priv->tracker));
-#endif
+    nautilus_search_provider_stop (NAUTILUS_SEARCH_PROVIDER (priv->recent));
     nautilus_search_provider_stop (NAUTILUS_SEARCH_PROVIDER (priv->model));
     nautilus_search_provider_stop (NAUTILUS_SEARCH_PROVIDER (priv->simple));
 
@@ -342,9 +457,8 @@ nautilus_search_engine_finalize (GObject *object)
 
     g_hash_table_destroy (priv->uris);
 
-#ifdef ENABLE_TRACKER
     g_clear_object (&priv->tracker);
-#endif
+    g_clear_object (&priv->recent);
     g_clear_object (&priv->model);
     g_clear_object (&priv->simple);
 
@@ -398,15 +512,17 @@ nautilus_search_engine_init (NautilusSearchEngine *engine)
     priv = nautilus_search_engine_get_instance_private (engine);
     priv->uris = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
-#ifdef ENABLE_TRACKER
     priv->tracker = nautilus_search_engine_tracker_new ();
     connect_provider_signals (engine, NAUTILUS_SEARCH_PROVIDER (priv->tracker));
-#endif
+
     priv->model = nautilus_search_engine_model_new ();
     connect_provider_signals (engine, NAUTILUS_SEARCH_PROVIDER (priv->model));
 
     priv->simple = nautilus_search_engine_simple_new ();
     connect_provider_signals (engine, NAUTILUS_SEARCH_PROVIDER (priv->simple));
+
+    priv->recent = nautilus_search_engine_recent_new ();
+    connect_provider_signals (engine, NAUTILUS_SEARCH_PROVIDER (priv->recent));
 }
 
 NautilusSearchEngine *
@@ -429,12 +545,40 @@ nautilus_search_engine_get_model_provider (NautilusSearchEngine *engine)
     return priv->model;
 }
 
-NautilusSearchEngineSimple *
-nautilus_search_engine_get_simple_provider (NautilusSearchEngine *engine)
+gboolean
+is_recursive_search (NautilusSearchEngineType  engine_type,
+                     NautilusQueryRecursive    recursive,
+                     GFile                    *location)
 {
-    NautilusSearchEnginePrivate *priv;
+    switch (recursive)
+    {
+        case NAUTILUS_QUERY_RECURSIVE_NEVER:
+            return FALSE;
 
-    priv = nautilus_search_engine_get_instance_private (engine);
+        case NAUTILUS_QUERY_RECURSIVE_ALWAYS:
+            return TRUE;
 
-    return priv->simple;
+        case NAUTILUS_QUERY_RECURSIVE_INDEXED_ONLY:
+            return engine_type == NAUTILUS_SEARCH_ENGINE_TYPE_INDEXED;
+
+        case NAUTILUS_QUERY_RECURSIVE_LOCAL_ONLY:
+        {
+            g_autoptr (GFileInfo) file_system_info = NULL;
+
+            file_system_info = g_file_query_filesystem_info (location,
+                                                             G_FILE_ATTRIBUTE_FILESYSTEM_TYPE,
+                                                             NULL, NULL);
+            if (file_system_info != NULL)
+            {
+                const char *file_system;
+
+                file_system = g_file_info_get_attribute_string (file_system_info,
+                                                                G_FILE_ATTRIBUTE_FILESYSTEM_TYPE);
+
+                return !nautilus_file_system_is_remote (file_system);
+            }
+        }
+    }
+
+    return TRUE;
 }

@@ -17,8 +17,7 @@
    Author: Pavel Cisler <pavel@eazel.com>  
 */
 
-#ifndef NAUTILUS_FILE_CHANGES_QUEUE_H
-#define NAUTILUS_FILE_CHANGES_QUEUE_H
+#pragma once
 
 #include <gdk/gdk.h>
 #include <gio/gio.h>
@@ -28,12 +27,5 @@ void nautilus_file_changes_queue_file_changed                    (GFile      *lo
 void nautilus_file_changes_queue_file_removed                    (GFile      *location);
 void nautilus_file_changes_queue_file_moved                      (GFile      *from,
 								  GFile      *to);
-void nautilus_file_changes_queue_schedule_position_set           (GFile      *location,
-								  GdkPoint    point,
-								  int         screen);
-void nautilus_file_changes_queue_schedule_position_remove        (GFile      *location);
 
 void nautilus_file_changes_consume_changes                       (gboolean    consume_all);
-
-
-#endif /* NAUTILUS_FILE_CHANGES_QUEUE_H */

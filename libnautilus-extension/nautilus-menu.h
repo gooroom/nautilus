@@ -22,84 +22,115 @@
  *
  */
 
-#ifndef NAUTILUS_MENU_H
-#define NAUTILUS_MENU_H
+#pragma once
+
+#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
+#warning "Only <nautilus-extension.h> should be included directly."
+#endif
 
 #include <glib-object.h>
+/* This should be removed at some point. */
 #include "nautilus-extension-types.h"
-
 
 G_BEGIN_DECLS
 
-/* NautilusMenu defines */
-#define NAUTILUS_TYPE_MENU         (nautilus_menu_get_type ())
-#define NAUTILUS_MENU(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), NAUTILUS_TYPE_MENU, NautilusMenu))
-#define NAUTILUS_MENU_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), NAUTILUS_TYPE_MENU, NautilusMenuClass))
-#define NAUTILUS_IS_MENU(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), NAUTILUS_TYPE_MENU))
-#define NAUTILUS_IS_MENU_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), NAUTILUS_TYPE_MENU))
-#define NAUTILUS_MENU_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), NAUTILUS_TYPE_MENU, NautilusMenuClass))
-/* NautilusMenuItem defines */
-#define NAUTILUS_TYPE_MENU_ITEM            (nautilus_menu_item_get_type())
-#define NAUTILUS_MENU_ITEM(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_MENU_ITEM, NautilusMenuItem))
-#define NAUTILUS_MENU_ITEM_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_MENU_ITEM, NautilusMenuItemClass))
-#define NAUTILUS_MENU_IS_ITEM(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_MENU_ITEM))
-#define NAUTILUS_MENU_IS_ITEM_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((obj), NAUTILUS_TYPE_MENU_ITEM))
-#define NAUTILUS_MENU_ITEM_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj), NAUTILUS_TYPE_MENU_ITEM, NautilusMenuItemClass))
+#define NAUTILUS_TYPE_MENU (nautilus_menu_get_type ())
+#define NAUTILUS_TYPE_MENU_ITEM (nautilus_menu_item_get_type ())
 
+G_DECLARE_FINAL_TYPE     (NautilusMenu, nautilus_menu,
+                          NAUTILUS, MENU,
+                          GObject)
+G_DECLARE_DERIVABLE_TYPE (NautilusMenuItem, nautilus_menu_item,
+                          NAUTILUS, MENU_ITEM,
+                          GObject)
 
-/* NautilusMenu types */
-typedef struct _NautilusMenu		NautilusMenu;
-typedef struct _NautilusMenuPrivate	NautilusMenuPrivate;
-typedef struct _NautilusMenuClass	NautilusMenuClass;
-/* NautilusMenuItem types */
-typedef struct _NautilusMenuItem        NautilusMenuItem;
-typedef struct _NautilusMenuItemDetails NautilusMenuItemDetails;
-typedef struct _NautilusMenuItemClass   NautilusMenuItemClass;
+/**
+ * SECTION:nautilus-menu
+ * @title: NautilusMenu
+ * @short_description: Menu descriptor object
+ *
+ * #NautilusMenu is an object that describes a submenu in a file manager
+ * menu. Extensions can provide #NautilusMenu objects by attaching them to
+ * #NautilusMenuItem objects, using nautilus_menu_item_set_submenu().
+ *
+ * ## Menu Items
+ *
+ * #NautilusMenuItem is an object that describes an item in a file manager
+ * menu. Extensions can provide #NautilusMenuItem objects by registering a
+ * #NautilusMenuProvider and returning them from
+ * nautilus_menu_provider_get_file_items(), or
+ * nautilus_menu_provider_get_background_items(), which will be called by the
+ * main application when creating menus.
+ */
 
+struct _NautilusMenuItemClass
+{
+    GObjectClass parent;
 
-/* NautilusMenu structs */
-struct _NautilusMenu {
-	GObject parent;
-	NautilusMenuPrivate *priv;
+    void (*activate) (NautilusMenuItem *item);
 };
 
-struct _NautilusMenuClass {
-	GObjectClass parent_class;
-};
+/**
+ * nautilus_menu_new:
+ *
+ * Returns: a new #NautilusMenu.
+ */
+NautilusMenu     *nautilus_menu_new              (void);
 
-/* NautilusMenuItem structs */
-struct _NautilusMenuItem {
-	GObject parent;
+/**
+ * nautilus_menu_append_item:
+ * @menu: a #NautilusMenu
+ * @item: (transfer full): a #NautilusMenuItem to append
+ */
+void              nautilus_menu_append_item      (NautilusMenu     *menu,
+                                                  NautilusMenuItem *item);
+/**
+ * nautilus_menu_get_items:
+ * @menu: a #NautilusMenu
+ *
+ * Returns: (element-type NautilusMenuItem) (transfer full): the provided #NautilusMenuItem list
+ */
+GList            *nautilus_menu_get_items        (NautilusMenu     *menu);
+/**
+ * nautilus_menu_item_list_free:
+ * @item_list: (element-type NautilusMenuItem): a list of #NautilusMenuItem
+ *
+ */
+void              nautilus_menu_item_list_free   (GList            *item_list);
 
-	NautilusMenuItemDetails *details;
-};
+/**
+ * nautilus_menu_item_new:
+ * @name: the identifier for the menu item
+ * @label: the user-visible label of the menu item
+ * @tip: the tooltip of the menu item
+ * @icon: the name of the icon to display in the menu item
+ *
+ * Creates a new menu item that can be added to the toolbar or to a contextual menu.
+ *
+ * Returns: (transfer full): a new #NautilusMenuItem
+ */
+NautilusMenuItem *nautilus_menu_item_new         (const char       *name,
+                                                  const char       *label,
+                                                  const char       *tip,
+                                                  const char       *icon);
 
-struct _NautilusMenuItemClass {
-	GObjectClass parent;
+/**
+ * nautilus_menu_item_activate:
+ * @item: pointer to a #NautilusMenuItem
+ *
+ * Emits #NautilusMenuItem::activate.
+ */
+void              nautilus_menu_item_activate    (NautilusMenuItem *item);
+/**
+ * nautilus_menu_item_set_submenu:
+ * @item: pointer to a #NautilusMenuItem
+ * @menu: (transfer full): pointer to a #NautilusMenu to attach to the button
+ *
+ * Attaches a menu to the given #NautilusMenuItem.
+ */
+void              nautilus_menu_item_set_submenu (NautilusMenuItem *item,
+                                                  NautilusMenu     *menu);
 
-	void (*activate) (NautilusMenuItem *item);
-};
-
-
-/* NautilusMenu methods */
-GType		nautilus_menu_get_type	(void);
-NautilusMenu *	nautilus_menu_new	(void);
-
-void	nautilus_menu_append_item	(NautilusMenu      *menu,
-					 NautilusMenuItem  *item);
-GList*	nautilus_menu_get_items		(NautilusMenu *menu);
-void	nautilus_menu_item_list_free	(GList *item_list);
-
-/* NautilusMenuItem methods */
-GType             nautilus_menu_item_get_type      (void);
-NautilusMenuItem *nautilus_menu_item_new           (const char       *name,
-						    const char       *label,
-						    const char       *tip,
-						    const char       *icon);
-
-void              nautilus_menu_item_activate      (NautilusMenuItem *item);
-void              nautilus_menu_item_set_submenu   (NautilusMenuItem *item,
-						    NautilusMenu     *menu);
 /* NautilusMenuItem has the following properties:
  *   name (string)        - the identifier for the menu item
  *   label (string)       - the user-visible label of the menu item
@@ -112,5 +143,3 @@ void              nautilus_menu_item_set_submenu   (NautilusMenuItem *item,
  */
 
 G_END_DECLS
-
-#endif /* NAUTILUS_MENU_H */

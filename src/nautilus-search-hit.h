@@ -17,8 +17,7 @@
  *
  */
 
-#ifndef NAUTILUS_SEARCH_HIT_H
-#define NAUTILUS_SEARCH_HIT_H
+#pragma once
 
 #include <glib-object.h>
 #include "nautilus-query.h"
@@ -37,13 +36,13 @@ void                nautilus_search_hit_set_modification_time (NautilusSearchHit
 							       GDateTime         *date);
 void                nautilus_search_hit_set_access_time       (NautilusSearchHit *hit,
 							       GDateTime         *date);
-
+void                nautilus_search_hit_set_fts_snippet       (NautilusSearchHit *hit,
+                                                               const gchar       *snippet);
 void                nautilus_search_hit_compute_scores        (NautilusSearchHit *hit,
 							       NautilusQuery     *query);
 
 const char *        nautilus_search_hit_get_uri               (NautilusSearchHit *hit);
 gdouble             nautilus_search_hit_get_relevance         (NautilusSearchHit *hit);
+const gchar *       nautilus_search_hit_get_fts_snippet       (NautilusSearchHit *hit);
 
 G_END_DECLS
-
-#endif /* NAUTILUS_SEARCH_HIT_H */

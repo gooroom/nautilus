@@ -19,12 +19,12 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#ifndef NAUTILUS_DIRECTORY_H
-#define NAUTILUS_DIRECTORY_H
+#pragma once
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
-#include "nautilus-file-attributes.h"
+
+#include "nautilus-enums.h"
 
 /* NautilusDirectory is a class that manages the model for a directory,
    real or virtual, for Nautilus, mainly the file-manager component. The directory is
@@ -58,13 +58,14 @@
 typedef struct NautilusFile NautilusFile;
 #endif
 
-typedef struct NautilusDirectoryDetails NautilusDirectoryDetails;
+typedef struct _NautilusDirectory        NautilusDirectory;
+typedef struct  NautilusDirectoryDetails NautilusDirectoryDetails;
 
-typedef struct
+struct _NautilusDirectory
 {
 	GObject object;
 	NautilusDirectoryDetails *details;
-} NautilusDirectory;
+};
 
 typedef void (*NautilusDirectoryCallback) (NautilusDirectory *directory,
 					   GList             *files,
@@ -170,6 +171,8 @@ NautilusDirectory *nautilus_directory_get_for_file             (NautilusFile    
 NautilusDirectory *nautilus_directory_ref                      (NautilusDirectory         *directory);
 void               nautilus_directory_unref                    (NautilusDirectory         *directory);
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (NautilusDirectory, nautilus_directory_unref)
+
 /* Access to a URI. */
 char *             nautilus_directory_get_uri                  (NautilusDirectory         *directory);
 GFile *            nautilus_directory_get_location             (NautilusDirectory         *directory);
@@ -225,7 +228,8 @@ gboolean           nautilus_directory_is_local_or_fuse         (NautilusDirector
 
 gboolean           nautilus_directory_is_in_trash              (NautilusDirectory         *directory);
 gboolean           nautilus_directory_is_in_recent             (NautilusDirectory         *directory);
-gboolean           nautilus_directory_is_remote                (NautilusDirectory         *directory);
+gboolean           nautilus_directory_is_in_starred            (NautilusDirectory         *directory);
+gboolean           nautilus_directory_is_in_admin              (NautilusDirectory         *directory);
 
 /* Return false if directory contains anything besides a Nautilus metafile.
  * Only valid if directory is monitored. Used by the Trash monitor.
@@ -248,5 +252,3 @@ void               nautilus_directory_dump                     (NautilusDirector
 NautilusFile *     nautilus_directory_new_file_from_filename   (NautilusDirectory *directory,
                                                                 const char        *filename,
                                                                 gboolean           self_owned);
-
-#endif /* NAUTILUS_DIRECTORY_H */

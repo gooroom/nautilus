@@ -19,39 +19,59 @@
  *
  */
 
-#ifndef NAUTILUS_QUERY_EDITOR_H
-#define NAUTILUS_QUERY_EDITOR_H
+#pragma once
 
 #include <gtk/gtk.h>
 
-#include "nautilus-query.h"
+#include "nautilus-types.h"
 
 #define NAUTILUS_TYPE_QUERY_EDITOR nautilus_query_editor_get_type()
 
-G_DECLARE_DERIVABLE_TYPE (NautilusQueryEditor, nautilus_query_editor, NAUTILUS, QUERY_EDITOR, GtkSearchBar)
+G_DECLARE_FINAL_TYPE (NautilusQueryEditor, nautilus_query_editor, NAUTILUS, QUERY_EDITOR, GtkBox)
 
-struct _NautilusQueryEditorClass {
-        GtkSearchBarClass parent_class;
+GtkWidget     *nautilus_query_editor_new          (void);
 
-	void (* changed)   (NautilusQueryEditor  *editor,
-			    NautilusQuery        *query,
-			    gboolean              reload);
-	void (* cancel)    (NautilusQueryEditor *editor);
-	void (* activated) (NautilusQueryEditor *editor);
-};
-
-#include "nautilus-window-slot.h"
-
-GType      nautilus_query_editor_get_type     	   (void);
-GtkWidget* nautilus_query_editor_new          	   (void);
-
-NautilusQuery *nautilus_query_editor_get_query   (NautilusQueryEditor *editor);
-void           nautilus_query_editor_set_query   (NautilusQueryEditor *editor,
-						  NautilusQuery       *query);
-GFile *        nautilus_query_editor_get_location (NautilusQueryEditor *editor);
+/**
+ * nautilus_query_editor_get_query:
+ *
+ * @editor: A #NautilusQueryEditor instance.
+ *
+ * Returns: (nullable) (transfer full): The #NautilusQuery for the editor.
+ */
+NautilusQuery *nautilus_query_editor_get_query    (NautilusQueryEditor *editor);
+/**
+ * nautilus_query_editor_set_query:
+ *
+ * @editor: A #NautilusQueryEditor instance.
+ * @query: (nullable) (transfer full): The #NautilusQuery for the search.
+ */
+void           nautilus_query_editor_set_query    (NautilusQueryEditor *editor,
+                                                   NautilusQuery       *query);
+/**
+ * nautilus_query_editor_get_location:
+ *
+ * @editor: A #NautilusQueryEditor instance.
+ *
+ * Returns: (nullable) (transfer full): The location of the current search.
+ */
+GFile         *nautilus_query_editor_get_location (NautilusQueryEditor *editor);
+/**
+ * nautilus_query_editor_set_location:
+ *
+ * @editor: A #NautilusQueryEditor instance.
+ * @location: (nullable) (transfer full): The location in which the search will take place.
+ */
 void           nautilus_query_editor_set_location (NautilusQueryEditor *editor,
-						   GFile               *location);
+                                                   GFile               *location);
+/**
+ * nautilus_query_editor_set_text:
+ *
+ * @editor: A #NautilusQueryEditor instance.
+ * @text: (not nullable) (transfer none): The search text.
+ */
 void           nautilus_query_editor_set_text     (NautilusQueryEditor *editor,
                                                    const gchar         *text);
 
-#endif /* NAUTILUS_QUERY_EDITOR_H */
+gboolean
+nautilus_query_editor_handle_event (NautilusQueryEditor *self,
+                                    GdkEvent            *event);

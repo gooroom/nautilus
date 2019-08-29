@@ -19,23 +19,14 @@
    Author: Alexander Larsson <alexl@redhat.com>
 */
 
-#ifndef NAUTILUS_PROGRESS_INFO_H
-#define NAUTILUS_PROGRESS_INFO_H
+#pragma once
 
 #include <glib-object.h>
 #include <gio/gio.h>
 
-#define NAUTILUS_TYPE_PROGRESS_INFO         (nautilus_progress_info_get_type ())
-#define NAUTILUS_PROGRESS_INFO(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), NAUTILUS_TYPE_PROGRESS_INFO, NautilusProgressInfo))
-#define NAUTILUS_PROGRESS_INFO_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), NAUTILUS_TYPE_PROGRESS_INFO, NautilusProgressInfoClass))
-#define NAUTILUS_IS_PROGRESS_INFO(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), NAUTILUS_TYPE_PROGRESS_INFO))
-#define NAUTILUS_IS_PROGRESS_INFO_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), NAUTILUS_TYPE_PROGRESS_INFO))
-#define NAUTILUS_PROGRESS_INFO_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), NAUTILUS_TYPE_PROGRESS_INFO, NautilusProgressInfoClass))
+#define NAUTILUS_TYPE_PROGRESS_INFO (nautilus_progress_info_get_type ())
 
-typedef struct _NautilusProgressInfo      NautilusProgressInfo;
-typedef struct _NautilusProgressInfoClass NautilusProgressInfoClass;
-
-GType nautilus_progress_info_get_type (void) G_GNUC_CONST;
+G_DECLARE_FINAL_TYPE (NautilusProgressInfo, nautilus_progress_info, NAUTILUS, PROGRESS_INFO, GObject)
 
 /* Signals:
    "changed" - status or details changed
@@ -89,7 +80,3 @@ gdouble       nautilus_progress_info_get_total_elapsed_time (NautilusProgressInf
 void nautilus_progress_info_set_destination (NautilusProgressInfo *info,
                                              GFile                *file);
 GFile *nautilus_progress_info_get_destination (NautilusProgressInfo *info);
-
-
-
-#endif /* NAUTILUS_PROGRESS_INFO_H */

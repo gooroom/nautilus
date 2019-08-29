@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NAUTILUS_BATCH_RENAME_DIALOG_H
-#define NAUTILUS_BATCH_RENAME_DIALOG_H
+#pragma once
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -230,10 +229,4 @@ void            nautilus_batch_rename_dialog_query_finished           (NautilusB
                                                                        GHashTable                *hash_table,
                                                                        GList                     *selection_metadata);
 
-void            check_conflict_for_files                               (NautilusBatchRenameDialog *dialog,
-                                                                        NautilusDirectory         *directory,
-                                                                        GList                     *files);
-
 G_END_DECLS
-
-#endif

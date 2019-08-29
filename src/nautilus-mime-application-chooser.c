@@ -28,7 +28,7 @@
 
 #include "nautilus-file.h"
 #include "nautilus-signaller.h"
-#include <eel/eel-stock-dialogs.h>
+#include "nautilus-ui-utilities.h"
 
 #include <string.h>
 #include <glib/gi18n-lib.h>
@@ -48,7 +48,7 @@ struct _NautilusMimeApplicationChooser
     GtkWidget *entry;
     GtkWidget *set_as_default_button;
     GtkWidget *open_with_widget;
-    GtkWidget *add_button;  
+    GtkWidget *add_button;
 };
 
 enum
@@ -84,9 +84,10 @@ add_clicked_cb (GtkButton *button,
     {
         message = g_strdup_printf (_("Error while adding “%s”: %s"),
                                    g_app_info_get_display_name (info), error->message);
-        eel_show_error_dialog (_("Could not add application"),
-                               message,
-                               GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))));
+        show_dialog (_("Could not add application"),
+                     message,
+                     GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))),
+                     GTK_MESSAGE_ERROR);
         g_error_free (error);
         g_free (message);
     }
@@ -116,9 +117,10 @@ remove_clicked_cb (GtkMenuItem *item,
                                               chooser->content_type,
                                               &error))
         {
-            eel_show_error_dialog (_("Could not forget association"),
-                                   error->message,
-                                   GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))));
+            show_dialog (_("Could not forget association"),
+                         error->message,
+                         GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))),
+                         GTK_MESSAGE_ERROR);
             g_error_free (error);
         }
 
@@ -181,9 +183,10 @@ set_as_default_clicked_cb (GtkButton *button,
     {
         message = g_strdup_printf (_("Error while setting “%s” as default application: %s"),
                                    g_app_info_get_display_name (info), error->message);
-        eel_show_error_dialog (_("Could not set as default"),
-                               message,
-                               GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))));
+        show_dialog (_("Could not set as default"),
+                     message,
+                     GTK_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (chooser))),
+                     GTK_MESSAGE_ERROR);
     }
 
     g_object_unref (info);

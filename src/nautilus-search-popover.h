@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NAUTILUS_SEARCH_POPOVER_H
-#define NAUTILUS_SEARCH_POPOVER_H
+#pragma once
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -46,6 +45,8 @@ void                 nautilus_search_popover_set_query           (NautilusSearch
 void                 nautilus_search_popover_reset_date_range    (NautilusSearchPopover *popover);
 void                 nautilus_search_popover_reset_mime_types    (NautilusSearchPopover *popover);
 
-G_END_DECLS
+gboolean             nautilus_search_popover_get_fts_enabled     (NautilusSearchPopover *popover);
+void                 nautilus_search_popover_set_fts_sensitive   (NautilusSearchPopover *popover,
+                                                                  gboolean               sensitive);
 
-#endif /* NAUTILUS_SEARCH_POPOVER_H */
+G_END_DECLS

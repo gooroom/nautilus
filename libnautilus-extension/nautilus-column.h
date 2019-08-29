@@ -21,40 +21,47 @@
  *
  */
 
-#ifndef NAUTILUS_COLUMN_H
-#define NAUTILUS_COLUMN_H
+#pragma once
+
+#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
+#warning "Only <nautilus-extension.h> should be included directly."
+#endif
 
 #include <glib-object.h>
+/* This should be removed at some point. */
 #include "nautilus-extension-types.h"
 
 G_BEGIN_DECLS
 
-#define NAUTILUS_TYPE_COLUMN            (nautilus_column_get_type())
-#define NAUTILUS_COLUMN(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_COLUMN, NautilusColumn))
-#define NAUTILUS_COLUMN_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_COLUMN, NautilusColumnClass))
-#define NAUTILUS_INFO_IS_COLUMN(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_COLUMN))
-#define NAUTILUS_INFO_IS_COLUMN_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((obj), NAUTILUS_TYPE_COLUMN))
-#define NAUTILUS_COLUMN_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj), NAUTILUS_TYPE_COLUMN, NautilusColumnClass))
+#define NAUTILUS_TYPE_COLUMN (nautilus_column_get_type())
 
-typedef struct _NautilusColumn        NautilusColumn;
-typedef struct _NautilusColumnDetails NautilusColumnDetails;
-typedef struct _NautilusColumnClass   NautilusColumnClass;
+G_DECLARE_FINAL_TYPE (NautilusColumn, nautilus_column, NAUTILUS, COLUMN, GObject)
 
-struct _NautilusColumn {
-	GObject parent;
+/**
+ * SECTION:nautilus-column
+ * @title: NautilusColumn
+ * @short_description: List view column descriptor object
+ *
+ * #NautilusColumn is an object that describes a column in the file manager
+ * list view. Extensions can provide #NautilusColumn by registering a
+ * #NautilusColumnProvider and returning them from
+ * nautilus_column_provider_get_columns(), which will be called by the main
+ * application when creating a view.
+ */
 
-	NautilusColumnDetails *details;
-};
-
-struct _NautilusColumnClass {
-	GObjectClass parent;
-};
-
-GType             nautilus_column_get_type        (void);
-NautilusColumn *  nautilus_column_new             (const char     *name,
-						   const char     *attribute,
-						   const char     *label,
-						   const char     *description);
+/**
+ * nautilus_column_new:
+ * @name: (not nullable): identifier of the column
+ * @attribute: (not nullable): the file attribute to be displayed in the column
+ * @label: (not nullable): the user-visible label for the column
+ * @description: (not nullable): a user-visible description of the column
+ *
+ * Returns: (transfer full): a new #NautilusColumn
+ */
+NautilusColumn *nautilus_column_new  (const char *name,
+                                      const char *attribute,
+                                      const char *label,
+                                      const char *description);
 
 /* NautilusColumn has the following properties:
  *   name (string)        - the identifier for the column
@@ -67,5 +74,3 @@ NautilusColumn *  nautilus_column_new             (const char     *name,
  */
 
 G_END_DECLS
-
-#endif

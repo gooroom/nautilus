@@ -20,8 +20,7 @@
    Authors: Darin Adler <darin@eazel.com>
 */
 
-#ifndef EEL_STRING_H
-#define EEL_STRING_H
+#pragma once
 
 #include <glib.h>
 #include <string.h>
@@ -41,12 +40,23 @@ char *   eel_str_double_underscores        (const char    *str);
 /* Capitalize a string */
 char *   eel_str_capitalize                (const char    *str);
 
-/* Middle truncate a string to a maximum of truncate_length characters.
- * The resulting string will be truncated in the middle with a "..."
- * delimiter.
+/**
+ * eel_str_middle_truncate:
+ * @string: the string to truncate
+ * @truncate_length: the length limit at which to truncate
+ *
+ * If @string is longer than @truncate_length, replaces the middle with an
+ * ellipsis so the resulting string is exactly @truncate_length characters
+ * in length. Otherwise, returns a copy of @string.
+ *
+ * Do not use to ellipsize whole labels, only substrings that appear in them,
+ * e.g. file names.
+ *
+ * Returns: @string, truncated at the middle to @truncate_length or a copy
+ * if it was not longer than @truncate_length.
  */
-char *   eel_str_middle_truncate           (const char    *str,
-					    guint          truncate_length);
+gchar   *eel_str_middle_truncate           (const gchar   *string,
+                                            guint          truncate_length);
 
 
 /* Remove all characters after the passed-in substring. */
@@ -57,14 +67,6 @@ char *   eel_str_strip_substring_and_after (const char    *str,
 char *   eel_str_replace_substring         (const char    *str,
 					    const char    *substring,
 					    const char    *replacement);
-/**
- * eel_str_rtrim_punctuation:
- * @str: string
- *
- * Returns: a copy of str with trailing punctuation characters removed
- */
-char *   eel_str_rtrim_punctuation         (char *str);
-
 
 /**
  * eel_str_get_common_prefix:
@@ -84,19 +86,3 @@ eel_ref_str eel_ref_str_ref        (eel_ref_str  str);
 void        eel_ref_str_unref      (eel_ref_str  str);
 
 #define eel_ref_str_peek(__str) ((const char *)(__str))
-
-
-typedef struct {
-  char character;
-  char *(*to_string) (char *format, va_list va);
-  void (*skip) (va_list *va);
-} EelPrintfHandler;
-
-char *eel_strdup_printf_with_custom (EelPrintfHandler *handlers,
-				     const char *format,
-				     ...);
-char *eel_strdup_vprintf_with_custom (EelPrintfHandler *custom,
-				      const char *format,
-				      va_list va);
-
-#endif /* EEL_STRING_H */

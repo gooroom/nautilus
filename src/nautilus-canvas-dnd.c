@@ -36,11 +36,9 @@
 
 #include "nautilus-canvas-private.h"
 #include "nautilus-global-preferences.h"
-#include "nautilus-link.h"
 #include "nautilus-metadata.h"
 #include "nautilus-selection-canvas-item.h"
 #include <eel/eel-glib-extensions.h>
-#include <eel/eel-gnome-extensions.h>
 #include <eel/eel-graphic-effects.h>
 #include <eel/eel-gtk-extensions.h>
 #include <eel/eel-stock-dialogs.h>
@@ -87,8 +85,7 @@ static char *nautilus_canvas_container_find_drop_target (NautilusCanvasContainer
                                                          GdkDragContext          *context,
                                                          int                      x,
                                                          int                      y,
-                                                         gboolean                *icon_hit,
-                                                         gboolean                 rewrite_desktop);
+                                                         gboolean                *icon_hit);
 
 static EelCanvasItem *
 create_selection_shadow (NautilusCanvasContainer *container,
@@ -136,7 +133,6 @@ create_selection_shadow (NautilusCanvasContainer *container,
     {
         NautilusDragSelectionItem *item;
         int x1, y1, x2, y2;
-        GdkRGBA black = { 0, 0, 0, 1 };
 
         item = p->data;
 
@@ -159,9 +155,6 @@ create_selection_shadow (NautilusCanvasContainer *container,
                 "y1", (double) y1,
                 "x2", (double) x2,
                 "y2", (double) y2,
-                "outline-color-rgba", &black,
-                "outline-stippling", TRUE,
-                "width_pixels", 1,
                 NULL);
         }
     }
@@ -252,11 +245,8 @@ icon_get_data_binder (NautilusCanvasIcon *icon,
 
     uri = nautilus_canvas_container_get_icon_uri (container, icon);
     file = nautilus_file_get_by_uri (uri);
-    if (!eel_uri_is_desktop (uri) && !nautilus_file_is_nautilus_link (file))
-    {
-        g_free (uri);
-        uri = nautilus_canvas_container_get_icon_activation_uri (container, icon);
-    }
+    g_free (uri);
+    uri = nautilus_canvas_container_get_icon_activation_uri (container, icon);
 
     if (uri == NULL)
     {
@@ -482,7 +472,7 @@ set_direct_save_uri (GtkWidget        *widget,
 
     filename = get_direct_save_filename (context);
     drop_target = nautilus_canvas_container_find_drop_target (NAUTILUS_CANVAS_CONTAINER (widget),
-                                                              context, x, y, NULL, TRUE);
+                                                              context, x, y, NULL);
 
     if (drop_target && eel_uri_is_trash (drop_target))
     {
@@ -537,14 +527,7 @@ get_data_on_first_target_we_support (GtkWidget      *widget,
         gtk_target_list_add_text_targets (drop_types_list_root, NAUTILUS_ICON_DND_TEXT);
     }
 
-    if (nautilus_canvas_container_get_is_desktop (NAUTILUS_CANVAS_CONTAINER (widget)))
-    {
-        list = drop_types_list_root;
-    }
-    else
-    {
-        list = drop_types_list;
-    }
+    list = drop_types_list;
 
     target = gtk_drag_dest_find_target (widget, context, list);
     if (target != GDK_NONE)
@@ -561,7 +544,7 @@ get_data_on_first_target_we_support (GtkWidget      *widget,
         /* Don't get_data for destructive ops */
         if ((info == NAUTILUS_ICON_DND_ROOTWINDOW_DROP ||
              info == NAUTILUS_ICON_DND_XDNDDIRECTSAVE) &&
-            !drag_info->drop_occured)
+            !drag_info->drop_occurred)
         {
             /* We can't call get_data here, because that would
              *  make the source execute the rootwin action or the direct save */
@@ -685,14 +668,8 @@ nautilus_canvas_container_selection_items_local (NautilusCanvasContainer *contai
     /* get the URI associated with the container */
     container_uri_string = get_container_uri (container);
 
-    if (eel_uri_is_desktop (container_uri_string))
-    {
-        result = nautilus_drag_items_on_desktop (items);
-    }
-    else
-    {
-        result = nautilus_drag_items_local (container_uri_string, items);
-    }
+    result = nautilus_drag_items_local (container_uri_string, items);
+
     g_free (container_uri_string);
 
     return result;
@@ -713,13 +690,12 @@ receive_dropped_netscape_url (NautilusCanvasContainer *container,
         return;
     }
 
-    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL, TRUE);
+    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL);
 
     g_signal_emit_by_name (container, "handle-netscape-url",
                            encoded_url,
                            drop_target,
-                           gdk_drag_context_get_selected_action (context),
-                           x, y);
+                           gdk_drag_context_get_selected_action (context));
 
     g_free (drop_target);
 }
@@ -739,13 +715,12 @@ receive_dropped_uri_list (NautilusCanvasContainer *container,
         return;
     }
 
-    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL, TRUE);
+    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL);
 
     g_signal_emit_by_name (container, "handle-uri-list",
                            uri_list,
                            drop_target,
-                           gdk_drag_context_get_selected_action (context),
-                           x, y);
+                           gdk_drag_context_get_selected_action (context));
 
     g_free (drop_target);
 }
@@ -765,13 +740,12 @@ receive_dropped_text (NautilusCanvasContainer *container,
         return;
     }
 
-    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL, TRUE);
+    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL);
 
     g_signal_emit_by_name (container, "handle-text",
                            text,
                            drop_target,
-                           gdk_drag_context_get_selected_action (context),
-                           x, y);
+                           gdk_drag_context_get_selected_action (context));
 
     g_free (drop_target);
 }
@@ -793,15 +767,14 @@ receive_dropped_raw (NautilusCanvasContainer *container,
         return;
     }
 
-    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL, TRUE);
+    drop_target = nautilus_canvas_container_find_drop_target (container, context, x, y, NULL);
 
     g_signal_emit_by_name (container, "handle-raw",
                            raw_data,
                            length,
                            drop_target,
                            direct_save_uri,
-                           gdk_drag_context_get_selected_action (context),
-                           x, y);
+                           gdk_drag_context_get_selected_action (context));
 
     g_free (drop_target);
 }
@@ -910,87 +883,13 @@ stop_auto_scroll (NautilusCanvasContainer *container)
 }
 
 static void
-handle_local_move (NautilusCanvasContainer *container,
-                   double                   world_x,
-                   double                   world_y)
-{
-    GList *moved_icons, *p;
-    NautilusDragSelectionItem *item;
-    NautilusCanvasIcon *icon;
-    NautilusFile *file;
-    char screen_string[32];
-    GdkScreen *screen;
-    time_t now;
-
-    if (container->details->auto_layout)
-    {
-        return;
-    }
-
-    time (&now);
-
-    /* Move and select the icons. */
-    moved_icons = NULL;
-    for (p = container->details->dnd_info->drag_info.selection_list; p != NULL; p = p->next)
-    {
-        item = p->data;
-
-        icon = nautilus_canvas_container_get_icon_by_uri
-                   (container, item->uri);
-
-        if (icon == NULL)
-        {
-            /* probably dragged from another screen.  Add it to
-             * this screen
-             */
-
-            file = nautilus_file_get_by_uri (item->uri);
-
-            screen = gtk_widget_get_screen (GTK_WIDGET (container));
-            g_snprintf (screen_string, sizeof (screen_string), "%d",
-                        gdk_screen_get_number (screen));
-            nautilus_file_set_metadata (file,
-                                        NAUTILUS_METADATA_KEY_SCREEN,
-                                        NULL, screen_string);
-            nautilus_file_set_time_metadata (file,
-                                             NAUTILUS_METADATA_KEY_ICON_POSITION_TIMESTAMP, now);
-
-            nautilus_canvas_container_add (container, NAUTILUS_CANVAS_ICON_DATA (file));
-
-            icon = nautilus_canvas_container_get_icon_by_uri
-                       (container, item->uri);
-        }
-
-        if (item->got_icon_position)
-        {
-            nautilus_canvas_container_move_icon
-                (container, icon,
-                world_x + item->icon_x, world_y + item->icon_y,
-                icon->scale,
-                TRUE, TRUE, TRUE);
-        }
-        moved_icons = g_list_prepend (moved_icons, icon);
-    }
-    nautilus_canvas_container_select_list_unselect_others
-        (container, moved_icons);
-    /* Might have been moved in a way that requires adjusting scroll region. */
-    nautilus_canvas_container_update_scroll_region (container);
-    g_list_free (moved_icons);
-}
-
-static void
 handle_nonlocal_move (NautilusCanvasContainer *container,
                       GdkDragAction            action,
-                      int                      x,
-                      int                      y,
                       const char              *target_uri,
                       gboolean                 icon_hit)
 {
     GList *source_uris, *p;
-    GArray *source_item_locations = NULL;
-    gboolean free_target_uri, is_rtl;
-    int index, item_x;
-    GtkAllocation allocation;
+    gboolean free_target_uri;
 
     if (container->details->dnd_info->drag_info.selection_list == NULL)
     {
@@ -1005,52 +904,13 @@ handle_nonlocal_move (NautilusCanvasContainer *container,
     }
     source_uris = g_list_reverse (source_uris);
 
-    is_rtl = nautilus_canvas_container_is_layout_rtl (container);
-
-    if (!icon_hit && eel_uri_is_desktop (target_uri))
-    {
-        /* Drop onto a container. Pass along the item points to allow placing
-         * the items in their same relative positions in the new container.
-         */
-        source_item_locations = g_array_new (FALSE, TRUE, sizeof (GdkPoint));
-        source_item_locations = g_array_set_size (source_item_locations,
-                                                  g_list_length (container->details->dnd_info->drag_info.selection_list));
-
-        for (index = 0, p = container->details->dnd_info->drag_info.selection_list;
-             p != NULL; index++, p = p->next)
-        {
-            item_x = ((NautilusDragSelectionItem *) p->data)->icon_x;
-            if (is_rtl)
-            {
-                item_x = -item_x - ((NautilusDragSelectionItem *) p->data)->icon_width;
-            }
-            g_array_index (source_item_locations, GdkPoint, index).x = item_x;
-            g_array_index (source_item_locations, GdkPoint, index).y =
-                ((NautilusDragSelectionItem *) p->data)->icon_y;
-        }
-    }
-
     free_target_uri = FALSE;
-    /* Rewrite internal desktop URIs to the normal target uri */
-    if (eel_uri_is_desktop (target_uri))
-    {
-        target_uri = nautilus_get_desktop_directory_uri ();
-        free_target_uri = TRUE;
-    }
-
-    if (is_rtl)
-    {
-        gtk_widget_get_allocation (GTK_WIDGET (container), &allocation);
-        x = CANVAS_WIDTH (container, allocation) - x;
-    }
 
     /* start the copy */
     g_signal_emit_by_name (container, "move-copy-items",
                            source_uris,
-                           source_item_locations,
                            target_uri,
-                           action,
-                           x, y);
+                           action);
 
     if (free_target_uri)
     {
@@ -1058,10 +918,6 @@ handle_nonlocal_move (NautilusCanvasContainer *container,
     }
 
     g_list_free (source_uris);
-    if (source_item_locations != NULL)
-    {
-        g_array_free (source_item_locations, TRUE);
-    }
 }
 
 static char *
@@ -1069,8 +925,7 @@ nautilus_canvas_container_find_drop_target (NautilusCanvasContainer *container,
                                             GdkDragContext          *context,
                                             int                      x,
                                             int                      y,
-                                            gboolean                *icon_hit,
-                                            gboolean                 rewrite_desktop)
+                                            gboolean                *icon_hit)
 {
     NautilusCanvasIcon *drop_target_icon;
     double world_x, world_y;
@@ -1131,24 +986,16 @@ nautilus_canvas_container_find_drop_target (NautilusCanvasContainer *container,
 
         if (container_uri != NULL)
         {
-            if (rewrite_desktop && eel_uri_is_desktop (container_uri))
+            gboolean can;
+            file = nautilus_file_get_by_uri (container_uri);
+            can = nautilus_drag_can_accept_info (file,
+                                                 container->details->dnd_info->drag_info.data_type,
+                                                 container->details->dnd_info->drag_info.selection_list);
+            g_object_unref (file);
+            if (!can)
             {
                 g_free (container_uri);
-                container_uri = nautilus_get_desktop_directory_uri ();
-            }
-            else
-            {
-                gboolean can;
-                file = nautilus_file_get_by_uri (container_uri);
-                can = nautilus_drag_can_accept_info (file,
-                                                     container->details->dnd_info->drag_info.data_type,
-                                                     container->details->dnd_info->drag_info.selection_list);
-                g_object_unref (file);
-                if (!can)
-                {
-                    g_free (container_uri);
-                    container_uri = NULL;
-                }
+                container_uri = NULL;
             }
         }
 
@@ -1185,19 +1032,8 @@ nautilus_canvas_container_receive_dropped_icons (NautilusCanvasContainer *contai
 
     if (real_action == GDK_ACTION_ASK)
     {
-        /* FIXME bugzilla.gnome.org 42485: This belongs in FMDirectoryView, not here. */
-        /* Check for special case items in selection list */
-        if (nautilus_drag_selection_includes_special_link (container->details->dnd_info->drag_info.selection_list))
-        {
-            /* We only want to move the trash */
-            action = GDK_ACTION_MOVE;
-        }
-        else
-        {
-            action = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK;
-        }
-        real_action = nautilus_drag_drop_action_ask
-                          (GTK_WIDGET (container), action);
+        action = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK;
+        real_action = nautilus_drag_drop_action_ask (GTK_WIDGET (container), action);
     }
 
     if (real_action > 0)
@@ -1208,25 +1044,19 @@ nautilus_canvas_container_receive_dropped_icons (NautilusCanvasContainer *contai
                                     &world_x, &world_y);
 
         drop_target = nautilus_canvas_container_find_drop_target (container,
-                                                                  context, x, y, &icon_hit, FALSE);
+                                                                  context, x, y, &icon_hit);
 
         local_move_only = FALSE;
         if (!icon_hit && real_action == GDK_ACTION_MOVE)
         {
-            /* we can just move the canvas positions if the move ended up in
-             * the item's parent container
-             */
             local_move_only = nautilus_canvas_container_selection_items_local
                                   (container, container->details->dnd_info->drag_info.selection_list);
         }
 
-        if (local_move_only)
+        /* If the move is local, there is nothing to do. */
+        if (!local_move_only)
         {
-            handle_local_move (container, world_x, world_y);
-        }
-        else
-        {
-            handle_nonlocal_move (container, real_action, world_x, world_y, drop_target, icon_hit);
+            handle_nonlocal_move (container, real_action, drop_target, icon_hit);
         }
     }
 
@@ -1266,7 +1096,7 @@ nautilus_canvas_container_get_drop_action (NautilusCanvasContainer *container,
     *action = 0;
 
     drop_target = nautilus_canvas_container_find_drop_target (container,
-                                                              context, x, y, &icon_hit, FALSE);
+                                                              context, x, y, &icon_hit);
     if (drop_target == NULL)
     {
         return;
@@ -1276,42 +1106,42 @@ nautilus_canvas_container_get_drop_action (NautilusCanvasContainer *container,
     switch (container->details->dnd_info->drag_info.data_type)
     {
         case NAUTILUS_ICON_DND_GNOME_ICON_LIST:
+        {
+            if (container->details->dnd_info->drag_info.selection_list != NULL)
             {
-                if (container->details->dnd_info->drag_info.selection_list != NULL)
-                {
-                    nautilus_drag_default_drop_action_for_icons (context, drop_target,
-                                                                 container->details->dnd_info->drag_info.selection_list,
-                                                                 0,
-                                                                 action);
-                }
+                nautilus_drag_default_drop_action_for_icons (context, drop_target,
+                                                             container->details->dnd_info->drag_info.selection_list,
+                                                             0,
+                                                             action);
             }
-            break;
+        }
+        break;
 
         case NAUTILUS_ICON_DND_URI_LIST:
-            {
-                *action = nautilus_drag_default_drop_action_for_uri_list (context, drop_target);
-            }
-            break;
+        {
+            *action = nautilus_drag_default_drop_action_for_uri_list (context, drop_target);
+        }
+        break;
 
         case NAUTILUS_ICON_DND_NETSCAPE_URL:
-            {
-                *action = nautilus_drag_default_drop_action_for_netscape_url (context);
-            }
-            break;
+        {
+            *action = nautilus_drag_default_drop_action_for_netscape_url (context);
+        }
+        break;
 
         case NAUTILUS_ICON_DND_ROOTWINDOW_DROP:
-            {
-                *action = gdk_drag_context_get_suggested_action (context);
-            }
-            break;
+        {
+            *action = gdk_drag_context_get_suggested_action (context);
+        }
+        break;
 
         case NAUTILUS_ICON_DND_TEXT:
         case NAUTILUS_ICON_DND_XDNDDIRECTSAVE:
         case NAUTILUS_ICON_DND_RAW:
-            {
-                *action = GDK_ACTION_COPY;
-            }
-            break;
+        {
+            *action = GDK_ACTION_COPY;
+        }
+        break;
     }
 
     g_free (drop_target);
@@ -1459,6 +1289,7 @@ drag_begin_callback (GtkWidget      *widget,
     double x1, y1, x2, y2, winx, winy;
     int x_offset, y_offset;
     int start_x, start_y;
+    GList *dragged_files;
 
     container = NAUTILUS_CANVAS_CONTAINER (widget);
     window = NAUTILUS_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (container)));
@@ -1491,7 +1322,12 @@ drag_begin_callback (GtkWidget      *widget,
     container->details->dnd_source_info->selection_cache = nautilus_drag_create_selection_cache (widget,
                                                                                                  each_icon_get_data_binder);
 
-    nautilus_window_start_dnd (window, context);
+    dragged_files = nautilus_drag_file_list_from_selection_list (drag_info->selection_cache);
+    if (nautilus_file_list_are_all_folders (dragged_files))
+    {
+        nautilus_window_start_dnd (window, context);
+    }
+    g_list_free_full (dragged_files, g_object_unref);
 }
 
 void
@@ -1600,16 +1436,8 @@ static void
 start_dnd_highlight (GtkWidget *widget)
 {
     NautilusCanvasDndInfo *dnd_info;
-    GtkWidget *toplevel;
 
     dnd_info = NAUTILUS_CANVAS_CONTAINER (widget)->details->dnd_info;
-
-    toplevel = gtk_widget_get_toplevel (widget);
-    if (toplevel != NULL &&
-        g_object_get_data (G_OBJECT (toplevel), "is_desktop_window"))
-    {
-        return;
-    }
 
     if (!dnd_info->highlighted)
     {
@@ -1668,11 +1496,6 @@ check_hover_timer (NautilusCanvasContainer *container,
         return;
     }
 
-    if (nautilus_canvas_container_get_is_desktop (container))
-    {
-        return;
-    }
-
     remove_hover_timer (dnd_info);
 
     settings = gtk_widget_get_settings (GTK_WIDGET (container));
@@ -1714,7 +1537,7 @@ drag_motion_callback (GtkWidget      *widget,
     {
         char *uri;
         uri = nautilus_canvas_container_find_drop_target (NAUTILUS_CANVAS_CONTAINER (widget),
-                                                          context, x, y, NULL, TRUE);
+                                                          context, x, y, NULL);
         check_hover_timer (NAUTILUS_CANVAS_CONTAINER (widget), uri);
         g_free (uri);
         start_dnd_highlight (widget);
@@ -1742,11 +1565,11 @@ drag_drop_callback (GtkWidget      *widget,
     dnd_info = NAUTILUS_CANVAS_CONTAINER (widget)->details->dnd_info;
 
     /* tell the drag_data_received callback that
-     *  the drop occured and that it can actually
+     *  the drop occurred and that it can actually
      *  process the actions.
      *  make sure it is going to be called at least once.
      */
-    dnd_info->drag_info.drop_occured = TRUE;
+    dnd_info->drag_info.drop_occurred = TRUE;
 
     get_data_on_first_target_we_support (widget, context, time, x, y);
 
@@ -1800,150 +1623,142 @@ drag_data_received_callback (GtkWidget        *widget,
     switch (info)
     {
         case NAUTILUS_ICON_DND_GNOME_ICON_LIST:
-            {
-                nautilus_canvas_container_dropped_canvas_feedback (widget, data, x, y);
-            }
-            break;
+        {
+            nautilus_canvas_container_dropped_canvas_feedback (widget, data, x, y);
+        }
+        break;
 
         case NAUTILUS_ICON_DND_URI_LIST:
         case NAUTILUS_ICON_DND_TEXT:
         case NAUTILUS_ICON_DND_XDNDDIRECTSAVE:
         case NAUTILUS_ICON_DND_RAW:
+        {
+            /* Save the data so we can do the actual work on drop. */
+            if (drag_info->selection_data != NULL)
             {
-                /* Save the data so we can do the actual work on drop. */
-                if (drag_info->selection_data != NULL)
-                {
-                    gtk_selection_data_free (drag_info->selection_data);
-                }
-                drag_info->selection_data = gtk_selection_data_copy (data);
+                gtk_selection_data_free (drag_info->selection_data);
             }
-            break;
+            drag_info->selection_data = gtk_selection_data_copy (data);
+        }
+        break;
 
         /* Netscape keeps sending us the data, even though we accept the first drag */
         case NAUTILUS_ICON_DND_NETSCAPE_URL:
+        {
+            if (drag_info->selection_data != NULL)
             {
-                if (drag_info->selection_data != NULL)
-                {
-                    gtk_selection_data_free (drag_info->selection_data);
-                    drag_info->selection_data = gtk_selection_data_copy (data);
-                }
+                gtk_selection_data_free (drag_info->selection_data);
+                drag_info->selection_data = gtk_selection_data_copy (data);
             }
-            break;
+        }
+        break;
 
         case NAUTILUS_ICON_DND_ROOTWINDOW_DROP:
-            {
-                /* Do nothing, this won't even happen, since we don't want to call get_data twice */
-            }
-            break;
+        {
+            /* Do nothing, this won't even happen, since we don't want to call get_data twice */
+        }
+        break;
     }
 
     /* this is the second use case of this callback.
      * we have to do the actual work for the drop.
      */
-    if (drag_info->drop_occured)
+    if (drag_info->drop_occurred)
     {
         success = FALSE;
         switch (info)
         {
             case NAUTILUS_ICON_DND_GNOME_ICON_LIST:
-                {
-                    nautilus_canvas_container_receive_dropped_icons
-                        (NAUTILUS_CANVAS_CONTAINER (widget),
-                        context, x, y);
-                }
-                break;
+            {
+                nautilus_canvas_container_receive_dropped_icons
+                    (NAUTILUS_CANVAS_CONTAINER (widget),
+                    context, x, y);
+            }
+            break;
 
             case NAUTILUS_ICON_DND_NETSCAPE_URL:
-                {
-                    receive_dropped_netscape_url
-                        (NAUTILUS_CANVAS_CONTAINER (widget),
-                        (char *) gtk_selection_data_get_data (data), context, x, y);
-                    success = TRUE;
-                }
-                break;
+            {
+                receive_dropped_netscape_url
+                    (NAUTILUS_CANVAS_CONTAINER (widget),
+                    (char *) gtk_selection_data_get_data (data), context, x, y);
+                success = TRUE;
+            }
+            break;
 
             case NAUTILUS_ICON_DND_URI_LIST:
-                {
-                    receive_dropped_uri_list
-                        (NAUTILUS_CANVAS_CONTAINER (widget),
-                        (char *) gtk_selection_data_get_data (data), context, x, y);
-                    success = TRUE;
-                }
-                break;
+            {
+                receive_dropped_uri_list
+                    (NAUTILUS_CANVAS_CONTAINER (widget),
+                    (char *) gtk_selection_data_get_data (data), context, x, y);
+                success = TRUE;
+            }
+            break;
 
             case NAUTILUS_ICON_DND_TEXT:
-                {
-                    tmp = gtk_selection_data_get_text (data);
-                    receive_dropped_text
-                        (NAUTILUS_CANVAS_CONTAINER (widget),
-                        (char *) tmp, context, x, y);
-                    success = TRUE;
-                    g_free (tmp);
-                }
-                break;
+            {
+                tmp = gtk_selection_data_get_text (data);
+                receive_dropped_text
+                    (NAUTILUS_CANVAS_CONTAINER (widget),
+                    (char *) tmp, context, x, y);
+                success = TRUE;
+                g_free (tmp);
+            }
+            break;
 
             case NAUTILUS_ICON_DND_RAW:
-                {
-                    length = gtk_selection_data_get_length (data);
-                    tmp_raw = gtk_selection_data_get_data (data);
-                    receive_dropped_raw
-                        (NAUTILUS_CANVAS_CONTAINER (widget),
-                        (const gchar *) tmp_raw, length, drag_info->direct_save_uri,
-                        context, x, y);
-                    success = TRUE;
-                }
-                break;
+            {
+                length = gtk_selection_data_get_length (data);
+                tmp_raw = gtk_selection_data_get_data (data);
+                receive_dropped_raw
+                    (NAUTILUS_CANVAS_CONTAINER (widget),
+                    (const gchar *) tmp_raw, length, drag_info->direct_save_uri,
+                    context, x, y);
+                success = TRUE;
+            }
+            break;
 
             case NAUTILUS_ICON_DND_ROOTWINDOW_DROP:
-                {
-                    /* Do nothing, everything is done by the sender */
-                }
-                break;
+            {
+                /* Do nothing, everything is done by the sender */
+            }
+            break;
 
             case NAUTILUS_ICON_DND_XDNDDIRECTSAVE:
+            {
+                const guchar *selection_data;
+                gint selection_length;
+                gint selection_format;
+
+                selection_data = gtk_selection_data_get_data (drag_info->selection_data);
+                selection_length = gtk_selection_data_get_length (drag_info->selection_data);
+                selection_format = gtk_selection_data_get_format (drag_info->selection_data);
+
+                if (selection_format == 8 &&
+                    selection_length == 1 &&
+                    selection_data[0] == 'F')
                 {
-                    const guchar *selection_data;
-                    gint selection_length;
-                    gint selection_format;
+                    gtk_drag_get_data (widget, context,
+                                       gdk_atom_intern (NAUTILUS_ICON_DND_RAW_TYPE,
+                                                        FALSE),
+                                       time);
+                    return;
+                }
+                else if (selection_format == 8 &&
+                         selection_length == 1 &&
+                         selection_data[0] == 'F' &&
+                         drag_info->direct_save_uri != NULL)
+                {
+                    GFile *location;
 
-                    selection_data = gtk_selection_data_get_data (drag_info->selection_data);
-                    selection_length = gtk_selection_data_get_length (drag_info->selection_data);
-                    selection_format = gtk_selection_data_get_format (drag_info->selection_data);
+                    location = g_file_new_for_uri (drag_info->direct_save_uri);
 
-                    if (selection_format == 8 &&
-                        selection_length == 1 &&
-                        selection_data[0] == 'F')
-                    {
-                        gtk_drag_get_data (widget, context,
-                                           gdk_atom_intern (NAUTILUS_ICON_DND_RAW_TYPE,
-                                                            FALSE),
-                                           time);
-                        return;
-                    }
-                    else if (selection_format == 8 &&
-                             selection_length == 1 &&
-                             selection_data[0] == 'F' &&
-                             drag_info->direct_save_uri != NULL)
-                    {
-                        GdkPoint p;
-                        GFile *location;
-
-                        location = g_file_new_for_uri (drag_info->direct_save_uri);
-
-                        nautilus_file_changes_queue_file_added (location);
-                        p.x = x;
-                        p.y = y;
-                        nautilus_file_changes_queue_schedule_position_set (
-                            location,
-                            p,
-                            gdk_screen_get_number (
-                                gtk_widget_get_screen (widget)));
-                        g_object_unref (location);
-                        nautilus_file_changes_consume_changes (TRUE);
-                        success = TRUE;
-                    }
-                } /* NAUTILUS_ICON_DND_XDNDDIRECTSAVE */
-                break;
+                    nautilus_file_changes_queue_file_added (location);
+                    g_object_unref (location);
+                    nautilus_file_changes_consume_changes (TRUE);
+                    success = TRUE;
+                }
+            }     /* NAUTILUS_ICON_DND_XDNDDIRECTSAVE */
+            break;
         }
         gtk_drag_finish (context, success, FALSE, time);
 
@@ -1952,7 +1767,7 @@ drag_data_received_callback (GtkWidget        *widget,
         set_drop_target (NAUTILUS_CANVAS_CONTAINER (widget), NULL);
 
         /* reinitialise it for the next dnd */
-        drag_info->drop_occured = FALSE;
+        drag_info->drop_occurred = FALSE;
     }
 }
 
@@ -1974,12 +1789,7 @@ nautilus_canvas_dnd_init (NautilusCanvasContainer *container)
      * (But not a source, as drags starting from this widget will be
      * implemented by dealing with events manually.)
      */
-    n_elements = G_N_ELEMENTS (drop_types);
-    if (!nautilus_canvas_container_get_is_desktop (container))
-    {
-        /* Don't set up rootwindow drop */
-        n_elements -= 1;
-    }
+    n_elements = G_N_ELEMENTS (drop_types) - 1;
     gtk_drag_dest_set (GTK_WIDGET (container),
                        0,
                        drop_types, n_elements,

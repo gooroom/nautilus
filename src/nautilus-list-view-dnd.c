@@ -130,14 +130,7 @@ item_get_data_binder (GtkTreeModel *model,
                                  column,
                                  &cell_area);
 
-    if (nautilus_file_is_nautilus_link (file))
-    {
-        uri = nautilus_file_get_uri (file);
-    }
-    else
-    {
-        uri = nautilus_file_get_activation_uri (file);
-    }
+    uri = nautilus_file_get_activation_uri (file);
 
     nautilus_file_unref (file);
 
@@ -176,6 +169,7 @@ drag_begin_callback (GtkWidget        *widget,
 {
     cairo_surface_t *surface;
     NautilusWindow *window;
+    GList *dragged_files;
 
     window = nautilus_files_view_get_window (NAUTILUS_FILES_VIEW (view));
     surface = get_drag_surface (view);
@@ -195,7 +189,12 @@ drag_begin_callback (GtkWidget        *widget,
     view->details->drag_source_info->selection_cache = nautilus_drag_create_selection_cache (view,
                                                                                              each_item_get_data_binder);
 
-    nautilus_window_start_dnd (window, context);
+    dragged_files = nautilus_drag_file_list_from_selection_list (view->details->drag_source_info->selection_cache);
+    if (nautilus_file_list_are_all_folders (dragged_files))
+    {
+        nautilus_window_start_dnd (window, context);
+    }
+    g_list_free_full (dragged_files, g_object_unref);
 }
 
 static void
@@ -269,37 +268,38 @@ nautilus_list_view_dnd_init (NautilusListView *list_view)
                              G_CALLBACK (drag_data_get_callback), list_view, 0);
 }
 
-gboolean
+void
 nautilus_list_view_dnd_drag_begin (NautilusListView *list_view,
-                                   GdkEventMotion   *event)
+                                   gdouble           offset_x,
+                                   gdouble           offset_y,
+                                   const GdkEvent   *event)
 {
-    if (list_view->details->drag_button != 0)
+    if (list_view->details->drag_button == 0)
     {
-        if (!source_target_list)
-        {
-            source_target_list = nautilus_list_model_get_drag_target_list ();
-        }
-
-        if (gtk_drag_check_threshold (GTK_WIDGET (list_view->details->tree_view),
-                                      list_view->details->drag_x,
-                                      list_view->details->drag_y,
-                                      event->x,
-                                      event->y))
-        {
-            guint32 actions;
-
-            actions = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK | GDK_ACTION_ASK;
-            list_view->details->drag_source_info->source_actions = actions;
-            gtk_drag_begin_with_coordinates (GTK_WIDGET (list_view->details->tree_view),
-                                             source_target_list,
-                                             actions,
-                                             list_view->details->drag_button,
-                                             (GdkEvent *) event,
-                                             -1,
-                                             -1);
-        }
-        return TRUE;
+        return;
     }
 
-    return FALSE;
+    if (!source_target_list)
+    {
+        source_target_list = nautilus_list_model_get_drag_target_list ();
+    }
+
+    if (gtk_drag_check_threshold (GTK_WIDGET (list_view->details->tree_view),
+                                  list_view->details->drag_x,
+                                  list_view->details->drag_y,
+                                  list_view->details->drag_x + offset_x,
+                                  list_view->details->drag_y + offset_y))
+    {
+        guint32 actions;
+
+        actions = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK | GDK_ACTION_ASK;
+        list_view->details->drag_source_info->source_actions = actions;
+        gtk_drag_begin_with_coordinates (GTK_WIDGET (list_view->details->tree_view),
+                                         source_target_list,
+                                         actions,
+                                         list_view->details->drag_button,
+                                         (GdkEvent *) event,
+                                         -1,
+                                         -1);
+    }
 }

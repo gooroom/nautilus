@@ -20,35 +20,13 @@
    Author: Alexander Larsson <alexl@redhat.com>
 */
 
-#ifndef NAUTILUS_SEARCH_DIRECTORY_FILE_H
-#define NAUTILUS_SEARCH_DIRECTORY_FILE_H
+#pragma once
 
 #include "nautilus-file.h"
 
-#define NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE nautilus_search_directory_file_get_type()
-#define NAUTILUS_SEARCH_DIRECTORY_FILE(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE, NautilusSearchDirectoryFile))
-#define NAUTILUS_SEARCH_DIRECTORY_FILE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE, NautilusSearchDirectoryFileClass))
-#define NAUTILUS_IS_SEARCH_DIRECTORY_FILE(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE))
-#define NAUTILUS_IS_SEARCH_DIRECTORY_FILE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE))
-#define NAUTILUS_SEARCH_DIRECTORY_FILE_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE, NautilusSearchDirectoryFileClass))
+#define NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE nautilus_search_directory_file_get_type ()
+G_DECLARE_FINAL_TYPE (NautilusSearchDirectoryFile, nautilus_search_directory_file,
+                      NAUTILUS, SEARCH_DIRECTORY_FILE,
+                      NautilusFile)
 
-typedef struct NautilusSearchDirectoryFileDetails NautilusSearchDirectoryFileDetails;
-
-typedef struct {
-	NautilusFile parent_slot;
-	NautilusSearchDirectoryFileDetails *details;
-} NautilusSearchDirectoryFile;
-
-typedef struct {
-	NautilusFileClass parent_slot;
-} NautilusSearchDirectoryFileClass;
-
-GType   nautilus_search_directory_file_get_type (void);
-void    nautilus_search_directory_file_update_display_name (NautilusSearchDirectoryFile *search_file);
-
-#endif /* NAUTILUS_SEARCH_DIRECTORY_FILE_H */
+void nautilus_search_directory_file_update_display_name (NautilusSearchDirectoryFile *search_file);

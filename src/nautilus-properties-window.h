@@ -21,46 +21,20 @@
    Authors: Darin Adler <darin@bentspoon.com>
 */
 
-#ifndef NAUTILUS_PROPERTIES_WINDOW_H
-#define NAUTILUS_PROPERTIES_WINDOW_H
+#pragma once
 
 #include <gtk/gtk.h>
-#include "nautilus-file.h"
 
-typedef struct NautilusPropertiesWindow NautilusPropertiesWindow;
+#define NAUTILUS_TYPE_PROPERTIES_WINDOW (nautilus_properties_window_get_type ())
 
-#define NAUTILUS_TYPE_PROPERTIES_WINDOW nautilus_properties_window_get_type()
-#define NAUTILUS_PROPERTIES_WINDOW(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_PROPERTIES_WINDOW, NautilusPropertiesWindow))
-#define NAUTILUS_PROPERTIES_WINDOW_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_PROPERTIES_WINDOW, NautilusPropertiesWindowClass))
-#define NAUTILUS_IS_PROPERTIES_WINDOW(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_PROPERTIES_WINDOW))
-#define NAUTILUS_IS_PROPERTIES_WINDOW_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_PROPERTIES_WINDOW))
-#define NAUTILUS_PROPERTIES_WINDOW_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_PROPERTIES_WINDOW, NautilusPropertiesWindowClass))
+G_DECLARE_FINAL_TYPE (NautilusPropertiesWindow, nautilus_properties_window,
+                      NAUTILUS, PROPERTIES_WINDOW,
+                      GtkDialog)
 
-typedef struct NautilusPropertiesWindowDetails NautilusPropertiesWindowDetails;
+typedef void (* NautilusPropertiesWindowCallback) (gpointer    callback_data);
 
-struct NautilusPropertiesWindow {
-	GtkDialog window;
-	NautilusPropertiesWindowDetails *details;	
-};
-
-struct NautilusPropertiesWindowClass {
-	GtkDialogClass parent_class;
-	
-	/* Keybinding signals */
-	void (* close)    (NautilusPropertiesWindow *window);
-};
-
-typedef struct NautilusPropertiesWindowClass NautilusPropertiesWindowClass;
-
-GType   nautilus_properties_window_get_type   (void);
-
-void 	nautilus_properties_window_present    (GList       *files,
-					       GtkWidget   *parent_widget,
-					       const gchar *startup_id);
-
-#endif /* NAUTILUS_PROPERTIES_WINDOW_H */
+void nautilus_properties_window_present (GList                            *files,
+                                         GtkWidget                        *parent_widget,
+                                         const gchar                      *startup_id,
+                                         NautilusPropertiesWindowCallback  callback,
+                                         gpointer                          callback_data);

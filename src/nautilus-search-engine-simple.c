@@ -20,9 +20,11 @@
  */
 
 #include <config.h>
+#include "nautilus-search-engine-simple.h"
+
+#include "nautilus-search-engine-private.h"
 #include "nautilus-search-hit.h"
 #include "nautilus-search-provider.h"
-#include "nautilus-search-engine-simple.h"
 #include "nautilus-ui-utilities.h"
 #define DEBUG_FLAG NAUTILUS_DEBUG_SEARCH
 #include "nautilus-debug.h"
@@ -35,7 +37,7 @@
 
 enum
 {
-    PROP_RECURSIVE = 1,
+    PROP_0,
     PROP_RUNNING,
     NUM_PROPERTIES
 };
@@ -52,7 +54,6 @@ typedef struct
 
     GHashTable *visited;
 
-    gboolean recursive;
     gint n_processed_files;
     GList *hits;
 
@@ -66,8 +67,6 @@ struct _NautilusSearchEngineSimple
     NautilusQuery *query;
 
     SearchThreadData *active_search;
-
-    gboolean recursive;
 };
 
 static void nautilus_search_provider_init (NautilusSearchProviderInterface *iface);
@@ -208,6 +207,9 @@ static void
 visit_directory (GFile            *dir,
                  SearchThreadData *data)
 {
+    g_autoptr (GPtrArray) date_range = NULL;
+    NautilusQuerySearchType type;
+    NautilusQueryRecursive recursive;
     GFileEnumerator *enumerator;
     GFileInfo *info;
     GFile *child;
@@ -219,10 +221,9 @@ visit_directory (GFile            *dir,
     gboolean visited;
     guint64 atime;
     guint64 mtime;
-    GPtrArray *date_range;
     GDateTime *initial_date;
     GDateTime *end_date;
-
+    gchar *uri;
 
     enumerator = g_file_enumerate_children (dir,
                                             data->mime_types != NULL ?
@@ -238,6 +239,10 @@ visit_directory (GFile            *dir,
     {
         return;
     }
+
+    type = nautilus_query_get_search_type (data->query);
+    recursive = nautilus_query_get_recursive (data->query);
+    date_range = nautilus_query_get_date_range (data->query);
 
     while ((info = g_file_enumerator_next_file (enumerator, data->cancellable, NULL)) != NULL)
     {
@@ -275,15 +280,12 @@ visit_directory (GFile            *dir,
         mtime = g_file_info_get_attribute_uint64 (info, "time::modified");
         atime = g_file_info_get_attribute_uint64 (info, "time::access");
 
-        date_range = nautilus_query_get_date_range (data->query);
         if (found && date_range != NULL)
         {
-            NautilusQuerySearchType type;
             guint64 current_file_time;
 
             initial_date = g_ptr_array_index (date_range, 0);
             end_date = g_ptr_array_index (date_range, 1);
-            type = nautilus_query_get_search_type (data->query);
 
             if (type == NAUTILUS_QUERY_SEARCH_TYPE_LAST_ACCESS)
             {
@@ -296,14 +298,12 @@ visit_directory (GFile            *dir,
             found = nautilus_file_date_in_between (current_file_time,
                                                    initial_date,
                                                    end_date);
-            g_ptr_array_unref (date_range);
         }
 
         if (found)
         {
             NautilusSearchHit *hit;
             GDateTime *date;
-            char *uri;
 
             uri = g_file_get_uri (child);
             hit = nautilus_search_hit_new (uri);
@@ -322,7 +322,10 @@ visit_directory (GFile            *dir,
             send_batch (data);
         }
 
-        if (data->engine->recursive && g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY)
+        if (recursive != NAUTILUS_QUERY_RECURSIVE_NEVER &&
+            g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY &&
+            is_recursive_search (NAUTILUS_SEARCH_ENGINE_TYPE_NON_INDEXED,
+                                 recursive, child))
         {
             id = g_file_info_get_attribute_string (info, G_FILE_ATTRIBUTE_ID_FILE);
             visited = FALSE;
@@ -438,9 +441,9 @@ nautilus_search_engine_simple_set_query (NautilusSearchProvider *provider,
 {
     NautilusSearchEngineSimple *simple = NAUTILUS_SEARCH_ENGINE_SIMPLE (provider);
 
-    g_object_ref (query);
     g_clear_object (&simple->query);
-    simple->query = query;
+
+    simple->query = g_object_ref (query);
 }
 
 static gboolean
@@ -451,30 +454,6 @@ nautilus_search_engine_simple_is_running (NautilusSearchProvider *provider)
     simple = NAUTILUS_SEARCH_ENGINE_SIMPLE (provider);
 
     return simple->active_search != NULL;
-}
-
-static void
-nautilus_search_engine_simple_set_property (GObject      *object,
-                                            guint         arg_id,
-                                            const GValue *value,
-                                            GParamSpec   *pspec)
-{
-    NautilusSearchEngineSimple *engine = NAUTILUS_SEARCH_ENGINE_SIMPLE (object);
-
-    switch (arg_id)
-    {
-        case PROP_RECURSIVE:
-        {
-            engine->recursive = g_value_get_boolean (value);
-        }
-        break;
-
-        default:
-        {
-            G_OBJECT_WARN_INVALID_PROPERTY_ID (object, arg_id, pspec);
-        }
-        break;
-    }
 }
 
 static void
@@ -490,12 +469,6 @@ nautilus_search_engine_simple_get_property (GObject    *object,
         case PROP_RUNNING:
         {
             g_value_set_boolean (value, nautilus_search_engine_simple_is_running (NAUTILUS_SEARCH_PROVIDER (engine)));
-        }
-        break;
-
-        case PROP_RECURSIVE:
-        {
-            g_value_set_boolean (value, engine->recursive);
         }
         break;
     }
@@ -518,20 +491,6 @@ nautilus_search_engine_simple_class_init (NautilusSearchEngineSimpleClass *class
     gobject_class = G_OBJECT_CLASS (class);
     gobject_class->finalize = finalize;
     gobject_class->get_property = nautilus_search_engine_simple_get_property;
-    gobject_class->set_property = nautilus_search_engine_simple_set_property;
-
-    /**
-     * NautilusSearchEngineSimple::recursive:
-     *
-     * Whether the search is recursive or not.
-     */
-    g_object_class_install_property (gobject_class,
-                                     PROP_RECURSIVE,
-                                     g_param_spec_boolean ("recursive",
-                                                           "recursive",
-                                                           "recursive",
-                                                           FALSE,
-                                                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
     /**
      * NautilusSearchEngine::running:

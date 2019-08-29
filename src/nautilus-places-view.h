@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NAUTILUS_PLACES_VIEW_H
-#define NAUTILUS_PLACES_VIEW_H
+#pragma once
 
-#include <glib.h>
+#include <glib-object.h>
 #include <gtk/gtk.h>
-
-#include "nautilus-view.h"
 
 G_BEGIN_DECLS
 
@@ -33,5 +30,3 @@ G_DECLARE_FINAL_TYPE (NautilusPlacesView, nautilus_places_view, NAUTILUS, PLACES
 NautilusPlacesView*  nautilus_places_view_new                    (void);
 
 G_END_DECLS
-
-#endif /* NAUTILUS_PLACES_VIEW_H */
