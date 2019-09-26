@@ -1,4 +1,3 @@
 multiarch_fallback.patch
 Update-gnome-desktop-code.patch
 Define-symbol-needed-for-gnome-desktop.patch
-gooroom-reset-im-context-reset-when-clearing-search-entry.patch
