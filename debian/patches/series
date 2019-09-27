@@ -1,3 +1,4 @@
 multiarch_fallback.patch
 Update-gnome-desktop-code.patch
 Define-symbol-needed-for-gnome-desktop.patch
+gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
