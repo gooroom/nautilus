@@ -52,6 +52,8 @@ Depends: bubblewrap [linux-any],
          nautilus-data (= ${source:Version}),
          shared-mime-info (>= 0.50),
          tracker,
+         tracker-extract,
+         tracker-miner-fs,
          ${misc:Depends},
          ${shlibs:Depends}
 Recommends: gnome-sushi,
