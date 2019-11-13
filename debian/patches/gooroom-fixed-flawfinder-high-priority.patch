@@ -1,0 +1,119 @@
+From f2756b9f5f357f85978edc8fceb1d1a8f54a01db Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Wed, 13 Nov 2019 15:53:28 +0900
+Subject: [PATCH] Fixed Flawfinder -High Priority
+
+Change-Id: I28b428f63360daa7c99e2c1e5920695db80adbac
+---
+ src/nautilus-autorun-software.c | 31 ++++++++++++++++++++++++-------
+ src/nautilus-canvas-container.c | 22 ++++++++++------------
+ src/nautilus-file.c             |  2 +-
+ 3 files changed, 35 insertions(+), 20 deletions(-)
+
+diff --git a/src/nautilus-autorun-software.c b/src/nautilus-autorun-software.c
+index 732ec2d..600c7cb 100644
+--- a/src/nautilus-autorun-software.c
++++ b/src/nautilus-autorun-software.c
+@@ -137,16 +137,33 @@ autorun (GMount *mount)
+ 
+     if (path_to_spawn != NULL && cwd_for_program != NULL)
+     {
+-        if (chdir (cwd_for_program) == 0)
+-        {
+-            execl (path_to_spawn, path_to_spawn, program_parameter, NULL);
+-            error_string = g_strdup_printf (_("Unable to start the program:\n%s"), strerror (errno));
++        gchar *cmd = NULL;
++        gchar **argv = NULL;
++        GError *error = NULL;
++
++        if (program_parameter)
++            cmd = g_strdup_printf ("%s %s", path_to_spawn, program_parameter);
++        else
++            cmd = g_strdup (path_to_spawn);
++
++        argv = g_strsplit (cmd, " ", -1);
++
++        g_spawn_sync (cwd_for_program, argv, NULL,
++                      G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL, NULL, &error);
++
++        g_free (cmd);
++        g_strfreev (argv);
++
++        if (error != NULL) {
++            error_string = g_strdup_printf (_("Unable to start the program:\n%s"), error->message);
++            g_error_free (error);
+             goto out;
+         }
+-        error_string = g_strdup_printf (_("Unable to start the program:\n%s"), strerror (errno));
+-        goto out;
+     }
+-    error_string = g_strdup_printf (_("Unable to locate the program"));
++    else
++    {
++		error_string = g_strdup_printf (_("Unable to locate the program"));
++    }
+ 
+ out:
+     if (error_string != NULL)
+diff --git a/src/nautilus-canvas-container.c b/src/nautilus-canvas-container.c
+index bd05a3a..f192b8d 100644
+--- a/src/nautilus-canvas-container.c
++++ b/src/nautilus-canvas-container.c
+@@ -4090,31 +4090,29 @@ get_text_ellipsis_limit_for_zoom (char       **strs,
+     /* default */
+     *limit = 3;
+ 
+-    if (zoom_level != NULL)
+-    {
+-        str = g_strdup_printf ("%s:%%d", zoom_level);
+-    }
+-    else
+-    {
+-        str = g_strdup ("%d");
+-    }
+-
+     if (strs != NULL)
+     {
+ #pragma GCC diagnostic push
+ #pragma GCC diagnostic ignored "-Wformat-nonliteral"
+         for (p = strs; *p != NULL; p++)
+         {
+-            if (sscanf (*p, str, limit))
++            if (sscanf (*p, "%d", limit))
+             {
+                 success = TRUE;
+             }
++
++            if (zoom_level != NULL)
++            {
++		success = FALSE;
++                str = g_strdup_printf ("%s:%d", zoom_level, *limit);
++                if (g_strcmp0 (*p, str) == 0)
++                  success = TRUE;
++                g_free (str);
++            }
+         }
+ #pragma GCC diagnostic pop
+     }
+ 
+-    g_free (str);
+-
+     return success;
+ }
+ 
+diff --git a/src/nautilus-file.c b/src/nautilus-file.c
+index 7995f51..ad95a2d 100644
+--- a/src/nautilus-file.c
++++ b/src/nautilus-file.c
+@@ -88,7 +88,7 @@
+ #include <valgrind/valgrind.h>
+ #define DEBUG_REF_PRINTF VALGRIND_PRINTF_BACKTRACE
+ #else
+-#define DEBUG_REF_PRINTF printf
++#define DEBUG_REF_PRINTF g_debug
+ #endif
+ 
+ #define MEGA_TO_BASE_RATE 1000000
+-- 
+2.20.1
+
