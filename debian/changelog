@@ -1,3 +1,22 @@
+nautilus (3.30.5-2+grm2u1) unstable; urgency=medium
+
+  [ cjheo ]
+  * [ed7c563c] [Bug:1324]Fixed to reset input method context when clearing search entry
+
+  [ Heo, ChangJu ]
+  * [f4c578e4] Revert "[Bug:1324]Fixed to reset input method context when clearing search entry"
+
+  [ donghun ]
+  * [d89cacde] Added the patch to modify context menu and prevent root folder access
+  * [3852e19a] Removed permission setting tab from property window
+  * [dc9ace9b] Moved header button to bottom in file conflict dialog
+  * [7a0ef343] Added a package dependency due to starred error
+  * [842452c1] Fixed Flawfinder - High Priority
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sun, 01 Dec 2019 19:59:30 +0900
+
 nautilus (3.30.5-2) unstable; urgency=medium
 
   * debian/control{,.in}, gbp.conf: Update debian branch to debian/buster
