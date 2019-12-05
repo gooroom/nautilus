@@ -1,0 +1,139 @@
+From 4d259517291e7a753e701e8c8faa8455d398e747 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Thu, 5 Dec 2019 12:43:17 +0900
+Subject: [PATCH] Changed file extraction method in context menu
+
+Change-Id: Ie15f0a779360e7593fd13e1ecd5694552a509799
+---
+ src/nautilus-files-view.c | 94 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 94 insertions(+)
+
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index 721682f..2aad4cd 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -130,6 +130,7 @@
+ 
+ #define MIN_COMMON_FILENAME_PREFIX_LENGTH 4
+ 
++#define MAX_SPLIT_TOKEN  3
+ 
+ enum
+ {
+@@ -322,6 +323,12 @@ static void     update_templates_directory (NautilusFilesView *view);
+ static void     extract_files (NautilusFilesView *view,
+                                GList             *files,
+                                GFile             *destination_directory);
++static void     extract_files_use_autoar (NautilusFilesView *view,
++                                          GList             *files,
++                                          GFile             *destination_directory);
++static void     extract_files_use_fileroller (NautilusFilesView *view,
++                                              GList             *files,
++                                              GFile             *destination_directory);
+ static void     extract_files_to_chosen_location (NautilusFilesView *view,
+                                                   GList             *files);
+ 
+@@ -6047,6 +6054,21 @@ static void
+ extract_files (NautilusFilesView *view,
+                GList             *files,
+                GFile             *destination_directory)
++{
++    if (nautilus_is_file_roller_installed ())
++	{
++	    extract_files_use_fileroller (view, files, destination_directory);
++	}
++	else
++	{
++	    extract_files_use_autoar (view, files, destination_directory);
++	}
++}
++
++static void
++extract_files_use_autoar (NautilusFilesView *view,
++                          GList             *files,
++                          GFile             *destination_directory)
+ {
+     GList *locations = NULL;
+     GList *l;
+@@ -6107,6 +6129,78 @@ extract_files (NautilusFilesView *view,
+     g_list_free_full (locations, g_object_unref);
+ }
+ 
++static void
++extract_files_use_fileroller (NautilusFilesView *view,
++                              GList             *files,
++                              GFile             *destination_directory)
++{
++    GList *locations = NULL;
++    GList *l;
++    GFile* ar_file;
++    GdkScreen *screen;
++    char *tokens[MAX_SPLIT_TOKEN] = {" ", "\(", "\)"};
++    char *command, *path, *tmp;
++    char **split;
++    int i, j;
++
++    if (files == NULL)
++    {
++        return;
++    }
++
++    for (l = files; l != NULL; l = l->next)
++    {
++        locations = g_list_prepend (locations,
++                                    nautilus_file_get_location (l->data));
++    }
++
++    locations = g_list_reverse (locations);
++
++    path = g_file_get_path (destination_directory);
++    command = g_strconcat ("file-roller -e ", path, NULL);
++    g_free (path);
++
++    for (l = locations; l != NULL; l = l->next)
++    {
++        ar_file = G_FILE(l->data);
++        path = g_file_get_path (ar_file);
++
++        for (i = 0; i < MAX_SPLIT_TOKEN; i++)
++        {
++            split = g_strsplit (path, tokens[i], -1);
++            for (j = 0; split && split[j]; j++)
++            {
++                if (j == 0)
++                {
++                    tmp = split[j];
++                }
++                else
++                {
++                    tmp = g_strdup_printf ("%s\\%s%s",tmp, tokens[i], split[j]);
++                }
++            }
++            path = tmp;
++        }
++
++        tmp = g_strconcat (command, " ", path, NULL);
++
++        g_free (path);
++        g_free (command);
++        command = tmp;
++    }
++
++    screen = gtk_widget_get_screen (GTK_WIDGET (view));
++    if (screen == NULL)
++    {
++        screen = gdk_screen_get_default ();
++    }
++
++    nautilus_launch_application_from_command (screen, command, FALSE, NULL);
++
++    g_free (command);
++    g_list_free_full (locations, g_object_unref);
++}
++
+ typedef struct
+ {
+     NautilusFilesView *view;
+-- 
+2.20.1
+

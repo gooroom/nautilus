@@ -5,3 +5,4 @@ gooroom-remove-context-menu-item.patch
 gooroom-gsettings-set-icon-view-default-to-small.patch
 gooroom-prevent-to-access-root-directory-with-accelerator.patch
 gooroom-remove-bookmark-ui.patch
+gooroom-change-file-extraction-method-in-context-menu.patch
