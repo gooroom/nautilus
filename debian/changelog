@@ -1,3 +1,12 @@
+nautilus (3.22.3-1+deb9u1+grm1u4) stretch-security; urgency=medium
+
+  [ donghun ]
+  * [2c5cc4c6] Added patch for change file extraction method in context menu
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Fri, 06 Dec 2019 13:12:11 +0900
+
 nautilus (3.22.3-1+deb9u1+grm1u3) stretch-security; urgency=medium
 
   [ JunSung Choi ]
