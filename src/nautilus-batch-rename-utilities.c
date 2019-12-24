@@ -40,6 +40,8 @@ typedef struct
     GList *selection_metadata;
 
     gboolean has_metadata[G_N_ELEMENTS (metadata_tags_constants)];
+
+    GCancellable *cancellable;
 } QueryData;
 
 enum
@@ -83,7 +85,7 @@ conflict_data_free (gpointer mem)
     g_free (conflict_data);
 }
 
-gchar*
+gchar *
 batch_rename_get_tag_text_representation (TagConstants tag_constants)
 {
     return g_strdup_printf ("[%s]", gettext (tag_constants.label));
@@ -353,7 +355,10 @@ batch_rename_format (NautilusFile *file,
     gchar *metadata;
 
     file_name = nautilus_file_get_display_name (file);
-    extension = nautilus_file_get_extension (file);
+    if (!nautilus_file_is_directory(file))
+    {
+        extension = nautilus_file_get_extension (file);
+    }
 
     new_name = g_string_new ("");
 
@@ -376,19 +381,22 @@ batch_rename_format (NautilusFile *file,
                         g_string_append_printf (new_name, "%d", count);
                     }
                     break;
+
                     case NUMBERING_ONE_ZERO_PAD:
                     {
                         g_string_append_printf (new_name, "%02d", count);
                     }
                     break;
+
                     case NUMBERING_TWO_ZERO_PAD:
                     {
                         g_string_append_printf (new_name, "%03d", count);
                     }
                     break;
+
                     default:
                     {
-                         g_warn_if_reached ();
+                        g_warn_if_reached ();
                     }
                     break;
                 }
@@ -427,18 +435,25 @@ batch_rename_format (NautilusFile *file,
                 {
                     case ORIGINAL_FILE_NAME:
                     {
-                        g_autofree gchar *base_name = NULL;
-
-                        base_name = eel_filename_strip_extension (file_name);
-
-                        new_name = g_string_append (new_name, base_name);
+                        if (nautilus_file_is_directory(file))
+                        {
+                            new_name = g_string_append (new_name, file_name);
+                        }
+                        else
+                        {
+                            g_autofree gchar *base_name = NULL;
+                            base_name = eel_filename_strip_extension (file_name);
+                            new_name = g_string_append (new_name, base_name);
+                        }
                     }
                     break;
+
                     case TRACK_NUMBER:
                     {
                         g_string_append_printf (new_name, "%02d", atoi (metadata));
                     }
                     break;
+
                     default:
                     {
                         new_name = g_string_append (new_name, metadata);
@@ -734,7 +749,7 @@ cursor_next (QueryData           *query_data,
              TrackerSparqlCursor *cursor)
 {
     tracker_sparql_cursor_next_async (cursor,
-                                      NULL,
+                                      query_data->cancellable,
                                       on_cursor_callback,
                                       query_data);
 }
@@ -759,7 +774,7 @@ remove_metadata (QueryData    *query_data,
     query_data->has_metadata[metadata_type] = FALSE;
 }
 
-static GString*
+static GString *
 format_date_time (GDateTime *date_time)
 {
     g_autofree gchar *date = NULL;
@@ -787,7 +802,7 @@ on_cursor_callback (GObject      *object,
     gboolean success;
     QueryData *query_data;
     MetadataType metadata_type;
-    GError *error;
+    g_autoptr (GError) error = NULL;
     GList *l;
     FileMetadata *file_metadata;
     GDateTime *date_time;
@@ -809,7 +824,6 @@ on_cursor_callback (GObject      *object,
     const gchar *title;
     const gchar *album_name;
 
-    error = NULL;
     file_metadata = NULL;
 
     cursor = TRACKER_SPARQL_CURSOR (object);
@@ -818,17 +832,21 @@ on_cursor_callback (GObject      *object,
     success = tracker_sparql_cursor_next_finish (cursor, result, &error);
     if (!success)
     {
-        if (error)
+        if (error != NULL)
         {
             g_warning ("Error on batch rename tracker query cursor: %s", error->message);
-            g_error_free (error);
         }
 
         g_clear_object (&cursor);
 
-        nautilus_batch_rename_dialog_query_finished (query_data->dialog,
-                                                     query_data->date_order_hash_table,
-                                                     query_data->selection_metadata);
+        /* The dialog is going away at the time of cancellation */
+        if (error == NULL ||
+            (error != NULL && error->code != G_IO_ERROR_CANCELLED))
+        {
+            nautilus_batch_rename_dialog_query_finished (query_data->dialog,
+                                                         query_data->date_order_hash_table,
+                                                         query_data->selection_metadata);
+        }
 
         g_free (query_data);
 
@@ -877,49 +895,58 @@ on_cursor_callback (GObject      *object,
                     current_metadata = file_name;
                 }
                 break;
+
                 case CREATION_DATE:
                 {
                     current_metadata = creation_date;
                 }
                 break;
+
                 case EQUIPMENT:
                 {
                     current_metadata = equipment;
                 }
                 break;
+
                 case SEASON_NUMBER:
                 {
                     current_metadata = season_number;
                 }
                 break;
+
                 case EPISODE_NUMBER:
                 {
                     current_metadata = episode_number;
                 }
                 break;
+
                 case ARTIST_NAME:
                 {
                     current_metadata = artist_name;
                 }
                 break;
+
                 case ALBUM_NAME:
                 {
                     current_metadata = album_name;
                 }
                 break;
+
                 case TITLE:
                 {
                     current_metadata = title;
                 }
                 break;
+
                 case TRACK_NUMBER:
                 {
                     current_metadata = track_number;
                 }
                 break;
+
                 default:
                 {
-                     g_warn_if_reached();
+                    g_warn_if_reached ();
                 }
                 break;
             }
@@ -935,8 +962,8 @@ on_cursor_callback (GObject      *object,
                 if (metadata_type == CREATION_DATE &&
                     query_data->date_order_hash_table)
                 {
-                       g_hash_table_destroy (query_data->date_order_hash_table);
-                       query_data->date_order_hash_table = NULL;
+                    g_hash_table_destroy (query_data->date_order_hash_table);
+                    query_data->date_order_hash_table = NULL;
                 }
             }
             else
@@ -977,9 +1004,7 @@ batch_rename_dialog_query_callback (GObject      *object,
     TrackerSparqlConnection *connection;
     TrackerSparqlCursor *cursor;
     QueryData *query_data;
-    GError *error;
-
-    error = NULL;
+    g_autoptr (GError) error = NULL;
 
     connection = TRACKER_SPARQL_CONNECTION (object);
     query_data = user_data;
@@ -991,11 +1016,14 @@ batch_rename_dialog_query_callback (GObject      *object,
     if (error != NULL)
     {
         g_warning ("Error on batch rename query for metadata: %s", error->message);
-        g_error_free (error);
 
-        nautilus_batch_rename_dialog_query_finished (query_data->dialog,
-                                                     query_data->date_order_hash_table,
-                                                     query_data->selection_metadata);
+        /* The dialog is being finalized at this point */
+        if (error->code != G_IO_ERROR_CANCELLED)
+        {
+            nautilus_batch_rename_dialog_query_finished (query_data->dialog,
+                                                         query_data->date_order_hash_table,
+                                                         query_data->selection_metadata);
+        }
 
         g_free (query_data);
     }
@@ -1007,7 +1035,8 @@ batch_rename_dialog_query_callback (GObject      *object,
 
 void
 check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
-                              GList                     *selection)
+                              GList                     *selection,
+                              GCancellable              *cancellable)
 {
     TrackerSparqlConnection *connection;
     GString *query;
@@ -1020,7 +1049,6 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
     GList *selection_metadata;
     guint i;
     g_autofree gchar *parent_uri = NULL;
-    g_autofree gchar *parent_uri_escaped = NULL;
     gchar *file_name_escaped;
 
     error = NULL;
@@ -1045,34 +1073,33 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
                           "WHERE { ?file a nfo:FileDataObject. ?file nie:url ?url. ");
 
     parent_uri = nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data));
-    parent_uri_escaped = g_markup_escape_text (parent_uri, -1);
 
     g_string_append_printf (query,
-                            "FILTER(tracker:uri-is-parent('%s', ?url)) ",
-                            parent_uri_escaped);
+                            "FILTER(tracker:uri-is-parent(<%s>, ?url)) ",
+                            parent_uri);
 
     for (l = selection; l != NULL; l = l->next)
     {
         file = NAUTILUS_FILE (l->data);
         file_name = nautilus_file_get_name (file);
-        file_name_escaped = g_markup_escape_text (file_name, -1);
+        file_name_escaped = tracker_sparql_escape_string (file_name);
 
         if (l == selection)
         {
             g_string_append_printf (query,
-                                    "FILTER (nfo:fileName(?file) IN ('%s', ",
+                                    "FILTER (nfo:fileName(?file) IN (\"%s\", ",
                                     file_name_escaped);
         }
         else if (l->next == NULL)
         {
             g_string_append_printf (query,
-                                    "'%s')) ",
+                                    "\"%s\")) ",
                                     file_name_escaped);
         }
         else
         {
             g_string_append_printf (query,
-                                    "'%s', ",
+                                    "\"%s\", ",
                                     file_name_escaped);
         }
 
@@ -1113,11 +1140,12 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
     {
         query_data->has_metadata[i] = TRUE;
     }
+    query_data->cancellable = cancellable;
 
     /* Make an asynchronous query to the store */
     tracker_sparql_connection_query_async (connection,
                                            query->str,
-                                           NULL,
+                                           cancellable,
                                            batch_rename_dialog_query_callback,
                                            query_data);
 

@@ -53,6 +53,11 @@ enum
 
 static guint signals[LAST_SIGNAL];
 
+struct _NautilusNotebook
+{
+    GtkNotebook parent_instance;
+};
+
 G_DEFINE_TYPE (NautilusNotebook, nautilus_notebook, GTK_TYPE_NOTEBOOK);
 
 static void
@@ -70,7 +75,7 @@ nautilus_notebook_class_init (NautilusNotebookClass *klass)
         g_signal_new ("tab-close-request",
                       G_OBJECT_CLASS_TYPE (object_class),
                       G_SIGNAL_RUN_LAST,
-                      G_STRUCT_OFFSET (NautilusNotebookClass, tab_close_request),
+                      0,
                       NULL, NULL,
                       g_cclosure_marshal_VOID__OBJECT,
                       G_TYPE_NONE,
@@ -154,6 +159,14 @@ button_press_cb (NautilusNotebook *notebook,
 
         /* switch to the page the mouse is over, but don't consume the event */
         gtk_notebook_set_current_page (GTK_NOTEBOOK (notebook), tab_clicked);
+    }
+    else if (event->type == GDK_BUTTON_PRESS &&
+             event->button == GDK_BUTTON_MIDDLE)
+    {
+        GtkWidget *slot;
+
+        slot = gtk_notebook_get_nth_page (GTK_NOTEBOOK (notebook), tab_clicked);
+        g_signal_emit (notebook, signals[TAB_CLOSE_REQUEST], 0, slot);
     }
 
     return FALSE;

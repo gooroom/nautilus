@@ -40,7 +40,7 @@ struct _NautilusBookmarkList
 {
     GObject parent_instance;
 
-    GList *list; 
+    GList *list;
     GFileMonitor *monitor;
     GQueue *pending_ops;
 };
@@ -642,7 +642,17 @@ nautilus_bookmark_list_can_bookmark_location (NautilusBookmarkList *list,
     {
         return FALSE;
     }
-    
+
+    if (nautilus_is_recent_directory (location))
+    {
+        return FALSE;
+    }
+
+    if (nautilus_is_trash_directory (location))
+    {
+        return FALSE;
+    }
+
     bookmark = nautilus_bookmark_new (location, NULL);
     is_builtin = nautilus_bookmark_get_is_builtin (bookmark);
     g_object_unref (bookmark);

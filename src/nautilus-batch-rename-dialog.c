@@ -102,6 +102,8 @@ struct _NautilusBatchRenameDialog
 
     gint row_height;
     gboolean rename_clicked;
+
+    GCancellable *metadata_cancellable;
 };
 
 typedef struct
@@ -141,7 +143,7 @@ change_numbering_order (GSimpleAction *action,
             dialog->selection = nautilus_batch_rename_dialog_sort (dialog->selection,
                                                                    sorts_constants[i].sort_mode,
                                                                    dialog->create_date);
-          break;
+            break;
         }
     }
 
@@ -636,9 +638,13 @@ create_arrow_row_for_label (NautilusBatchRenameDialog *dialog,
     g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
     if (gtk_widget_get_direction (row) == GTK_TEXT_DIR_RTL)
+    {
         icon = gtk_label_new ("←");
+    }
     else
+    {
         icon = gtk_label_new ("→");
+    }
 
     gtk_label_set_xalign (GTK_LABEL (icon), 1.0);
     gtk_widget_set_hexpand (icon, FALSE);
@@ -943,7 +949,7 @@ update_listbox (NautilusBatchRenameDialog *dialog)
         new_name = l1->data;
 
         gtk_label_set_label (label, new_name->str);
-        gtk_widget_set_tooltip_text(GTK_WIDGET (label), new_name->str);
+        gtk_widget_set_tooltip_text (GTK_WIDGET (label), new_name->str);
 
         if (g_strcmp0 (new_name->str, "") == 0)
         {
@@ -957,7 +963,7 @@ update_listbox (NautilusBatchRenameDialog *dialog)
         file = NAUTILUS_FILE (l1->data);
 
         old_name = nautilus_file_get_name (file);
-        gtk_widget_set_tooltip_text(GTK_WIDGET (label), old_name);
+        gtk_widget_set_tooltip_text (GTK_WIDGET (label), old_name);
 
         if (dialog->mode == NAUTILUS_BATCH_RENAME_DIALOG_FORMAT)
         {
@@ -1033,7 +1039,7 @@ update_listbox (NautilusBatchRenameDialog *dialog)
     }
 }
 
-void
+static void
 check_conflict_for_files (NautilusBatchRenameDialog *dialog,
                           NautilusDirectory         *directory,
                           GList                     *files)
@@ -1175,9 +1181,9 @@ file_names_list_has_duplicates_finish (NautilusBatchRenameDialog  *self,
                                        GAsyncResult               *res,
                                        GError                    **error)
 {
-  g_return_val_if_fail (g_task_is_valid (res, self), FALSE);
+    g_return_val_if_fail (g_task_is_valid (res, self), FALSE);
 
-  return g_task_propagate_boolean (G_TASK (res), error);
+    return g_task_propagate_boolean (G_TASK (res), error);
 }
 
 static void
@@ -1298,11 +1304,10 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
         }
 
         g_mutex_unlock (&task_data->wait_ready_mutex);
-
     }
 
-  g_task_return_boolean (task, TRUE);
-  nautilus_directory_list_free (directories);
+    g_task_return_boolean (task, TRUE);
+    nautilus_directory_list_free (directories);
 }
 
 static void
@@ -1340,7 +1345,7 @@ file_names_list_has_duplicates_async (NautilusBatchRenameDialog *dialog,
     dialog->checking_conflicts = TRUE;
 
     task = g_task_new (dialog, dialog->conflict_cancellable, callback, user_data);
-    task_data = g_new0(CheckConflictsData, 1);
+    task_data = g_new0 (CheckConflictsData, 1);
     g_task_set_task_data (task, task_data, destroy_conflicts_task_data);
     g_task_run_in_thread (task, file_names_list_has_duplicates_async_thread);
 }
@@ -1351,10 +1356,12 @@ have_unallowed_character (NautilusBatchRenameDialog *dialog)
     GList *names;
     GString *new_name;
     const gchar *entry_text;
+    gboolean have_empty_name;
     gboolean have_unallowed_character_slash;
     gboolean have_unallowed_character_dot;
     gboolean have_unallowed_character_dotdot;
 
+    have_empty_name = FALSE;
     have_unallowed_character_slash = FALSE;
     have_unallowed_character_dot = FALSE;
     have_unallowed_character_dotdot = FALSE;
@@ -1401,6 +1408,12 @@ have_unallowed_character (NautilusBatchRenameDialog *dialog)
         {
             new_name = names->data;
 
+            if (g_strcmp0 (new_name->str, "") == 0)
+            {
+                have_empty_name = TRUE;
+                break;
+            }
+
             if (g_strcmp0 (new_name->str, "..") == 0)
             {
                 have_unallowed_character_dotdot = TRUE;
@@ -1409,25 +1422,32 @@ have_unallowed_character (NautilusBatchRenameDialog *dialog)
         }
     }
 
+    if (have_empty_name)
+    {
+        gtk_label_set_label (GTK_LABEL (dialog->conflict_label),
+                             _("Name cannot be empty."));
+    }
+
     if (have_unallowed_character_slash)
     {
         gtk_label_set_label (GTK_LABEL (dialog->conflict_label),
-                             "\"/\" is an unallowed character");
+                             _("Name cannot contain “/”."));
     }
 
     if (have_unallowed_character_dot)
     {
         gtk_label_set_label (GTK_LABEL (dialog->conflict_label),
-                             "\".\" is an unallowed file name");
+                             _("“.” is not a valid name."));
     }
 
     if (have_unallowed_character_dotdot)
     {
         gtk_label_set_label (GTK_LABEL (dialog->conflict_label),
-                             "\"..\" is an unallowed file name");
+                             _("“..” is not a valid name."));
     }
 
-    if (have_unallowed_character_slash || have_unallowed_character_dot || have_unallowed_character_dotdot)
+    if (have_unallowed_character_slash || have_unallowed_character_dot || have_unallowed_character_dotdot
+        || have_empty_name)
     {
         gtk_widget_set_sensitive (dialog->rename_button, FALSE);
         gtk_widget_set_sensitive (dialog->conflict_down, FALSE);
@@ -1459,7 +1479,7 @@ numbering_tag_is_some_added (NautilusBatchRenameDialog *self)
         tag_data = g_hash_table_lookup (self->tag_info_table, tag_text_representation);
         if (tag_data->set)
         {
-          return TRUE;
+            return TRUE;
         }
     }
 
@@ -1493,11 +1513,11 @@ update_display_text (NautilusBatchRenameDialog *dialog)
 
     if (!numbering_tag_is_some_added (dialog))
     {
-        gtk_revealer_set_reveal_child(GTK_REVEALER(dialog->numbering_revealer), FALSE);
+        gtk_revealer_set_reveal_child (GTK_REVEALER (dialog->numbering_revealer), FALSE);
     }
     else
     {
-        gtk_revealer_set_reveal_child(GTK_REVEALER(dialog->numbering_revealer), TRUE);
+        gtk_revealer_set_reveal_child (GTK_REVEALER (dialog->numbering_revealer), TRUE);
     }
 
     dialog->new_names = batch_rename_dialog_get_new_names (dialog);
@@ -1756,7 +1776,8 @@ nautilus_batch_rename_dialog_initialize_actions (NautilusBatchRenameDialog *dial
                                          metadata_tags_constants[ORIGINAL_FILE_NAME].action_name);
     g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
 
-    check_metadata_for_selection (dialog, dialog->selection);
+    check_metadata_for_selection (dialog, dialog->selection,
+                                  dialog->metadata_cancellable);
 }
 
 static void
@@ -1801,7 +1822,7 @@ typedef enum
     TEXT_WAS_INSERTED
 } TextChangedMode;
 
-static GList*
+static GList *
 get_tags_intersecting_sorted (NautilusBatchRenameDialog *self,
                               gint                       start_position,
                               gint                       end_position,
@@ -1842,7 +1863,6 @@ get_tags_intersecting_sorted (NautilusBatchRenameDialog *self,
                                                  start_position < tag_end_position;
                 selection_intersects_tag_end = FALSE;
                 tag_is_contained_in_selection = FALSE;
-
             }
             if (selection_intersects_tag_end || selection_intersects_tag_start || tag_is_contained_in_selection)
             {
@@ -1957,7 +1977,7 @@ on_insert_text (GtkEditable *editable,
     g_autoptr (GList) intersecting_tags = NULL;
 
     self = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
-    start_position = *(int *)position;
+    start_position = *(int *) position;
     end_position = start_position + g_utf8_strlen (new_text, -1);
     intersecting_tags = get_tags_intersecting_sorted (self, start_position,
                                                       end_position, TEXT_WAS_INSERTED);
@@ -1977,7 +1997,7 @@ on_insert_text (GtkEditable *editable,
 static void
 file_names_widget_entry_on_changed (NautilusBatchRenameDialog *self)
 {
-   update_display_text (self);
+    update_display_text (self);
 }
 
 static void
@@ -2033,6 +2053,9 @@ nautilus_batch_rename_dialog_finalize (GObject *object)
     g_object_unref (dialog->size_group);
 
     g_hash_table_destroy (dialog->tag_info_table);
+
+    g_cancellable_cancel (dialog->metadata_cancellable);
+    g_clear_object (&dialog->metadata_cancellable);
 
     G_OBJECT_CLASS (nautilus_batch_rename_dialog_parent_class)->finalize (object);
 }
@@ -2100,6 +2123,7 @@ nautilus_batch_rename_dialog_new (GList             *selection,
     GString *dialog_title;
     GList *l;
     gboolean all_targets_are_folders;
+    gboolean all_targets_are_regular_files;
 
     dialog = g_object_new (NAUTILUS_TYPE_BATCH_RENAME_DIALOG, "use-header-bar", TRUE, NULL);
 
@@ -2120,19 +2144,44 @@ nautilus_batch_rename_dialog_new (GList             *selection,
         }
     }
 
+    all_targets_are_regular_files = TRUE;
+    for (l = selection; l != NULL; l = l->next)
+    {
+        if (!nautilus_file_is_regular_file (NAUTILUS_FILE (l->data)))
+        {
+            all_targets_are_regular_files = FALSE;
+            break;
+        }
+    }
+
     dialog_title = g_string_new ("");
     if (all_targets_are_folders)
     {
         g_string_append_printf (dialog_title,
-                                ngettext ("Rename %d Folder", "Rename %d Folders", g_list_length (selection)),
+                                ngettext ("Rename %d Folder",
+                                          "Rename %d Folders",
+                                          g_list_length (selection)),
+                                g_list_length (selection));
+    }
+    else if (all_targets_are_regular_files)
+    {
+        g_string_append_printf (dialog_title,
+                                ngettext ("Rename %d File",
+                                          "Rename %d Files",
+                                          g_list_length (selection)),
                                 g_list_length (selection));
     }
     else
     {
         g_string_append_printf (dialog_title,
-                                ngettext ("Rename %d File", "Rename %d Files", g_list_length (selection)),
+                                /* To translators: %d is the total number of files and folders.
+                                 * Singular case of the string is never used */
+                                ngettext ("Rename %d File and Folder",
+                                          "Rename %d Files and Folders",
+                                          g_list_length (selection)),
                                 g_list_length (selection));
     }
+
     gtk_window_set_title (GTK_WINDOW (dialog), dialog_title->str);
 
     add_tag (dialog, metadata_tags_constants[ORIGINAL_FILE_NAME]);
@@ -2258,4 +2307,6 @@ nautilus_batch_rename_dialog_init (NautilusBatchRenameDialog *self)
                       "leave-notify-event",
                       G_CALLBACK (on_leave_event),
                       self);
+
+    self->metadata_cancellable = g_cancellable_new ();
 }

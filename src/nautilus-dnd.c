@@ -72,7 +72,7 @@ nautilus_drag_init (NautilusDragInfo     *drag_info,
                                           NAUTILUS_ICON_DND_TEXT);
     }
 
-    drag_info->drop_occured = FALSE;
+    drag_info->drop_occurred = FALSE;
     drag_info->need_to_destroy = FALSE;
 }
 
@@ -709,7 +709,13 @@ cache_one_item (const char *uri,
     NautilusDragSelectionItem *item;
 
     item = nautilus_drag_selection_item_new ();
-    item->uri = g_strdup (uri);
+    item->uri = nautilus_uri_to_native_uri (uri);
+
+    if (item->uri == NULL)
+    {
+        item->uri = g_strdup (uri);
+    }
+
     item->file = nautilus_file_get_by_uri (uri);
     item->icon_x = x;
     item->icon_y = y;
@@ -889,8 +895,8 @@ nautilus_drag_drop_action_ask (GtkWidget     *widget,
 
     gtk_grab_add (menu);
 
-    gtk_menu_popup (GTK_MENU (menu), NULL, NULL,
-                    NULL, NULL, 0, GDK_CURRENT_TIME);
+    gtk_menu_popup_at_pointer (GTK_MENU (menu),
+                               NULL);
 
     g_main_loop_run (damd.loop);
 

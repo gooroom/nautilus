@@ -30,25 +30,16 @@
 #include "nautilus-global-preferences.h"
 #include "nautilus-link.h"
 #include "nautilus-profile.h"
+#include "nautilus-metadata.h"
 #include <eel/eel-glib-extensions.h>
 #include <gtk/gtk.h>
 #include <libxml/parser.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-/* turn this on to see messages about each load_directory call: */
-#if 0
-#define DEBUG_LOAD_DIRECTORY
-#endif
-
 /* turn this on to check if async. job calls are balanced */
 #if 0
 #define DEBUG_ASYNC_JOBS
-#endif
-
-/* turn this on to log things starting and stopping */
-#if 0
-#define DEBUG_START_STOP
 #endif
 
 #define DIRECTORY_LOAD_ITEMS_PER_CALLBACK 100
@@ -375,9 +366,7 @@ async_job_start (NautilusDirectory *directory,
     char *key;
 #endif
 
-#ifdef DEBUG_START_STOP
-    g_message ("starting %s in %p", job, directory->details->location);
-#endif
+    g_debug ("starting %s in %p", job, directory->details->location);
 
     g_assert (async_job_count >= 0);
     g_assert (async_job_count <= MAX_ASYNC_JOBS);
@@ -429,9 +418,7 @@ async_job_end (NautilusDirectory *directory,
     gpointer table_key, value;
 #endif
 
-#ifdef DEBUG_START_STOP
-    g_message ("stopping %s in %p", job, directory->details->location);
-#endif
+    g_debug ("stopping %s in %p", job, directory->details->location);
 
     g_assert (async_job_count > 0);
 
@@ -2295,9 +2282,7 @@ start_monitoring_file_list (NautilusDirectory *directory)
     state->load_directory_file->details->loading_directory = TRUE;
 
 
-#ifdef DEBUG_LOAD_DIRECTORY
-    g_message ("load_directory called to monitor file list of %p", directory->details->location);
-#endif
+    g_debug ("load_directory called to monitor file list of %p", directory->details->location);
 
     directory->details->directory_load_in_progress = state;
 
@@ -2741,14 +2726,12 @@ directory_count_start (NautilusDirectory *directory,
     directory->details->count_in_progress = state;
 
     location = nautilus_file_get_location (file);
-#ifdef DEBUG_LOAD_DIRECTORY
+
     {
-        char *uri;
+        g_autofree char *uri = NULL;
         uri = g_file_get_uri (location);
-        g_message ("load_directory called to get shallow file count for %s", uri);
-        g_free (uri);
+        g_debug ("load_directory called to get shallow file count for %s", uri);
     }
-#endif
 
     g_file_enumerate_children_async (location,
                                      G_FILE_ATTRIBUTE_STANDARD_NAME ","
@@ -3020,9 +3003,7 @@ deep_count_load (DeepCountState *state,
 {
     state->deep_count_location = g_object_ref (location);
 
-#ifdef DEBUG_LOAD_DIRECTORY
-    g_message ("load_directory called to get deep file count for %p", location);
-#endif
+    g_debug ("load_directory called to get deep file count for %p", location);
     g_file_enumerate_children_async (state->deep_count_location,
                                      G_FILE_ATTRIBUTE_STANDARD_NAME ","
                                      G_FILE_ATTRIBUTE_STANDARD_TYPE ","
@@ -3409,14 +3390,12 @@ mime_list_start (NautilusDirectory *directory,
     directory->details->mime_list_in_progress = state;
 
     location = nautilus_file_get_location (file);
-#ifdef DEBUG_LOAD_DIRECTORY
+
     {
-        char *uri;
+        g_autofree char *uri = NULL;
         uri = g_file_get_uri (location);
-        g_message ("load_directory called to get MIME list of %s", uri);
-        g_free (uri);
+        g_debug ("load_directory called to get MIME list of %s", uri);
     }
-#endif
 
     g_file_enumerate_children_async (location,
                                      G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
@@ -3580,13 +3559,17 @@ is_link_trusted (NautilusFile *file,
 {
     GFile *location;
     gboolean res;
+    g_autofree gchar* trusted = NULL;
 
     if (!is_launcher)
     {
         return TRUE;
     }
 
-    if (nautilus_file_can_execute (file))
+    trusted = nautilus_file_get_metadata (file,
+                                          NAUTILUS_METADATA_KEY_DESKTOP_FILE_TRUSTED,
+                                          NULL);
+    if (nautilus_file_can_execute (file) && trusted != NULL)
     {
         return TRUE;
     }
@@ -3949,7 +3932,7 @@ thumbnail_loader_size_prepared (GdkPixbufLoader *loader,
     aspect_ratio = ((double) width) / height;
 
     /* cf. nautilus_file_get_icon() */
-    max_thumbnail_size = NAUTILUS_CANVAS_ICON_SIZE_LARGER * cached_thumbnail_size / NAUTILUS_CANVAS_ICON_SIZE_SMALL;
+    max_thumbnail_size = NAUTILUS_CANVAS_ICON_SIZE_LARGEST * cached_thumbnail_size / NAUTILUS_CANVAS_ICON_SIZE_SMALL;
     if (MAX (width, height) > max_thumbnail_size)
     {
         if (width > height)

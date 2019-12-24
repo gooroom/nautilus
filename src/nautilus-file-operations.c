@@ -41,7 +41,6 @@
 
 #include <eel/eel-glib-extensions.h>
 #include <eel/eel-gtk-extensions.h>
-#include <eel/eel-stock-dialogs.h>
 #include <eel/eel-vfs-extensions.h>
 
 #include <glib/gi18n.h>
@@ -60,6 +59,7 @@
 #include "nautilus-file-utilities.h"
 #include "nautilus-file-undo-operations.h"
 #include "nautilus-file-undo-manager.h"
+#include "nautilus-ui-utilities.h"
 
 /* TODO: TESTING!!! */
 
@@ -235,10 +235,10 @@ typedef struct
 #define COPY_FORCE _("Copy _Anyway")
 
 static void
-mark_desktop_file_trusted (CommonJob    *common,
-                           GCancellable *cancellable,
-                           GFile        *file,
-                           gboolean      interactive);
+mark_desktop_file_executable (CommonJob    *common,
+                              GCancellable *cancellable,
+                              GFile        *file,
+                              gboolean      interactive);
 
 static gboolean
 is_all_button_text (const char *button_text)
@@ -269,11 +269,11 @@ static void empty_trash_task_done (GObject      *source_object,
 static char *query_fs_type (GFile        *file,
                             GCancellable *cancellable);
 
-/* keep in time with format_time()
+/* keep in time with get_formatted_time ()
  *
  * This counts and outputs the number of “time units”
- * formatted and displayed by format_time().
- * For instance, if format_time outputs “3 hours, 4 minutes”
+ * formatted and displayed by get_formatted_time ().
+ * For instance, if get_formatted_time outputs “3 hours, 4 minutes”
  * it yields 7.
  */
 static int
@@ -313,12 +313,12 @@ seconds_count_format_time_units (int seconds)
     return hours;
 }
 
-static char *
-format_time (int seconds)
+static gchar *
+get_formatted_time (int seconds)
 {
     int minutes;
     int hours;
-    char *res;
+    gchar *res;
 
     if (seconds < 0)
     {
@@ -341,7 +341,7 @@ format_time (int seconds)
 
     if (seconds < 60 * 60 * 4)
     {
-        char *h, *m;
+        gchar *h, *m;
 
         minutes = (seconds - hours * 60 * 60) / 60;
 
@@ -642,7 +642,8 @@ static void
 parse_previous_duplicate_name (const char  *name,
                                char       **name_base,
                                const char **suffix,
-                               int         *count)
+                               int         *count,
+                               gboolean     ignore_extension)
 {
     const char *tag;
 
@@ -743,12 +744,15 @@ parse_previous_duplicate_name (const char  *name,
 
 
     *count = 0;
-    if (**suffix != '\0')
+    /* ignore_extension was not used before to let above code handle case "dir (copy).dir" for directories */
+    if (**suffix != '\0' && !ignore_extension)
     {
         *name_base = extract_string_until (name, *suffix);
     }
     else
     {
+        /* making sure extension is ignored in directories */
+        *suffix = "";
         *name_base = g_strdup (name);
     }
 }
@@ -909,14 +913,15 @@ make_next_duplicate_name (const char *base,
 static char *
 get_duplicate_name (const char *name,
                     int         count_increment,
-                    int         max_length)
+                    int         max_length,
+                    gboolean    ignore_extension)
 {
     char *result;
     char *name_base;
     const char *suffix;
     int count;
 
-    parse_previous_duplicate_name (name, &name_base, &suffix, &count);
+    parse_previous_duplicate_name (name, &name_base, &suffix, &count, ignore_extension);
     result = make_next_duplicate_name (name_base, suffix, count + count_increment, max_length);
 
     g_free (name_base);
@@ -947,34 +952,12 @@ has_invalid_xml_char (char *str)
     return FALSE;
 }
 
-
-static char *
-custom_full_name_to_string (char    *format,
-                            va_list  va)
+static gchar *
+get_basename (GFile *file)
 {
-    GFile *file;
-
-    file = va_arg (va, GFile *);
-
-    return g_file_get_parse_name (file);
-}
-
-static void
-custom_full_name_skip (va_list *va)
-{
-    (void) va_arg (*va, GFile *);
-}
-
-static char *
-custom_basename_to_string (char    *format,
-                           va_list  va)
-{
-    GFile *file;
     GFileInfo *info;
-    char *name, *basename, *tmp;
+    gchar *name, *basename, *tmp;
     GMount *mount;
-
-    file = va_arg (va, GFile *);
 
     if ((mount = nautilus_get_mounted_mount_for_root (file)) != NULL)
     {
@@ -1026,89 +1009,7 @@ custom_basename_to_string (char    *format,
         g_free (tmp);
     }
 
-
     return name;
-}
-
-static void
-custom_basename_skip (va_list *va)
-{
-    (void) va_arg (*va, GFile *);
-}
-
-
-static char *
-custom_size_to_string (char    *format,
-                       va_list  va)
-{
-    goffset size;
-
-    size = va_arg (va, goffset);
-    return g_format_size (size);
-}
-
-static void
-custom_size_skip (va_list *va)
-{
-    (void) va_arg (*va, goffset);
-}
-
-static char *
-custom_time_to_string (char    *format,
-                       va_list  va)
-{
-    int secs;
-
-    secs = va_arg (va, int);
-    return format_time (secs);
-}
-
-static void
-custom_time_skip (va_list *va)
-{
-    (void) va_arg (*va, int);
-}
-
-static char *
-custom_mount_to_string (char    *format,
-                        va_list  va)
-{
-    GMount *mount;
-
-    mount = va_arg (va, GMount *);
-    return g_mount_get_name (mount);
-}
-
-static void
-custom_mount_skip (va_list *va)
-{
-    (void) va_arg (*va, GMount *);
-}
-
-
-static EelPrintfHandler handlers[] =
-{
-    { 'F', custom_full_name_to_string, custom_full_name_skip },
-    { 'B', custom_basename_to_string, custom_basename_skip },
-    { 'S', custom_size_to_string, custom_size_skip },
-    { 'T', custom_time_to_string, custom_time_skip },
-    { 'V', custom_mount_to_string, custom_mount_skip },
-    { 0 }
-};
-
-
-static char *
-f (const char *format,
-   ...)
-{
-    va_list va;
-    char *res;
-
-    va_start (va, format);
-    res = eel_strdup_vprintf_with_custom (handlers, format, va);
-    va_end (va);
-
-    return res;
 }
 
 #define op_job_new(__type, parent_window) ((__type *) (init_common (sizeof (__type), parent_window)))
@@ -1286,6 +1187,7 @@ do_run_simple_dialog (gpointer _data)
     RunSimpleDialogData *data = _data;
     const char *button_title;
     GtkWidget *dialog;
+    GtkWidget *button;
     int result;
     int response_id;
 
@@ -1313,8 +1215,14 @@ do_run_simple_dialog (gpointer _data)
             continue;
         }
 
-        gtk_dialog_add_button (GTK_DIALOG (dialog), button_title, response_id);
+        button = gtk_dialog_add_button (GTK_DIALOG (dialog), button_title, response_id);
         gtk_dialog_set_default_response (GTK_DIALOG (dialog), response_id);
+
+        if (g_strcmp0(button_title, DELETE) == 0)
+        {
+            gtk_style_context_add_class(gtk_widget_get_style_context(button),
+                                        "destructive-action");
+        }
     }
 
     if (data->details_text)
@@ -1603,22 +1511,25 @@ confirm_delete_from_trash (CommonJob *job,
 
     if (file_count == 1)
     {
-        prompt = f (_("Are you sure you want to permanently delete “%B” "
-                      "from the trash?"), files->data);
+        g_autofree gchar *basename = NULL;
+
+        basename = get_basename (files->data);
+        prompt = g_strdup_printf (_("Are you sure you want to permanently delete “%s” "
+                                    "from the trash?"), basename);
     }
     else
     {
-        prompt = f (ngettext ("Are you sure you want to permanently delete "
-                              "the %'d selected item from the trash?",
-                              "Are you sure you want to permanently delete "
-                              "the %'d selected items from the trash?",
-                              file_count),
-                    file_count);
+        prompt = g_strdup_printf (ngettext ("Are you sure you want to permanently delete "
+                                            "the %'d selected item from the trash?",
+                                            "Are you sure you want to permanently delete "
+                                            "the %'d selected items from the trash?",
+                                            file_count),
+                                  file_count);
     }
 
     response = run_warning (job,
                             prompt,
-                            f (_("If you delete an item, it will be permanently lost.")),
+                            g_strdup (_("If you delete an item, it will be permanently lost.")),
                             NULL,
                             FALSE,
                             CANCEL, DELETE,
@@ -1639,11 +1550,11 @@ confirm_empty_trash (CommonJob *job)
         return TRUE;
     }
 
-    prompt = f (_("Empty all items from Trash?"));
+    prompt = g_strdup (_("Empty all items from Trash?"));
 
     response = run_warning (job,
                             prompt,
-                            f (_("All items in the Trash will be permanently deleted.")),
+                            g_strdup (_("All items in the Trash will be permanently deleted.")),
                             NULL,
                             FALSE,
                             CANCEL, _("Empty _Trash"),
@@ -1676,21 +1587,24 @@ confirm_delete_directly (CommonJob *job,
 
     if (file_count == 1)
     {
-        prompt = f (_("Are you sure you want to permanently delete “%B”?"),
-                    files->data);
+        g_autofree gchar *basename = NULL;
+
+        basename = get_basename (files->data);
+        prompt = g_strdup_printf (_("Are you sure you want to permanently delete “%s”?"),
+                                  basename);
     }
     else
     {
-        prompt = f (ngettext ("Are you sure you want to permanently delete "
-                              "the %'d selected item?",
-                              "Are you sure you want to permanently delete "
-                              "the %'d selected items?", file_count),
-                    file_count);
+        prompt = g_strdup_printf (ngettext ("Are you sure you want to permanently delete "
+                                            "the %'d selected item?",
+                                            "Are you sure you want to permanently delete "
+                                            "the %'d selected items?", file_count),
+                                  file_count);
     }
 
     response = run_warning (job,
                             prompt,
-                            f (_("If you delete an item, it will be permanently lost.")),
+                            g_strdup (_("If you delete an item, it will be permanently lost.")),
                             NULL,
                             FALSE,
                             CANCEL, DELETE,
@@ -1699,6 +1613,8 @@ confirm_delete_directly (CommonJob *job,
     return response == 1;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 static void
 report_delete_progress (CommonJob    *job,
                         SourceInfo   *source_info,
@@ -1736,17 +1652,20 @@ report_delete_progress (CommonJob    *job,
 
     if (source_info->num_files == 1)
     {
+        g_autofree gchar *basename = NULL;
+
         if (files_left == 0)
         {
-            status = _("Deleted “%B”");
+            status = _("Deleted “%s”");
         }
         else
         {
-            status = _("Deleting “%B”");
+            status = _("Deleting “%s”");
         }
+
+        basename = get_basename (G_FILE (delete_job->files->data));
         nautilus_progress_info_take_status (job->progress,
-                                            f (status,
-                                               (GFile *) delete_job->files->data));
+                                            g_strdup_printf (status, basename));
     }
     else
     {
@@ -1763,8 +1682,8 @@ report_delete_progress (CommonJob    *job,
                                source_info->num_files);
         }
         nautilus_progress_info_take_status (job->progress,
-                                            f (status,
-                                               source_info->num_files));
+                                            g_strdup_printf (status,
+                                                             source_info->num_files));
     }
 
     elapsed = g_timer_elapsed (job->time, NULL);
@@ -1785,17 +1704,17 @@ report_delete_progress (CommonJob    *job,
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files + 1,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files + 1,
+                                       source_info->num_files);
         }
         else
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files,
+                                       source_info->num_files);
         }
     }
     else
@@ -1805,14 +1724,15 @@ report_delete_progress (CommonJob    *job,
             gchar *time_left_message;
             gchar *files_per_second_message;
             gchar *concat_detail;
+            g_autofree gchar *formatted_time = NULL;
 
-            /* To translators: %T will expand to a time duration like "2 minutes".
+            /* To translators: %s will expand to a time duration like "2 minutes".
              * So the whole thing will be something like "1 / 5 -- 2 hours left (4 files/sec)"
              *
-             * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+             * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
              */
-            time_left_message = ngettext ("%'d / %'d \xE2\x80\x94 %T left",
-                                          "%'d / %'d \xE2\x80\x94 %T left",
+            time_left_message = ngettext ("%'d / %'d \xE2\x80\x94 %s left",
+                                          "%'d / %'d \xE2\x80\x94 %s left",
                                           seconds_count_format_time_units (remaining_time));
             transfer_rate += 0.5;
             files_per_second_message = ngettext ("(%d file/sec)",
@@ -1820,10 +1740,11 @@ report_delete_progress (CommonJob    *job,
                                                  (int) transfer_rate);
             concat_detail = g_strconcat (time_left_message, " ", files_per_second_message, NULL);
 
-            details = f (concat_detail,
-                         transfer_info->num_files + 1, source_info->num_files,
-                         remaining_time,
-                         (int) transfer_rate);
+            formatted_time = get_formatted_time (remaining_time);
+            details = g_strdup_printf (concat_detail,
+                                       transfer_info->num_files + 1, source_info->num_files,
+                                       formatted_time,
+                                       (int) transfer_rate);
 
             g_free (concat_detail);
         }
@@ -1831,9 +1752,9 @@ report_delete_progress (CommonJob    *job,
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files,
+                                       source_info->num_files);
         }
     }
     nautilus_progress_info_take_details (job->progress, details);
@@ -1851,6 +1772,7 @@ report_delete_progress (CommonJob    *job,
         nautilus_progress_info_set_progress (job->progress, transfer_info->num_files, source_info->num_files);
     }
 }
+#pragma GCC diagnostic pop
 
 typedef void (*DeleteCallback) (GFile   *file,
                                 GError  *error,
@@ -1948,6 +1870,7 @@ file_deleted_callback (GFile    *file,
     char *secondary;
     char *details = NULL;
     int response;
+    g_autofree gchar *basename = NULL;
 
     job = data->job;
     source_info = data->source_info;
@@ -1971,27 +1894,33 @@ file_deleted_callback (GFile    *file,
         return;
     }
 
-    primary = f (_("Error while deleting."));
+    primary = g_strdup (_("Error while deleting."));
 
     file_type = g_file_query_file_type (file,
                                         G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                         job->cancellable);
 
+    basename = get_basename (file);
+
     if (file_type == G_FILE_TYPE_DIRECTORY)
     {
         secondary = IS_IO_ERROR (error, PERMISSION_DENIED) ?
-                    f (_("There was an error deleting the folder “%B”."),
-                       file) :
-                    f (_("You do not have sufficient permissions to delete the folder “%B”."),
-                       file);
+                    g_strdup_printf (_("There was an error deleting the "
+                                       "folder “%s”."),
+                                     basename) :
+                    g_strdup_printf (_("You do not have sufficient permissions "
+                                       "to delete the folder “%s”."),
+                                     basename);
     }
     else
     {
         secondary = IS_IO_ERROR (error, PERMISSION_DENIED) ?
-                    f (_("There was an error deleting the file “%B”."),
-                       file) :
-                    f (_("You do not have sufficient permissions to delete the file “%B”."),
-                       file);
+                    g_strdup_printf (_("There was an error deleting the "
+                                       "file “%s”."),
+                                     basename) :
+                    g_strdup_printf (_("You do not have sufficient permissions "
+                                       "to delete the file “%s”."),
+                                     basename);
     }
 
     details = error->message;
@@ -2073,6 +2002,8 @@ delete_files (CommonJob *job,
     }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 static void
 report_trash_progress (CommonJob    *job,
                        SourceInfo   *source_info,
@@ -2110,17 +2041,20 @@ report_trash_progress (CommonJob    *job,
 
     if (source_info->num_files == 1)
     {
+        g_autofree gchar *basename = NULL;
+
         if (files_left > 0)
         {
-            status = _("Trashing “%B”");
+            status = _("Trashing “%s”");
         }
         else
         {
-            status = _("Trashed “%B”");
+            status = _("Trashed “%s”");
         }
+
+        basename = get_basename (G_FILE (delete_job->files->data));
         nautilus_progress_info_take_status (job->progress,
-                                            f (status,
-                                               (GFile *) delete_job->files->data));
+                                            g_strdup_printf (status, basename));
     }
     else
     {
@@ -2137,8 +2071,8 @@ report_trash_progress (CommonJob    *job,
                                source_info->num_files);
         }
         nautilus_progress_info_take_status (job->progress,
-                                            f (status,
-                                               source_info->num_files));
+                                            g_strdup_printf (status,
+                                                             source_info->num_files));
     }
 
 
@@ -2160,17 +2094,17 @@ report_trash_progress (CommonJob    *job,
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files + 1,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files + 1,
+                                       source_info->num_files);
         }
         else
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files,
+                                       source_info->num_files);
         }
     }
     else
@@ -2180,24 +2114,27 @@ report_trash_progress (CommonJob    *job,
             gchar *time_left_message;
             gchar *files_per_second_message;
             gchar *concat_detail;
+            g_autofree gchar *formatted_time = NULL;
 
-            /* To translators: %T will expand to a time duration like "2 minutes".
+            /* To translators: %s will expand to a time duration like "2 minutes".
              * So the whole thing will be something like "1 / 5 -- 2 hours left (4 files/sec)"
              *
-             * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+             * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
              */
-            time_left_message = ngettext ("%'d / %'d \xE2\x80\x94 %T left",
-                                          "%'d / %'d \xE2\x80\x94 %T left",
+            time_left_message = ngettext ("%'d / %'d \xE2\x80\x94 %s left",
+                                          "%'d / %'d \xE2\x80\x94 %s left",
                                           seconds_count_format_time_units (remaining_time));
             files_per_second_message = ngettext ("(%d file/sec)",
                                                  "(%d files/sec)",
                                                  (int) (transfer_rate + 0.5));
             concat_detail = g_strconcat (time_left_message, " ", files_per_second_message, NULL);
 
-            details = f (concat_detail,
-                         transfer_info->num_files + 1, source_info->num_files,
-                         remaining_time,
-                         (int) transfer_rate + 0.5);
+            formatted_time = get_formatted_time (remaining_time);
+            details = g_strdup_printf (concat_detail,
+                                       transfer_info->num_files + 1,
+                                       source_info->num_files,
+                                       formatted_time,
+                                       (int) transfer_rate + 0.5);
 
             g_free (concat_detail);
         }
@@ -2205,9 +2142,9 @@ report_trash_progress (CommonJob    *job,
         {
             /* To translators: %'d is the number of files completed for the operation,
              * so it will be something like 2/14. */
-            details = f (_("%'d / %'d"),
-                         transfer_info->num_files,
-                         source_info->num_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       transfer_info->num_files,
+                                       source_info->num_files);
         }
     }
     nautilus_progress_info_set_details (job->progress, details);
@@ -2225,6 +2162,7 @@ report_trash_progress (CommonJob    *job,
         nautilus_progress_info_set_progress (job->progress, transfer_info->num_files, source_info->num_files);
     }
 }
+#pragma GCC diagnostic pop
 
 static void
 trash_file (CommonJob     *job,
@@ -2238,6 +2176,7 @@ trash_file (CommonJob     *job,
     GError *error;
     char *primary, *secondary, *details;
     int response;
+    g_autofree gchar *basename = NULL;
 
     if (should_skip_file (job, file))
     {
@@ -2273,8 +2212,12 @@ trash_file (CommonJob     *job,
         goto skip;
     }
 
-    /* Translators: %B is a file name */
-    primary = f (_("“%B” can't be put in the trash. Do you want to delete it immediately?"), file);
+    basename = get_basename (file);
+    /* Translators: %s is a file name */
+    primary = g_strdup_printf (_("“%s” can’t be put in the trash. Do you want "
+                                 "to delete it immediately?"),
+                               basename);
+
     details = NULL;
     secondary = NULL;
     if (!IS_IO_ERROR (error, NOT_SUPPORTED))
@@ -2283,7 +2226,7 @@ trash_file (CommonJob     *job,
     }
     else if (!g_file_is_native (file))
     {
-        secondary = f (_("This remote location does not support sending items to the trash."));
+        secondary = g_strdup (_("This remote location does not support sending items to the trash."));
     }
 
     response = run_question (job,
@@ -2324,9 +2267,9 @@ skip:
 }
 
 static void
-transfer_add_file_to_count (GFile        *file,
-                            CommonJob    *job,
-                            TransferInfo *transfer_info)
+source_info_remove_file_from_count (GFile        *file,
+                                    CommonJob    *job,
+                                    SourceInfo   *source_info)
 {
     g_autoptr (GFileInfo) file_info = NULL;
 
@@ -2341,10 +2284,10 @@ transfer_add_file_to_count (GFile        *file,
                                    job->cancellable,
                                    NULL);
 
-    transfer_info->num_files++;
+    source_info->num_files--;
     if (file_info != NULL)
     {
-        transfer_info->num_bytes += g_file_info_get_size (file_info);
+        source_info->num_bytes -= g_file_info_get_size (file_info);
     }
 }
 
@@ -2394,7 +2337,7 @@ trash_files (CommonJob *job,
         if (skipped_file)
         {
             (*files_skipped)++;
-            transfer_add_file_to_count (file, job, &transfer_info);
+            source_info_remove_file_from_count (file, job, &source_info);
             report_trash_progress (job, &source_info, &transfer_info);
         }
     }
@@ -2438,8 +2381,8 @@ delete_task_thread_func (GTask        *task,
                          GCancellable *cancellable)
 {
     DeleteJob *job = task_data;
-    GList *to_trash_files;
-    GList *to_delete_files;
+    g_autoptr (GList) to_trash_files = NULL;
+    g_autoptr (GList) to_delete_files = NULL;
     GList *l;
     GFile *file;
     gboolean confirmed;
@@ -2451,9 +2394,6 @@ delete_task_thread_func (GTask        *task,
     common = (CommonJob *) job;
 
     nautilus_progress_info_start (job->common.progress);
-
-    to_trash_files = NULL;
-    to_delete_files = NULL;
 
     must_confirm_delete_in_trash = FALSE;
     must_confirm_delete = FALSE;
@@ -2515,9 +2455,6 @@ delete_task_thread_func (GTask        *task,
 
         trash_files (common, to_trash_files, &files_skipped);
     }
-
-    g_list_free (to_trash_files);
-    g_list_free (to_delete_files);
 
     if (files_skipped == g_list_length (job->files))
     {
@@ -2639,17 +2576,22 @@ unmount_mount_callback (GObject      *source_object,
     {
         if (error->code != G_IO_ERROR_FAILED_HANDLED)
         {
+            g_autofree gchar *mount_name = NULL;
+
+            mount_name = g_mount_get_name (G_MOUNT (source_object));
             if (data->eject)
             {
-                primary = f (_("Unable to eject %V"), source_object);
+                primary = g_strdup_printf (_("Unable to eject %s"),
+                                           mount_name);
             }
             else
             {
-                primary = f (_("Unable to unmount %V"), source_object);
+                primary = g_strdup_printf (_("Unable to unmount %s"),
+                                           mount_name);
             }
-            eel_show_error_dialog (primary,
-                                   error->message,
-                                   data->parent_window);
+            show_error_dialog (primary,
+                               error->message,
+                               data->parent_window);
             g_free (primary);
         }
     }
@@ -2972,9 +2914,9 @@ volume_mount_cb (GObject      *source_object,
             primary = g_strdup_printf (_("Unable to access “%s”"), name);
             g_free (name);
             success = FALSE;
-            eel_show_error_dialog (primary,
-                                   error->message,
-                                   parent);
+            show_error_dialog (primary,
+                               error->message,
+                               parent);
             g_free (primary);
         }
         g_error_free (error);
@@ -3049,46 +2991,58 @@ report_preparing_count_progress (CommonJob  *job,
     {
         default:
         case OP_KIND_COPY:
-            {
-                s = f (ngettext ("Preparing to copy %'d file (%S)",
-                                 "Preparing to copy %'d files (%S)",
-                                 source_info->num_files),
-                       source_info->num_files, source_info->num_bytes);
-            }
-            break;
+        {
+            g_autofree gchar *formatted_size = NULL;
+
+            formatted_size = g_format_size (source_info->num_bytes);
+            s = g_strdup_printf (ngettext ("Preparing to copy %'d file (%s)",
+                                           "Preparing to copy %'d files (%s)",
+                                           source_info->num_files),
+                                 source_info->num_files,
+                                 formatted_size);
+        }
+        break;
 
         case OP_KIND_MOVE:
-            {
-                s = f (ngettext ("Preparing to move %'d file (%S)",
-                                 "Preparing to move %'d files (%S)",
-                                 source_info->num_files),
-                       source_info->num_files, source_info->num_bytes);
-            }
-            break;
+        {
+            g_autofree gchar *formatted_size = NULL;
+
+            formatted_size = g_format_size (source_info->num_bytes);
+            s = g_strdup_printf (ngettext ("Preparing to move %'d file (%s)",
+                                           "Preparing to move %'d files (%s)",
+                                           source_info->num_files),
+                                 source_info->num_files,
+                                 formatted_size);
+        }
+        break;
 
         case OP_KIND_DELETE:
-            {
-                s = f (ngettext ("Preparing to delete %'d file (%S)",
-                                 "Preparing to delete %'d files (%S)",
-                                 source_info->num_files),
-                       source_info->num_files, source_info->num_bytes);
-            }
-            break;
+        {
+            g_autofree gchar *formatted_size = NULL;
+
+            formatted_size = g_format_size (source_info->num_bytes);
+            s = g_strdup_printf (ngettext ("Preparing to delete %'d file (%s)",
+                                           "Preparing to delete %'d files (%s)",
+                                           source_info->num_files),
+                                 source_info->num_files,
+                                 formatted_size);
+        }
+        break;
 
         case OP_KIND_TRASH:
-            {
-                s = f (ngettext ("Preparing to trash %'d file",
-                                 "Preparing to trash %'d files",
-                                 source_info->num_files),
-                       source_info->num_files);
-            }
-            break;
+        {
+            s = g_strdup_printf (ngettext ("Preparing to trash %'d file",
+                                           "Preparing to trash %'d files",
+                                           source_info->num_files),
+                                 source_info->num_files);
+        }
+        break;
 
         case OP_KIND_COMPRESS:
-            s = f (ngettext ("Preparing to compress %'d file",
-                             "Preparing to compress %'d files",
-                             source_info->num_files),
-                   source_info->num_files);
+            s = g_strdup_printf (ngettext ("Preparing to compress %'d file",
+                                           "Preparing to compress %'d files",
+                                           source_info->num_files),
+                                 source_info->num_files);
     }
 
     nautilus_progress_info_take_details (job->progress, s);
@@ -3117,27 +3071,27 @@ get_scan_primary (OpKind kind)
     {
         default:
         case OP_KIND_COPY:
-            {
-                return f (_("Error while copying."));
-            }
+        {
+            return g_strdup (_("Error while copying."));
+        }
 
         case OP_KIND_MOVE:
-            {
-                return f (_("Error while moving."));
-            }
+        {
+            return g_strdup (_("Error while moving."));
+        }
 
         case OP_KIND_DELETE:
-            {
-                return f (_("Error while deleting."));
-            }
+        {
+            return g_strdup (_("Error while deleting."));
+        }
 
         case OP_KIND_TRASH:
-            {
-                return f (_("Error while moving files to trash."));
-            }
+        {
+            return g_strdup (_("Error while moving files to trash."));
+        }
 
         case OP_KIND_COMPRESS:
-            return f (_("Error while compressing files."));
+            return g_strdup (_("Error while compressing files."));
     }
 }
 
@@ -3204,17 +3158,22 @@ retry:
         }
         else if (error)
         {
+            g_autofree gchar *basename = NULL;
+
             primary = get_scan_primary (source_info->op);
             details = NULL;
+            basename = get_basename (dir);
 
             if (IS_IO_ERROR (error, PERMISSION_DENIED))
             {
-                secondary = f (_("Files in the folder “%B” cannot be handled because you do "
-                                 "not have permissions to see them."), dir);
+                secondary = g_strdup_printf (_("Files in the folder “%s” cannot be handled "
+                                               "because you do not have permissions to see them."),
+                                             basename);
             }
             else
             {
-                secondary = f (_("There was an error getting information about the files in the folder “%B”."), dir);
+                secondary = g_strdup_printf (_("There was an error getting information about the "
+                                               "files in the folder “%s”."), basename);
                 details = error->message;
             }
 
@@ -3258,17 +3217,21 @@ retry:
     }
     else
     {
+        g_autofree gchar *basename = NULL;
+
         primary = get_scan_primary (source_info->op);
         details = NULL;
-
+        basename = get_basename (dir);
         if (IS_IO_ERROR (error, PERMISSION_DENIED))
         {
-            secondary = f (_("The folder “%B” cannot be handled because you do not have "
-                             "permissions to read it."), dir);
+            secondary = g_strdup_printf (_("The folder “%s” cannot be handled because you "
+                                           "do not have permissions to read it."),
+                                         basename);
         }
         else
         {
-            secondary = f (_("There was an error reading the folder “%B”."), dir);
+            secondary = g_strdup_printf (_("There was an error reading the folder “%s”."),
+                                         basename);
             details = error->message;
         }
         /* set show_all to TRUE here, as we don't know how many
@@ -3364,17 +3327,21 @@ retry:
     }
     else
     {
+        g_autofree gchar *basename = NULL;
+
         primary = get_scan_primary (source_info->op);
         details = NULL;
+        basename = get_basename (file);
 
         if (IS_IO_ERROR (error, PERMISSION_DENIED))
         {
-            secondary = f (_("The file “%B” cannot be handled because you do not have "
-                             "permissions to read it."), file);
+            secondary = g_strdup_printf (_("The file “%s” cannot be handled because you do not have "
+                                           "permissions to read it."), basename);
         }
         else
         {
-            secondary = f (_("There was an error getting information about “%B”."), file);
+            secondary = g_strdup_printf (_("There was an error getting information about “%s”."),
+                                         basename);
             details = error->message;
         }
         /* set show_all to TRUE here, as we don't know how many
@@ -3490,22 +3457,25 @@ retry:
 
     if (info == NULL)
     {
+        g_autofree gchar *basename = NULL;
+
         if (IS_IO_ERROR (error, CANCELLED))
         {
             g_error_free (error);
             return;
         }
 
-        primary = f (_("Error while copying to “%B”."), dest);
+        basename = get_basename (dest);
+        primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
         details = NULL;
 
         if (IS_IO_ERROR (error, PERMISSION_DENIED))
         {
-            secondary = f (_("You do not have permissions to access the destination folder."));
+            secondary = g_strdup (_("You do not have permissions to access the destination folder."));
         }
         else
         {
-            secondary = f (_("There was an error getting information about the destination."));
+            secondary = g_strdup (_("There was an error getting information about the destination."));
             details = error->message;
         }
 
@@ -3555,8 +3525,11 @@ retry:
 
     if (file_type != G_FILE_TYPE_DIRECTORY)
     {
-        primary = f (_("Error while copying to “%B”."), dest);
-        secondary = f (_("The destination is not a folder."));
+        g_autofree gchar *basename = NULL;
+
+        basename = get_basename (dest);
+        primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+        secondary = g_strdup (_("The destination is not a folder."));
 
         run_error (job,
                    primary,
@@ -3597,11 +3570,18 @@ retry:
 
         if (free_size < required_size)
         {
-            size_difference = required_size - free_size;
-            primary = f (_("Error while copying to “%B”."), dest);
-            secondary = f (_("There is not enough space on the destination. Try to remove files to make space."));
+            g_autofree gchar *basename = NULL;
+            g_autofree gchar *formatted_size = NULL;
 
-            details = f (_("%S more space is required to copy to the destination."), size_difference);
+            basename = get_basename (dest);
+            size_difference = required_size - free_size;
+            primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+            secondary = g_strdup (_("There is not enough space on the destination."
+                                    " Try to remove files to make space."));
+
+            formatted_size = g_format_size (size_difference);
+            details = g_strdup_printf (_("%s more space is required to copy to the destination."),
+                                       formatted_size);
 
             response = run_warning (job,
                                     primary,
@@ -3636,8 +3616,11 @@ retry:
         g_file_info_get_attribute_boolean (fsinfo,
                                            G_FILE_ATTRIBUTE_FILESYSTEM_READONLY))
     {
-        primary = f (_("Error while copying to “%B”."), dest);
-        secondary = f (_("The destination is read-only."));
+        g_autofree gchar *basename = NULL;
+
+        basename = get_basename (dest);
+        primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+        secondary = g_strdup (_("The destination is read-only."));
 
         run_error (job,
                    primary,
@@ -3655,6 +3638,8 @@ retry:
     g_object_unref (fsinfo);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 static void
 report_copy_progress (CopyMoveJob  *copy_job,
                       SourceInfo   *source_info,
@@ -3669,6 +3654,7 @@ report_copy_progress (CopyMoveJob  *copy_job,
     gboolean is_move;
     gchar *status;
     char *details;
+    gchar *tmp;
 
     job = (CommonJob *) copy_job;
 
@@ -3703,50 +3689,74 @@ report_copy_progress (CopyMoveJob  *copy_job,
 
         if (source_info->num_files == 1)
         {
+            g_autofree gchar *basename_dest = NULL;
+
             if (copy_job->destination != NULL)
             {
                 if (is_move)
                 {
                     if (files_left > 0)
                     {
-                        status = _("Moving “%B” to “%B”");
+                        status = _("Moving “%s” to “%s”");
                     }
                     else
                     {
-                        status = _("Moved “%B” to “%B”");
+                        status = _("Moved “%s” to “%s”");
                     }
                 }
                 else
                 {
                     if (files_left > 0)
                     {
-                        status = _("Copying “%B” to “%B”");
+                        status = _("Copying “%s” to “%s”");
                     }
                     else
                     {
-                        status = _("Copied “%B” to “%B”");
+                        status = _("Copied “%s” to “%s”");
                     }
                 }
-                nautilus_progress_info_take_status (job->progress,
-                                                    f (status,
-                                                       copy_job->fake_display_source != NULL ?
-                                                       copy_job->fake_display_source :
-                                                       (GFile *) copy_job->files->data,
-                                                       copy_job->destination));
-            }
-            else
-            {
-                if (files_left > 0)
+
+                basename_dest = get_basename (G_FILE (copy_job->destination));
+
+                if (copy_job->fake_display_source != NULL)
                 {
-                    status = _("Duplicating “%B”");
+                    g_autofree gchar *basename_fake_display_source = NULL;
+
+                    basename_fake_display_source = get_basename (copy_job->fake_display_source);
+                    tmp = g_strdup_printf (status,
+                                           basename_fake_display_source,
+                                           basename_dest);
                 }
                 else
                 {
-                    status = _("Duplicated “%B”");
+                    g_autofree gchar *basename_data = NULL;
+
+                    basename_data = get_basename (G_FILE (copy_job->files->data));
+                    tmp = g_strdup_printf (status,
+                                           basename_data,
+                                           basename_dest);
                 }
+
                 nautilus_progress_info_take_status (job->progress,
-                                                    f (status,
-                                                       (GFile *) copy_job->files->data));
+                                                    tmp);
+            }
+            else
+            {
+                g_autofree gchar *basename = NULL;
+
+                if (files_left > 0)
+                {
+                    status = _("Duplicating “%s”");
+                }
+                else
+                {
+                    status = _("Duplicated “%s”");
+                }
+
+                basename = get_basename (G_FILE (copy_job->files->data));
+                nautilus_progress_info_take_status (job->progress,
+                                                    g_strdup_printf (status,
+                                                                     basename));
             }
         }
         else if (copy_job->files != NULL)
@@ -3755,67 +3765,81 @@ report_copy_progress (CopyMoveJob  *copy_job,
             {
                 if (files_left > 0)
                 {
+                    g_autofree gchar *basename = NULL;
+
                     if (is_move)
                     {
-                        status = ngettext ("Moving %'d file to “%B”",
-                                           "Moving %'d files to “%B”",
+                        status = ngettext ("Moving %'d file to “%s”",
+                                           "Moving %'d files to “%s”",
                                            source_info->num_files);
                     }
                     else
                     {
-                        status = ngettext ("Copying %'d file to “%B”",
-                                           "Copying %'d files to “%B”",
+                        status = ngettext ("Copying %'d file to “%s”",
+                                           "Copying %'d files to “%s”",
                                            source_info->num_files);
                     }
+
+                    basename = get_basename (G_FILE (copy_job->destination));
+                    tmp = g_strdup_printf (status,
+                                           source_info->num_files,
+                                           basename);
+
                     nautilus_progress_info_take_status (job->progress,
-                                                        f (status,
-                                                           source_info->num_files,
-                                                           (GFile *) copy_job->destination));
+                                                        tmp);
                 }
                 else
                 {
+                    g_autofree gchar *basename = NULL;
+
                     if (is_move)
                     {
-                        status = ngettext ("Moved %'d file to “%B”",
-                                           "Moved %'d files to “%B”",
+                        status = ngettext ("Moved %'d file to “%s”",
+                                           "Moved %'d files to “%s”",
                                            source_info->num_files);
                     }
                     else
                     {
-                        status = ngettext ("Copied %'d file to “%B”",
-                                           "Copied %'d files to “%B”",
+                        status = ngettext ("Copied %'d file to “%s”",
+                                           "Copied %'d files to “%s”",
                                            source_info->num_files);
                     }
+
+                    basename = get_basename (G_FILE (copy_job->destination));
+                    tmp = g_strdup_printf (status,
+                                           source_info->num_files,
+                                           basename);
+
                     nautilus_progress_info_take_status (job->progress,
-                                                        f (status,
-                                                           source_info->num_files,
-                                                           (GFile *) copy_job->destination));
+                                                        tmp);
                 }
             }
             else
             {
                 GFile *parent;
+                g_autofree gchar *basename = NULL;
 
                 parent = g_file_get_parent (copy_job->files->data);
+                basename = get_basename (parent);
                 if (files_left > 0)
                 {
-                    status = ngettext ("Duplicating %'d file in “%B”",
-                                       "Duplicating %'d files in “%B”",
+                    status = ngettext ("Duplicating %'d file in “%s”",
+                                       "Duplicating %'d files in “%s”",
                                        source_info->num_files);
                     nautilus_progress_info_take_status (job->progress,
-                                                        f (status,
-                                                           source_info->num_files,
-                                                           parent));
+                                                        g_strdup_printf (status,
+                                                                         source_info->num_files,
+                                                                         basename));
                 }
                 else
                 {
-                    status = ngettext ("Duplicated %'d file in “%B”",
-                                       "Duplicated %'d files in “%B”",
+                    status = ngettext ("Duplicated %'d file in “%s”",
+                                       "Duplicated %'d files in “%s”",
                                        source_info->num_files);
                     nautilus_progress_info_take_status (job->progress,
-                                                        f (status,
-                                                           source_info->num_files,
-                                                           parent));
+                                                        g_strdup_printf (status,
+                                                                         source_info->num_files,
+                                                                         basename));
                 }
                 g_object_unref (parent);
             }
@@ -3841,8 +3865,15 @@ report_copy_progress (CopyMoveJob  *copy_job,
     {
         if (source_info->num_files == 1)
         {
-            /* To translators: %S will expand to a size like "2 bytes" or "3 MB", so something like "4 kb / 4 MB" */
-            details = f (_("%S / %S"), transfer_info->num_bytes, total_size);
+            g_autofree gchar *formatted_size_num_bytes = NULL;
+            g_autofree gchar *formatted_size_total_size = NULL;
+
+            formatted_size_num_bytes = g_format_size (transfer_info->num_bytes);
+            formatted_size_total_size = g_format_size (total_size);
+            /* To translators: %s will expand to a size like "2 bytes" or "3 MB", so something like "4 kb / 4 MB" */
+            details = g_strdup_printf (_("%s / %s"),
+                                       formatted_size_num_bytes,
+                                       formatted_size_total_size);
         }
         else
         {
@@ -3850,17 +3881,17 @@ report_copy_progress (CopyMoveJob  *copy_job,
             {
                 /* To translators: %'d is the number of files completed for the operation,
                  * so it will be something like 2/14. */
-                details = f (_("%'d / %'d"),
-                             transfer_info->num_files + 1,
-                             source_info->num_files);
+                details = g_strdup_printf (_("%'d / %'d"),
+                                           transfer_info->num_files + 1,
+                                           source_info->num_files);
             }
             else
             {
                 /* To translators: %'d is the number of files completed for the operation,
                  * so it will be something like 2/14. */
-                details = f (_("%'d / %'d"),
-                             transfer_info->num_files,
-                             source_info->num_files);
+                details = g_strdup_printf (_("%'d / %'d"),
+                                           transfer_info->num_files,
+                                           source_info->num_files);
             }
         }
     }
@@ -3870,49 +3901,68 @@ report_copy_progress (CopyMoveJob  *copy_job,
         {
             if (files_left > 0)
             {
-                /* To translators: %S will expand to a size like "2 bytes" or "3 MB", %T to a time duration like
+                g_autofree gchar *formatted_time = NULL;
+                g_autofree gchar *formatted_size_num_bytes = NULL;
+                g_autofree gchar *formatted_size_total_size = NULL;
+                g_autofree gchar *formatted_size_transfer_rate = NULL;
+
+                formatted_time = get_formatted_time (remaining_time);
+                formatted_size_num_bytes = g_format_size (transfer_info->num_bytes);
+                formatted_size_total_size = g_format_size (total_size);
+                formatted_size_transfer_rate = g_format_size ((goffset) transfer_rate);
+                /* To translators: %s will expand to a size like "2 bytes" or "3 MB", %s to a time duration like
                  * "2 minutes". So the whole thing will be something like "2 kb / 4 MB -- 2 hours left (4kb/sec)"
                  *
-                 * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+                 * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
                  */
-                details = f (ngettext ("%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                                       "%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                                       seconds_count_format_time_units (remaining_time)),
-                             transfer_info->num_bytes, total_size,
-                             remaining_time,
-                             (goffset) transfer_rate);
+                details = g_strdup_printf (ngettext ("%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                                     "%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                                     seconds_count_format_time_units (remaining_time)),
+                                           formatted_size_num_bytes,
+                                           formatted_size_total_size,
+                                           formatted_time,
+                                           formatted_size_transfer_rate);
             }
             else
             {
-                /* To translators: %S will expand to a size like "2 bytes" or "3 MB". */
-                details = f (_("%S / %S"),
-                             transfer_info->num_bytes,
-                             total_size);
+                g_autofree gchar *formatted_size_num_bytes = NULL;
+                g_autofree gchar *formatted_size_total_size = NULL;
+
+                formatted_size_num_bytes = g_format_size (transfer_info->num_bytes);
+                formatted_size_total_size = g_format_size (total_size);
+                /* To translators: %s will expand to a size like "2 bytes" or "3 MB". */
+                details = g_strdup_printf (_("%s / %s"),
+                                           formatted_size_num_bytes,
+                                           formatted_size_total_size);
             }
         }
         else
         {
             if (files_left > 0)
             {
-                /* To translators: %T will expand to a time duration like "2 minutes".
+                g_autofree gchar *formatted_time = NULL;
+                g_autofree gchar *formatted_size = NULL;
+                formatted_time = get_formatted_time (remaining_time);
+                formatted_size = g_format_size ((goffset) transfer_rate);
+                /* To translators: %s will expand to a time duration like "2 minutes".
                  * So the whole thing will be something like "1 / 5 -- 2 hours left (4kb/sec)"
                  *
-                 * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+                 * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
                  */
-                details = f (ngettext ("%'d / %'d \xE2\x80\x94 %T left (%S/sec)",
-                                       "%'d / %'d \xE2\x80\x94 %T left (%S/sec)",
-                                       seconds_count_format_time_units (remaining_time)),
-                             transfer_info->num_files + 1, source_info->num_files,
-                             remaining_time,
-                             (goffset) transfer_rate);
+                details = g_strdup_printf (ngettext ("%'d / %'d \xE2\x80\x94 %s left (%s/sec)",
+                                                     "%'d / %'d \xE2\x80\x94 %s left (%s/sec)",
+                                                     seconds_count_format_time_units (remaining_time)),
+                                           transfer_info->num_files + 1, source_info->num_files,
+                                           formatted_time,
+                                           formatted_size);
             }
             else
             {
                 /* To translators: %'d is the number of files completed for the operation,
                  * so it will be something like 2/14. */
-                details = f (_("%'d / %'d"),
-                             transfer_info->num_files,
-                             source_info->num_files);
+                details = g_strdup_printf (_("%'d / %'d"),
+                                           transfer_info->num_files,
+                                           source_info->num_files);
             }
         }
     }
@@ -3928,6 +3978,7 @@ report_copy_progress (CopyMoveJob  *copy_job,
 
     nautilus_progress_info_set_progress (job->progress, transfer_info->num_bytes, total_size);
 }
+#pragma GCC diagnostic pop
 
 static int
 get_max_name_length (GFile *file_dir)
@@ -3979,7 +4030,7 @@ get_max_name_length (GFile *file_dir)
     return max_length;
 }
 
-#define FAT_FORBIDDEN_CHARACTERS "/:;*?\"<>"
+#define FAT_FORBIDDEN_CHARACTERS "/:;*?\"<>\\|"
 
 static gboolean
 fat_str_replace (char *str,
@@ -4048,8 +4099,14 @@ get_unique_target_file (GFile      *src,
     GFileInfo *info;
     GFile *dest;
     int max_length;
+    NautilusFile *file;
+    gboolean ignore_extension;
 
     max_length = get_max_name_length (dest_dir);
+
+    file = nautilus_file_get (src);
+    ignore_extension = nautilus_file_is_directory (file);
+    nautilus_file_unref (file);
 
     dest = NULL;
     info = g_file_query_info (src,
@@ -4061,7 +4118,7 @@ get_unique_target_file (GFile      *src,
 
         if (editname != NULL)
         {
-            new_name = get_duplicate_name (editname, count, max_length);
+            new_name = get_duplicate_name (editname, count, max_length, ignore_extension);
             make_file_name_valid_for_dest_fs (new_name, dest_fs_type);
             dest = g_file_get_child_for_display_name (dest_dir, new_name, NULL);
             g_free (new_name);
@@ -4076,7 +4133,7 @@ get_unique_target_file (GFile      *src,
 
         if (g_utf8_validate (basename, -1, NULL))
         {
-            new_name = get_duplicate_name (basename, count, max_length);
+            new_name = get_duplicate_name (basename, count, max_length, ignore_extension);
             make_file_name_valid_for_dest_fs (new_name, dest_fs_type);
             dest = g_file_get_child_for_display_name (dest_dir, new_name, NULL);
             g_free (new_name);
@@ -4276,21 +4333,13 @@ has_fs_id (GFile      *file,
 static gboolean
 is_dir (GFile *file)
 {
-    GFileInfo *info;
-    gboolean res;
+    GFileType file_type;
 
-    res = FALSE;
-    info = g_file_query_info (file,
-                              G_FILE_ATTRIBUTE_STANDARD_TYPE,
-                              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                              NULL, NULL);
-    if (info)
-    {
-        res = g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY;
-        g_object_unref (info);
-    }
+    file_type = g_file_query_file_type (file,
+                                        G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                        NULL);
 
-    return res;
+    return file_type == G_FILE_TYPE_DIRECTORY;
 }
 
 static GFile *
@@ -4443,6 +4492,8 @@ retry:
 
     if (!res)
     {
+        g_autofree gchar *basename = NULL;
+
         if (IS_IO_ERROR (error, CANCELLED))
         {
             g_error_free (error);
@@ -4478,17 +4529,20 @@ retry:
             }
         }
 
-        primary = f (_("Error while copying."));
+        primary = g_strdup (_("Error while copying."));
         details = NULL;
+        basename = get_basename (src);
 
         if (IS_IO_ERROR (error, PERMISSION_DENIED))
         {
-            secondary = f (_("The folder “%B” cannot be copied because you do not have "
-                             "permissions to create it in the destination."), src);
+            secondary = g_strdup_printf (_("The folder “%s” cannot be copied because you do not "
+                                           "have permissions to create it in the destination."),
+                                         basename);
         }
         else
         {
-            secondary = f (_("There was an error creating the folder “%B”."), src);
+            secondary = g_strdup_printf (_("There was an error creating the folder “%s”."),
+                                         basename);
             details = error->message;
         }
 
@@ -4569,25 +4623,25 @@ copy_move_directory (CopyMoveJob   *copy_job,
         switch (create_dest_dir (job, src, dest, same_fs, parent_dest_fs_type))
         {
             case CREATE_DEST_DIR_RETRY:
-                {
-                    /* next time copy_move_directory() is called,
-                     * create_dest will be FALSE if a directory already
-                     * exists under the new name (i.e. WOULD_RECURSE)
-                     */
-                    return FALSE;
-                }
+            {
+                /* next time copy_move_directory() is called,
+                 * create_dest will be FALSE if a directory already
+                 * exists under the new name (i.e. WOULD_RECURSE)
+                 */
+                return FALSE;
+            }
 
             case CREATE_DEST_DIR_FAILED:
-                {
-                    *skipped_file = TRUE;
-                    return TRUE;
-                }
+            {
+                *skipped_file = TRUE;
+                return TRUE;
+            }
 
             case CREATE_DEST_DIR_SUCCESS:
             default:
-                {
-                }
-                break;
+            {
+            }
+            break;
         }
 
         if (debuting_files)
@@ -4622,7 +4676,7 @@ retry:
 
             if (local_skipped_file)
             {
-                transfer_add_file_to_count (src_file, job, transfer_info);
+                source_info_remove_file_from_count (src_file, job, source_info);
                 report_copy_progress (copy_job, source_info, transfer_info);
             }
 
@@ -4638,24 +4692,29 @@ retry:
         }
         else if (error)
         {
+            g_autofree gchar *basename = NULL;
+
             if (copy_job->is_move)
             {
-                primary = f (_("Error while moving."));
+                primary = g_strdup (_("Error while moving."));
             }
             else
             {
-                primary = f (_("Error while copying."));
+                primary = g_strdup (_("Error while copying."));
             }
             details = NULL;
+            basename = get_basename (src);
 
             if (IS_IO_ERROR (error, PERMISSION_DENIED))
             {
-                secondary = f (_("Files in the folder “%B” cannot be copied because you do "
-                                 "not have permissions to see them."), src);
+                secondary = g_strdup_printf (_("Files in the folder “%s” cannot be copied because you do "
+                                               "not have permissions to see them."), basename);
             }
             else
             {
-                secondary = f (_("There was an error getting information about the files in the folder “%B”."), src);
+                secondary = g_strdup_printf (_("There was an error getting information about "
+                                               "the files in the folder “%s”."),
+                                             basename);
                 details = error->message;
             }
 
@@ -4699,24 +4758,29 @@ retry:
     }
     else
     {
+        g_autofree gchar *basename = NULL;
+
         if (copy_job->is_move)
         {
-            primary = f (_("Error while moving."));
+            primary = g_strdup (_("Error while moving."));
         }
         else
         {
-            primary = f (_("Error while copying."));
+            primary = g_strdup (_("Error while copying."));
         }
         details = NULL;
+        basename = get_basename (src);
 
         if (IS_IO_ERROR (error, PERMISSION_DENIED))
         {
-            secondary = f (_("The folder “%B” cannot be copied because you do not have "
-                             "permissions to read it."), src);
+            secondary = g_strdup_printf (_("The folder “%s” cannot be copied because you do not have "
+                                           "permissions to read it."), basename);
         }
         else
         {
-            secondary = f (_("There was an error reading the folder “%B”."), src);
+            secondary = g_strdup_printf (_("There was an error reading the folder “%s”."),
+                                         basename);
+
             details = error->message;
         }
 
@@ -4765,12 +4829,15 @@ retry:
     {
         if (!g_file_delete (src, job->cancellable, &error))
         {
+            g_autofree gchar *basename = NULL;
+
             if (job->skip_all_error)
             {
                 goto skip;
             }
-            primary = f (_("Error while moving “%B”."), src);
-            secondary = f (_("Could not remove the source folder."));
+            basename = get_basename (src);
+            primary = g_strdup_printf (_("Error while moving “%s”."), basename);
+            secondary = g_strdup (_("Could not remove the source folder."));
             details = error->message;
 
             response = run_cancel_or_skip_warning (job,
@@ -4818,76 +4885,6 @@ typedef struct
     CommonJob *job;
     GFile *source;
 } DeleteExistingFileData;
-
-static void
-existing_file_removed_callback (GFile    *file,
-                                GError   *error,
-                                gpointer  callback_data)
-{
-    DeleteExistingFileData *data = callback_data;
-    CommonJob *job;
-    GFile *source;
-    GFileType file_type;
-    char *primary;
-    char *secondary;
-    char *details = NULL;
-    int response;
-
-    job = data->job;
-    source = data->source;
-
-    if (error == NULL)
-    {
-        nautilus_file_changes_queue_file_removed (file);
-
-        return;
-    }
-
-    if (job_aborted (job) || job->skip_all_error)
-    {
-        return;
-    }
-
-    primary = f (_("Error while copying “%B”."), source);
-
-    file_type = g_file_query_file_type (file,
-                                        G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                        job->cancellable);
-
-    if (file_type == G_FILE_TYPE_DIRECTORY)
-    {
-        secondary = f (_("Could not remove the already existing folder %F."),
-                       file);
-    }
-    else
-    {
-        secondary = f (_("Could not remove the already existing file %F."),
-                       file);
-    }
-
-    details = error->message;
-
-    /* set show_all to TRUE here, as we don't know how many
-     * files we'll end up processing yet.
-     */
-    response = run_warning (job,
-                            primary,
-                            secondary,
-                            details,
-                            TRUE,
-                            CANCEL, SKIP_ALL, SKIP,
-                            NULL);
-
-    if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
-    {
-        abort_job (job);
-    }
-    else if (response == 1)
-    {
-        /* skip all */
-        job->skip_all_error = TRUE;
-    }
-}
 
 typedef struct
 {
@@ -5094,6 +5091,8 @@ copy_move_file (CopyMoveJob   *copy_job,
 
     job = (CommonJob *) copy_job;
 
+    *skipped_file = FALSE;
+
     if (should_skip_file (job, src))
     {
         *skipped_file = TRUE;
@@ -5290,10 +5289,10 @@ retry:
             g_file_equal (copy_job->desktop_location, dest_dir) &&
             is_trusted_desktop_file (src, job->cancellable))
         {
-            mark_desktop_file_trusted (job,
-                                       job->cancellable,
-                                       dest,
-                                       FALSE);
+            mark_desktop_file_executable (job,
+                                          job->cancellable,
+                                          dest,
+                                          FALSE);
         }
 
         if (job->undo_info != NULL)
@@ -5341,8 +5340,13 @@ retry:
     if (!overwrite &&
         IS_IO_ERROR (error, EXISTS))
     {
+        gboolean source_is_directory;
+        gboolean destination_is_directory;
         gboolean is_merge;
         FileConflictResponse *response;
+
+        source_is_directory = is_dir (src);
+        destination_is_directory = is_dir (dest);
 
         g_error_free (error);
 
@@ -5355,9 +5359,15 @@ retry:
 
         is_merge = FALSE;
 
-        if (is_dir (dest) && is_dir (src))
+        if (source_is_directory && destination_is_directory)
         {
             is_merge = TRUE;
+        }
+        else if (!source_is_directory && destination_is_directory)
+        {
+            /* Any sane backend will fail with G_IO_ERROR_IS_DIRECTORY. */
+            overwrite = TRUE;
+            goto retry;
         }
 
         if ((is_merge && job->merge_all) ||
@@ -5418,28 +5428,6 @@ retry:
             g_assert_not_reached ();
         }
     }
-    else if (overwrite &&
-             IS_IO_ERROR (error, IS_DIRECTORY))
-    {
-        gboolean existing_file_deleted;
-        DeleteExistingFileData data;
-
-        g_error_free (error);
-
-        data.job = job;
-        data.source = src;
-
-        existing_file_deleted =
-            delete_file_recursively (dest,
-                                     job->cancellable,
-                                     existing_file_removed_callback,
-                                     &data);
-
-        if (existing_file_deleted)
-        {
-            goto retry;
-        }
-    }
     /* Needs to recurse */
     else if (IS_IO_ERROR (error, WOULD_RECURSE) ||
              IS_IO_ERROR (error, WOULD_MERGE))
@@ -5456,20 +5444,28 @@ retry:
             if (!g_file_delete (dest, job->cancellable, &error) &&
                 !IS_IO_ERROR (error, NOT_FOUND))
             {
+                g_autofree gchar *basename = NULL;
+                g_autofree gchar *filename = NULL;
+
                 if (job->skip_all_error)
                 {
                     g_error_free (error);
                     goto out;
                 }
+
+                basename = get_basename (src);
                 if (copy_job->is_move)
                 {
-                    primary = f (_("Error while moving “%B”."), src);
+                    primary = g_strdup_printf (_("Error while moving “%s”."), basename);
                 }
                 else
                 {
-                    primary = f (_("Error while copying “%B”."), src);
+                    primary = g_strdup_printf (_("Error while copying “%s”."), basename);
                 }
-                secondary = f (_("Could not remove the already existing file with the same name in %F."), dest_dir);
+                filename = g_file_get_parse_name (dest_dir);
+                secondary = g_strdup_printf (_("Could not remove the already existing file "
+                                               "with the same name in %s."),
+                                             filename);
                 details = error->message;
 
                 /* setting TRUE on show_all here, as we could have
@@ -5542,13 +5538,19 @@ retry:
     /* Other error */
     else
     {
+        g_autofree gchar *basename = NULL;
+        g_autofree gchar *filename = NULL;
+
         if (job->skip_all_error)
         {
             g_error_free (error);
             goto out;
         }
-        primary = f (_("Error while copying “%B”."), src);
-        secondary = f (_("There was an error copying the file into %F."), dest_dir);
+        basename = get_basename (src);
+        primary = g_strdup_printf (_("Error while copying “%s”."), basename);
+        filename = g_file_get_parse_name (dest_dir);
+        secondary = g_strdup_printf (_("There was an error copying the file into %s."),
+                                     filename);
         details = error->message;
 
         response = run_cancel_or_skip_warning (job,
@@ -5667,7 +5669,7 @@ copy_files (CopyMoveJob  *job,
 
             if (skipped_file)
             {
-                transfer_add_file_to_count (src, common, transfer_info);
+                source_info_remove_file_from_count (src, common, source_info);
                 report_copy_progress (job, source_info, transfer_info);
             }
         }
@@ -5722,13 +5724,11 @@ copy_task_thread_func (GTask        *task,
     CommonJob *common;
     SourceInfo source_info;
     TransferInfo transfer_info;
-    char *dest_fs_id;
+    g_autofree char *dest_fs_id = NULL;
     GFile *dest;
 
     job = task_data;
     common = &job->common;
-
-    dest_fs_id = NULL;
 
     nautilus_progress_info_start (job->common.progress);
 
@@ -5738,7 +5738,7 @@ copy_task_thread_func (GTask        *task,
                   OP_KIND_COPY);
     if (job_aborted (common))
     {
-        goto aborted;
+        return;
     }
 
     if (job->destination)
@@ -5760,7 +5760,7 @@ copy_task_thread_func (GTask        *task,
     g_object_unref (dest);
     if (job_aborted (common))
     {
-        goto aborted;
+        return;
     }
 
     g_timer_start (job->common.time);
@@ -5769,10 +5769,6 @@ copy_task_thread_func (GTask        *task,
     copy_files (job,
                 dest_fs_id,
                 &source_info, &transfer_info);
-
-aborted:
-
-    g_free (dest_fs_id);
 }
 
 void
@@ -5872,17 +5868,20 @@ report_preparing_move_progress (CopyMoveJob *move_job,
                                 int          left)
 {
     CommonJob *job;
+    g_autofree gchar *basename = NULL;
 
     job = (CommonJob *) move_job;
+    basename = get_basename (move_job->destination);
 
     nautilus_progress_info_take_status (job->progress,
-                                        f (_("Preparing to move to “%B”"),
-                                           move_job->destination));
+                                        g_strdup_printf (_("Preparing to move to “%s”"),
+                                                         basename));
 
     nautilus_progress_info_take_details (job->progress,
-                                         f (ngettext ("Preparing to move %'d file",
-                                                      "Preparing to move %'d files",
-                                                      left), left));
+                                         g_strdup_printf (ngettext ("Preparing to move %'d file",
+                                                                    "Preparing to move %'d files",
+                                                                    left),
+                                                          left));
 
     nautilus_progress_info_pulse_progress (job->progress);
 }
@@ -6073,15 +6072,26 @@ retry:
     else if (!overwrite &&
              IS_IO_ERROR (error, EXISTS))
     {
+        gboolean source_is_directory;
+        gboolean destination_is_directory;
         gboolean is_merge;
         FileConflictResponse *response;
+
+        source_is_directory = is_dir (src);
+        destination_is_directory = is_dir (dest);
 
         g_error_free (error);
 
         is_merge = FALSE;
-        if (is_dir (dest) && is_dir (src))
+        if (source_is_directory && destination_is_directory)
         {
             is_merge = TRUE;
+        }
+        else if (!source_is_directory && destination_is_directory)
+        {
+            /* Any sane backend will fail with G_IO_ERROR_IS_DIRECTORY. */
+            overwrite = TRUE;
+            goto retry;
         }
 
         if ((is_merge && job->merge_all) ||
@@ -6144,8 +6154,7 @@ retry:
     }
     else if (IS_IO_ERROR (error, WOULD_RECURSE) ||
              IS_IO_ERROR (error, WOULD_MERGE) ||
-             IS_IO_ERROR (error, NOT_SUPPORTED) ||
-             (overwrite && IS_IO_ERROR (error, IS_DIRECTORY)))
+             IS_IO_ERROR (error, NOT_SUPPORTED))
     {
         g_error_free (error);
 
@@ -6161,13 +6170,20 @@ retry:
     /* Other error */
     else
     {
+        g_autofree gchar *basename = NULL;
+        g_autofree gchar *filename = NULL;
+
         if (job->skip_all_error)
         {
             g_error_free (error);
             goto out;
         }
-        primary = f (_("Error while moving “%B”."), src);
-        secondary = f (_("There was an error moving the file into %F."), dest_dir);
+        basename = get_basename (src);
+        primary = g_strdup_printf (_("Error while moving “%s”."), basename);
+        filename = g_file_get_parse_name (dest_dir);
+        secondary = g_strdup_printf (_("There was an error moving the file into %s."),
+                                     filename);
+
         details = error->message;
 
         response = run_warning (job,
@@ -6312,7 +6328,7 @@ move_files (CopyMoveJob   *job,
 
         if (skipped_file)
         {
-            transfer_add_file_to_count (src, common, transfer_info);
+            source_info_remove_file_from_count (src, common, source_info);
             report_copy_progress (job, source_info, transfer_info);
         }
     }
@@ -6355,15 +6371,12 @@ move_task_thread_func (GTask        *task,
     GList *fallbacks;
     SourceInfo source_info;
     TransferInfo transfer_info;
-    char *dest_fs_id;
-    char *dest_fs_type;
+    g_autofree char *dest_fs_id = NULL;
+    g_autofree char *dest_fs_type = NULL;
     GList *fallback_files;
 
     job = task_data;
     common = &job->common;
-
-    dest_fs_id = NULL;
-    dest_fs_type = NULL;
 
     fallbacks = NULL;
 
@@ -6418,9 +6431,6 @@ move_task_thread_func (GTask        *task,
 
 aborted:
     g_list_free_full (fallbacks, g_free);
-
-    g_free (dest_fs_id);
-    g_free (dest_fs_type);
 }
 
 void
@@ -6489,17 +6499,19 @@ report_preparing_link_progress (CopyMoveJob *link_job,
                                 int          left)
 {
     CommonJob *job;
+    g_autofree gchar *basename = NULL;
 
     job = (CommonJob *) link_job;
-
+    basename = get_basename (link_job->destination);
     nautilus_progress_info_take_status (job->progress,
-                                        f (_("Creating links in “%B”"),
-                                           link_job->destination));
+                                        g_strdup_printf (_("Creating links in “%s”"),
+                                                         basename));
 
     nautilus_progress_info_take_details (job->progress,
-                                         f (ngettext ("Making link to %'d file",
-                                                      "Making links to %'d files",
-                                                      left), left));
+                                         g_strdup_printf (ngettext ("Making link to %'d file",
+                                                                    "Making links to %'d files",
+                                                                    left),
+                                                          left));
 
     nautilus_progress_info_set_progress (job->progress, left, total);
 }
@@ -6540,7 +6552,9 @@ link_file (CopyMoveJob  *job,
            GdkPoint     *position,
            int           files_left)
 {
-    GFile *src_dir, *dest, *new_dest;
+    GFile *src_dir;
+    GFile *new_dest;
+    g_autoptr (GFile) dest = NULL;
     g_autofree gchar *dest_uri = NULL;
     int count;
     char *path;
@@ -6603,8 +6617,6 @@ retry:
             nautilus_file_changes_queue_schedule_position_remove (dest);
         }
 
-        g_object_unref (dest);
-
         return;
     }
     g_free (path);
@@ -6648,24 +6660,32 @@ retry:
     /* Other error */
     else if (error != NULL)
     {
+        g_autofree gchar *basename = NULL;
+
         if (common->skip_all_error)
         {
-            goto out;
+            return;
         }
-        primary = f (_("Error while creating link to %B."), src);
+        basename = get_basename (src);
+        primary = g_strdup_printf (_("Error while creating link to %s."),
+                                   basename);
         if (not_local)
         {
-            secondary = f (_("Symbolic links only supported for local files"));
+            secondary = g_strdup (_("Symbolic links only supported for local files"));
             details = NULL;
         }
         else if (IS_IO_ERROR (error, NOT_SUPPORTED))
         {
-            secondary = f (_("The target doesn't support symbolic links."));
+            secondary = g_strdup (_("The target doesn’t support symbolic links."));
             details = NULL;
         }
         else
         {
-            secondary = f (_("There was an error creating the symlink in %F."), dest_dir);
+            g_autofree gchar *filename = NULL;
+
+            filename = g_file_get_parse_name (dest_dir);
+            secondary = g_strdup_printf (_("There was an error creating the symlink in %s."),
+                                         filename);
             details = error->message;
         }
 
@@ -6698,9 +6718,6 @@ retry:
             g_assert_not_reached ();
         }
     }
-
-out:
-    g_object_unref (dest);
 }
 
 static void
@@ -6738,15 +6755,13 @@ link_task_thread_func (GTask        *task,
     CommonJob *common;
     GFile *src;
     GdkPoint *point;
-    char *dest_fs_type;
+    g_autofree char *dest_fs_type = NULL;
     int total, left;
     int i;
     GList *l;
 
     job = task_data;
     common = &job->common;
-
-    dest_fs_type = NULL;
 
     nautilus_progress_info_start (job->common.progress);
 
@@ -6756,7 +6771,7 @@ link_task_thread_func (GTask        *task,
                         -1);
     if (job_aborted (common))
     {
-        goto aborted;
+        return;
     }
 
     total = left = g_list_length (job->files);
@@ -6786,9 +6801,6 @@ link_task_thread_func (GTask        *task,
         report_preparing_link_progress (job, total, --left);
         i++;
     }
-
-aborted:
-    g_free (dest_fs_type);
 }
 
 void
@@ -6799,7 +6811,7 @@ nautilus_file_operations_link (GList                *files,
                                NautilusCopyCallback  done_callback,
                                gpointer              done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     CopyMoveJob *job;
 
     job = op_job_new (CopyMoveJob, parent_window);
@@ -6834,7 +6846,6 @@ nautilus_file_operations_link (GList                *files,
     task = g_task_new (NULL, job->common.cancellable, link_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, link_task_thread_func);
-    g_object_unref (task);
 }
 
 
@@ -6845,9 +6856,9 @@ nautilus_file_operations_duplicate (GList                *files,
                                     NautilusCopyCallback  done_callback,
                                     gpointer              done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     CopyMoveJob *job;
-    GFile *parent;
+    g_autoptr (GFile) parent = NULL;
 
     job = op_job_new (CopyMoveJob, parent_window);
     job->done_callback = done_callback;
@@ -6885,9 +6896,6 @@ nautilus_file_operations_duplicate (GList                *files,
     task = g_task_new (NULL, job->common.cancellable, copy_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, copy_task_thread_func);
-    g_object_unref (task);
-
-    g_object_unref (parent);
 }
 
 static void
@@ -7037,7 +7045,7 @@ nautilus_file_set_permissions_recursive (const char         *directory,
                                          NautilusOpCallback  callback,
                                          gpointer            callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     SetPermissionsJob *job;
 
     job = op_job_new (SetPermissionsJob, NULL);
@@ -7060,7 +7068,6 @@ nautilus_file_set_permissions_recursive (const char         *directory,
     task = g_task_new (NULL, NULL, set_permissions_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, set_permissions_thread_func);
-    g_object_unref (task);
 }
 
 static GList *
@@ -7257,12 +7264,11 @@ create_task_thread_func (GTask        *task,
     CreateJob *job;
     CommonJob *common;
     int count;
-    GFile *dest;
+    g_autoptr (GFile) dest = NULL;
     g_autofree gchar *dest_uri = NULL;
-    char *basename;
-    char *filename, *filename2, *new_filename;
-    char *filename_base, *suffix;
-    char *dest_fs_type;
+    g_autofree char *filename = NULL;
+    char *filename_base;
+    g_autofree char *dest_fs_type = NULL;
     GError *error;
     gboolean res;
     gboolean filename_is_utf8;
@@ -7281,10 +7287,6 @@ create_task_thread_func (GTask        *task,
 
     handled_invalid_filename = FALSE;
 
-    dest_fs_type = NULL;
-    filename = NULL;
-    dest = NULL;
-
     max_length = get_max_name_length (job->dest_dir);
 
     verify_destination (common,
@@ -7292,7 +7294,7 @@ create_task_thread_func (GTask        *task,
                         NULL, -1);
     if (job_aborted (common))
     {
-        goto aborted;
+        return;
     }
 
     filename = g_strdup (job->filename);
@@ -7313,11 +7315,10 @@ create_task_thread_func (GTask        *task,
         {
             if (job->src != NULL)
             {
-                basename = g_file_get_basename (job->src);
-                /* localizers: the initial name of a new template document */
-                filename = g_strdup_printf ("%s", basename);
+                g_autofree char *basename = NULL;
 
-                g_free (basename);
+                basename = g_file_get_basename (job->src);
+                filename = g_strdup_printf ("%s", basename);
             }
             if (filename == NULL)
             {
@@ -7399,13 +7400,11 @@ retry:
 
             if (res && common->undo_info != NULL)
             {
-                gchar *uri;
+                g_autofree gchar *uri = NULL;
 
                 uri = g_file_get_uri (job->src);
                 nautilus_file_undo_info_create_set_data (NAUTILUS_FILE_UNDO_INFO_CREATE (common->undo_info),
                                                          dest, uri, 0);
-
-                g_free (uri);
             }
         }
         else
@@ -7490,6 +7489,8 @@ retry:
         if (IS_IO_ERROR (error, INVALID_FILENAME) &&
             !handled_invalid_filename)
         {
+            g_autofree gchar *new_filename = NULL;
+
             handled_invalid_filename = TRUE;
 
             g_assert (dest_fs_type == NULL);
@@ -7501,7 +7502,22 @@ retry:
             }
             else
             {
-                filename_base = eel_filename_strip_extension (filename);
+                g_autofree char *filename2 = NULL;
+                g_autofree char *suffix = NULL;
+                NautilusFile *file;
+
+                file = nautilus_file_get (job->src);
+                if (nautilus_file_is_directory (file))
+                {
+                    filename_base = filename;
+                }
+                else
+                {
+                    filename_base = eel_filename_strip_extension (filename);
+                }
+
+                nautilus_file_unref (file);
+
                 offset = strlen (filename_base);
                 suffix = g_strdup (filename + offset);
 
@@ -7517,9 +7533,6 @@ retry:
                 {
                     new_filename = g_strdup (filename2);
                 }
-
-                g_free (filename2);
-                g_free (suffix);
             }
 
             if (make_file_name_valid_for_dest_fs (new_filename, dest_fs_type))
@@ -7535,18 +7548,31 @@ retry:
                     dest = g_file_get_child (job->dest_dir, new_filename);
                 }
 
-                g_free (new_filename);
                 g_error_free (error);
                 goto retry;
             }
-            g_free (new_filename);
         }
 
         if (IS_IO_ERROR (error, EXISTS))
         {
-            g_object_unref (dest);
-            dest = NULL;
-            filename_base = eel_filename_strip_extension (filename);
+            g_autofree char *suffix = NULL;
+            g_autofree gchar *filename2 = NULL;
+            NautilusFile *file;
+
+            g_clear_object (&dest);
+
+            file = nautilus_file_get (job->src);
+            if (nautilus_file_is_directory (file))
+            {
+                filename_base = filename;
+            }
+            else
+            {
+                filename_base = eel_filename_strip_extension (filename);
+            }
+
+            nautilus_file_unref (file);
+
             offset = strlen (filename_base);
             suffix = g_strdup (filename + offset);
 
@@ -7554,6 +7580,8 @@ retry:
 
             if (max_length > 0 && strlen (filename2) > max_length)
             {
+                g_autofree char *new_filename = NULL;
+
                 new_filename = shorten_utf8_string (filename2, strlen (filename2) - max_length);
                 if (new_filename != NULL)
                 {
@@ -7571,8 +7599,6 @@ retry:
             {
                 dest = g_file_get_child (job->dest_dir, filename2);
             }
-            g_free (filename2);
-            g_free (suffix);
             g_error_free (error);
             goto retry;
         }
@@ -7583,15 +7609,24 @@ retry:
         /* Other error */
         else
         {
+            g_autofree gchar *basename = NULL;
+            g_autofree gchar *filename = NULL;
+
+            basename = get_basename (dest);
             if (job->make_dir)
             {
-                primary = f (_("Error while creating directory %B."), dest);
+                primary = g_strdup_printf (_("Error while creating directory %s."),
+                                           basename);
             }
             else
             {
-                primary = f (_("Error while creating file %B."), dest);
+                primary = g_strdup_printf (_("Error while creating file %s."),
+                                           basename);
             }
-            secondary = f (_("There was an error creating the directory in %F."), job->dest_dir);
+            filename = g_file_get_parse_name (job->dest_dir);
+            secondary = g_strdup_printf (_("There was an error creating the directory in %s."),
+                                         filename);
+
             details = error->message;
 
             response = run_warning (common,
@@ -7617,14 +7652,6 @@ retry:
             }
         }
     }
-
-aborted:
-    if (dest)
-    {
-        g_object_unref (dest);
-    }
-    g_free (filename);
-    g_free (dest_fs_type);
 }
 
 void
@@ -7635,7 +7662,7 @@ nautilus_file_operations_new_folder (GtkWidget              *parent_view,
                                      NautilusCreateCallback  done_callback,
                                      gpointer                done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     CreateJob *job;
     GtkWindow *parent_window;
 
@@ -7665,7 +7692,6 @@ nautilus_file_operations_new_folder (GtkWidget              *parent_view,
     task = g_task_new (NULL, job->common.cancellable, create_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, create_task_thread_func);
-    g_object_unref (task);
 }
 
 void
@@ -7677,7 +7703,7 @@ nautilus_file_operations_new_file_from_template (GtkWidget              *parent_
                                                  NautilusCreateCallback  done_callback,
                                                  gpointer                done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     CreateJob *job;
     GtkWindow *parent_window;
 
@@ -7711,7 +7737,6 @@ nautilus_file_operations_new_file_from_template (GtkWidget              *parent_
     task = g_task_new (NULL, job->common.cancellable, create_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, create_task_thread_func);
-    g_object_unref (task);
 }
 
 void
@@ -7724,7 +7749,7 @@ nautilus_file_operations_new_file (GtkWidget              *parent_view,
                                    NautilusCreateCallback  done_callback,
                                    gpointer                done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     CreateJob *job;
     GtkWindow *parent_window;
 
@@ -7755,7 +7780,6 @@ nautilus_file_operations_new_file (GtkWidget              *parent_view,
     task = g_task_new (NULL, job->common.cancellable, create_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, create_task_thread_func);
-    g_object_unref (task);
 }
 
 
@@ -7863,7 +7887,7 @@ empty_trash_thread_func (GTask        *task,
 void
 nautilus_file_operations_empty_trash (GtkWidget *parent_view)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     EmptyTrashJob *job;
     GtkWindow *parent_window;
 
@@ -7883,13 +7907,12 @@ nautilus_file_operations_empty_trash (GtkWidget *parent_view)
     task = g_task_new (NULL, NULL, empty_trash_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, empty_trash_thread_func);
-    g_object_unref (task);
 }
 
 static void
-mark_trusted_task_done (GObject      *source_object,
-                        GAsyncResult *res,
-                        gpointer      user_data)
+mark_desktop_file_executable_task_done (GObject      *source_object,
+                                        GAsyncResult *res,
+                                        gpointer      user_data)
 {
     MarkTrustedJob *job = user_data;
 
@@ -7907,110 +7930,20 @@ mark_trusted_task_done (GObject      *source_object,
 #define TRUSTED_SHEBANG "#!/usr/bin/env xdg-open\n"
 
 static void
-mark_desktop_file_trusted (CommonJob    *common,
-                           GCancellable *cancellable,
-                           GFile        *file,
-                           gboolean      interactive)
+mark_desktop_file_executable (CommonJob    *common,
+                              GCancellable *cancellable,
+                              GFile        *file,
+                              gboolean      interactive)
 {
-    char *contents, *new_contents;
-    gsize length, new_length;
     GError *error;
-    guint32 current_perms, new_perms;
+    guint32 current_perms;
+    guint32 new_perms;
     int response;
-    GFileInfo *info;
+    g_autoptr (GFileInfo) info = NULL;
 
 retry:
+
     error = NULL;
-    if (!g_file_load_contents (file,
-                               cancellable,
-                               &contents, &length,
-                               NULL, &error))
-    {
-        if (interactive)
-        {
-            response = run_error (common,
-                                  g_strdup (_("Unable to mark launcher trusted (executable)")),
-                                  error->message,
-                                  NULL,
-                                  FALSE,
-                                  CANCEL, RETRY,
-                                  NULL);
-        }
-        else
-        {
-            response = 0;
-        }
-
-
-        if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
-        {
-            abort_job (common);
-        }
-        else if (response == 1)
-        {
-            goto retry;
-        }
-        else
-        {
-            g_assert_not_reached ();
-        }
-
-        goto out;
-    }
-
-    if (!g_str_has_prefix (contents, "#!"))
-    {
-        new_length = length + strlen (TRUSTED_SHEBANG);
-        new_contents = g_malloc (new_length);
-
-        strcpy (new_contents, TRUSTED_SHEBANG);
-        memcpy (new_contents + strlen (TRUSTED_SHEBANG),
-                contents, length);
-
-        if (!g_file_replace_contents (file,
-                                      new_contents,
-                                      new_length,
-                                      NULL,
-                                      FALSE, 0,
-                                      NULL, cancellable, &error))
-        {
-            g_free (contents);
-            g_free (new_contents);
-
-            if (interactive)
-            {
-                response = run_error (common,
-                                      g_strdup (_("Unable to mark launcher trusted (executable)")),
-                                      error->message,
-                                      NULL,
-                                      FALSE,
-                                      CANCEL, RETRY,
-                                      NULL);
-            }
-            else
-            {
-                response = 0;
-            }
-
-            if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
-            {
-                abort_job (common);
-            }
-            else if (response == 1)
-            {
-                goto retry;
-            }
-            else
-            {
-                g_assert_not_reached ();
-            }
-
-            goto out;
-        }
-        g_free (new_contents);
-    }
-    g_free (contents);
-
     info = g_file_query_info (file,
                               G_FILE_ATTRIBUTE_STANDARD_TYPE ","
                               G_FILE_ATTRIBUTE_UNIX_MODE,
@@ -8018,93 +7951,54 @@ retry:
                               common->cancellable,
                               &error);
 
-    if (info == NULL)
-    {
-        if (interactive)
-        {
-            response = run_error (common,
-                                  g_strdup (_("Unable to mark launcher trusted (executable)")),
-                                  error->message,
-                                  NULL,
-                                  FALSE,
-                                  CANCEL, RETRY,
-                                  NULL);
-        }
-        else
-        {
-            response = 0;
-        }
-
-        if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
-        {
-            abort_job (common);
-        }
-        else if (response == 1)
-        {
-            goto retry;
-        }
-        else
-        {
-            g_assert_not_reached ();
-        }
-
-        goto out;
-    }
-
-
-    if (g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_UNIX_MODE))
+    if (info != NULL && g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_UNIX_MODE))
     {
         current_perms = g_file_info_get_attribute_uint32 (info, G_FILE_ATTRIBUTE_UNIX_MODE);
         new_perms = current_perms | S_IXGRP | S_IXUSR | S_IXOTH;
 
-        if ((current_perms != new_perms) &&
-            !g_file_set_attribute_uint32 (file, G_FILE_ATTRIBUTE_UNIX_MODE,
-                                          new_perms, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                          common->cancellable, &error))
+        if (current_perms != new_perms)
         {
-            g_object_unref (info);
-
-            if (interactive)
-            {
-                response = run_error (common,
-                                      g_strdup (_("Unable to mark launcher trusted (executable)")),
-                                      error->message,
-                                      NULL,
-                                      FALSE,
-                                      CANCEL, RETRY,
-                                      NULL);
-            }
-            else
-            {
-                response = 0;
-            }
-
-            if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
-            {
-                abort_job (common);
-            }
-            else if (response == 1)
-            {
-                goto retry;
-            }
-            else
-            {
-                g_assert_not_reached ();
-            }
-
-            goto out;
+            g_file_set_attribute_uint32 (file, G_FILE_ATTRIBUTE_UNIX_MODE,
+                                         new_perms, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                         common->cancellable, &error);
         }
     }
-    g_object_unref (info);
-out:
-    ;
+
+    if (interactive && error != NULL)
+    {
+        response = run_error (common,
+                              g_strdup (_("Unable to mark launcher trusted (executable)")),
+                              error->message,
+                              NULL,
+                              FALSE,
+                              CANCEL, RETRY,
+                              NULL);
+    }
+    else
+    {
+        response = 0;
+    }
+
+    if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT)
+    {
+        abort_job (common);
+    }
+    else if (response == 1)
+    {
+        g_object_unref (info);
+        goto retry;
+    }
+    else
+    {
+        g_assert_not_reached ();
+    }
 }
 
 static void
-mark_trusted_task_thread_func (GTask        *task,
-                               gpointer      source_object,
-                               gpointer      task_data,
-                               GCancellable *cancellable)
+mark_desktop_file_executable_task_thread_func (GTask        *task,
+                                               gpointer      source_object,
+                                               gpointer      task_data,
+                                               GCancellable *cancellable)
 {
     MarkTrustedJob *job = task_data;
     CommonJob *common;
@@ -8113,20 +8007,20 @@ mark_trusted_task_thread_func (GTask        *task,
 
     nautilus_progress_info_start (job->common.progress);
 
-    mark_desktop_file_trusted (common,
-                               cancellable,
-                               job->file,
-                               job->interactive);
+    mark_desktop_file_executable (common,
+                                  cancellable,
+                                  job->file,
+                                  job->interactive);
 }
 
 void
-nautilus_file_mark_desktop_file_trusted (GFile              *file,
-                                         GtkWindow          *parent_window,
-                                         gboolean            interactive,
-                                         NautilusOpCallback  done_callback,
-                                         gpointer            done_callback_data)
+nautilus_file_mark_desktop_file_executable (GFile              *file,
+                                            GtkWindow          *parent_window,
+                                            gboolean            interactive,
+                                            NautilusOpCallback  done_callback,
+                                            gpointer            done_callback_data)
 {
-    GTask *task;
+    g_autoptr (GTask) task = NULL;
     MarkTrustedJob *job;
 
     job = op_job_new (MarkTrustedJob, parent_window);
@@ -8135,10 +8029,9 @@ nautilus_file_mark_desktop_file_trusted (GFile              *file,
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
 
-    task = g_task_new (NULL, NULL, mark_trusted_task_done, job);
+    task = g_task_new (NULL, NULL, mark_desktop_file_executable_task_done, job);
     g_task_set_task_data (task, job, NULL);
-    g_task_run_in_thread (task, mark_trusted_task_thread_func);
-    g_object_unref (task);
+    g_task_run_in_thread (task, mark_desktop_file_executable_task_thread_func);
 }
 
 static void
@@ -8212,11 +8105,16 @@ extract_job_on_progress (AutoarExtractor *extractor,
     gdouble archive_decompress_progress;
     guint64 job_completed_size;
     gdouble job_progress;
+    g_autofree gchar *basename = NULL;
+    g_autofree gchar *formatted_size_job_completed_size = NULL;
+    g_autofree gchar *formatted_size_total_compressed_size = NULL;
 
     source_file = autoar_extractor_get_source_file (extractor);
 
+    basename = get_basename (source_file);
     nautilus_progress_info_take_status (common->progress,
-                                        f (_("Extracting “%B”"), source_file));
+                                        g_strdup_printf (_("Extracting “%s”"),
+                                                         basename));
 
     archive_total_decompressed_size = autoar_extractor_get_total_size (extractor);
 
@@ -8249,30 +8147,39 @@ extract_job_on_progress (AutoarExtractor *extractor,
                          transfer_rate;
     }
 
+    formatted_size_job_completed_size = g_format_size (job_completed_size);
+    formatted_size_total_compressed_size = g_format_size (extract_job->total_compressed_size);
     if (elapsed < SECONDS_NEEDED_FOR_RELIABLE_TRANSFER_RATE ||
         transfer_rate == 0)
     {
-        /* To translators: %S will expand to a size like "2 bytes" or
+        /* To translators: %s will expand to a size like "2 bytes" or
          * "3 MB", so something like "4 kb / 4 MB"
          */
-        details = f (_("%S / %S"), job_completed_size, extract_job->total_compressed_size);
+        details = g_strdup_printf (_("%s / %s"), formatted_size_job_completed_size,
+                                   formatted_size_total_compressed_size);
     }
     else
     {
-        /* To translators: %S will expand to a size like "2 bytes" or
-         * "3 MB", %T to a time duration like "2 minutes". So the whole
+        g_autofree gchar *formatted_time = NULL;
+        g_autofree gchar *formatted_size_transfer_rate = NULL;
+
+        formatted_time = get_formatted_time (remaining_time);
+        formatted_size_transfer_rate = g_format_size ((goffset) transfer_rate);
+        /* To translators: %s will expand to a size like "2 bytes" or
+         * "3 MB", %s to a time duration like "2 minutes". So the whole
          * thing will be something like
          * "2 kb / 4 MB -- 2 hours left (4kb/sec)"
          *
          * The singular/plural form will be used depending on the
-         * remaining time (i.e. the %T argument).
+         * remaining time (i.e. the %s argument).
          */
-        details = f (ngettext ("%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                               "%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                               seconds_count_format_time_units (remaining_time)),
-                     job_completed_size, extract_job->total_compressed_size,
-                     remaining_time,
-                     (goffset) transfer_rate);
+        details = g_strdup_printf (ngettext ("%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                             "%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                             seconds_count_format_time_units (remaining_time)),
+                                             formatted_size_job_completed_size,
+                                             formatted_size_total_compressed_size,
+                                             formatted_time,
+                                             formatted_size_transfer_rate);
     }
 
     nautilus_progress_info_take_details (common->progress, details);
@@ -8296,6 +8203,7 @@ extract_job_on_error (AutoarExtractor *extractor,
     ExtractJob *extract_job = user_data;
     GFile *source_file;
     gint response_id;
+    g_autofree gchar *basename = NULL;
 
     source_file = autoar_extractor_get_source_file (extractor);
 
@@ -8307,13 +8215,14 @@ extract_job_on_error (AutoarExtractor *extractor,
         return;
     }
 
+    basename = get_basename (source_file);
     nautilus_progress_info_take_status (extract_job->common.progress,
-                                        f (_("Error extracting “%B”"),
-                                           source_file));
+                                        g_strdup_printf (_("Error extracting “%s”"),
+                                                         basename));
 
     response_id = run_warning ((CommonJob *) extract_job,
-                               f (_("There was an error while extracting “%B”."),
-                                  source_file),
+                               g_strdup_printf (_("There was an error while extracting “%s”."),
+                                                basename),
                                g_strdup (error->message),
                                NULL,
                                FALSE,
@@ -8340,38 +8249,89 @@ extract_job_on_completed (AutoarExtractor *extractor,
 }
 
 static void
+extract_job_on_scanned (AutoarExtractor *extractor,
+                        guint            total_files,
+                        gpointer         user_data)
+{
+    guint64 total_size;
+    ExtractJob *extract_job;
+    GFile *source_file;
+    g_autofree gchar *basename;
+    GFileInfo *fsinfo;
+    guint64 free_size;
+
+    extract_job = user_data;
+    total_size = autoar_extractor_get_total_size (extractor);
+    source_file = autoar_extractor_get_source_file (extractor);
+    basename = get_basename (source_file);
+
+    fsinfo = g_file_query_filesystem_info (source_file,
+                                           G_FILE_ATTRIBUTE_FILESYSTEM_FREE ","
+                                           G_FILE_ATTRIBUTE_FILESYSTEM_READONLY,
+                                           extract_job->common.cancellable,
+                                           NULL);
+    free_size = g_file_info_get_attribute_uint64 (fsinfo,
+                                                  G_FILE_ATTRIBUTE_FILESYSTEM_FREE);
+
+    /* FIXME: G_MAXUINT64 is the value used by autoar when the file size cannot
+     * be determined. Ideally an API should be used instead.
+     */
+    if (total_size != G_MAXUINT64 && total_size > free_size )
+    {
+      nautilus_progress_info_take_status (extract_job->common.progress,
+                                          g_strdup_printf (_("Error extracting “%s”"),
+                                                           basename));
+      run_error (&extract_job->common,
+                 g_strdup_printf (_("Not enough free space to extract %s"),basename),
+                 NULL,
+                 NULL,
+                 FALSE,
+                 CANCEL,
+                 NULL);
+
+      abort_job ((CommonJob *) extract_job);
+    }
+}
+
+static void
 report_extract_final_progress (ExtractJob *extract_job,
                                gint        total_files)
 {
     char *status;
+    g_autofree gchar *basename_dest = NULL;
+    g_autofree gchar *formatted_size = NULL;
 
     nautilus_progress_info_set_destination (extract_job->common.progress,
                                             extract_job->destination_directory);
+    basename_dest = get_basename (extract_job->destination_directory);
 
     if (total_files == 1)
     {
         GFile *source_file;
+        g_autofree gchar * basename = NULL;
 
         source_file = G_FILE (extract_job->source_files->data);
-        status = f (_("Extracted “%B” to “%B”"),
-                    source_file,
-                    extract_job->destination_directory);
+        basename = get_basename (source_file);
+        status = g_strdup_printf (_("Extracted “%s” to “%s”"),
+                                  basename,
+                                  basename_dest);
     }
     else
     {
-        status = f (ngettext ("Extracted %'d file to “%B”",
-                              "Extracted %'d files to “%B”",
-                              total_files),
-                    total_files,
-                    extract_job->destination_directory);
+        status = g_strdup_printf (ngettext ("Extracted %'d file to “%s”",
+                                            "Extracted %'d files to “%s”",
+                                            total_files),
+                                  total_files,
+                                  basename_dest);
     }
 
     nautilus_progress_info_take_status (extract_job->common.progress,
                                         status);
+    formatted_size = g_format_size (extract_job->total_compressed_size);
     nautilus_progress_info_take_details (extract_job->common.progress,
-                                         f (_("%S / %S"),
-                                            extract_job->total_compressed_size,
-                                            extract_job->total_compressed_size));
+                                         g_strdup_printf (_("%s / %s"),
+                                                          formatted_size,
+                                                          formatted_size));
 }
 
 static void
@@ -8433,7 +8393,9 @@ extract_task_thread_func (GTask        *task,
 
         autoar_extractor_set_notify_interval (extractor,
                                               PROGRESS_NOTIFY_INTERVAL);
-
+        g_signal_connect (extractor, "scanned",
+                          G_CALLBACK (extract_job_on_scanned),
+                          extract_job);
         g_signal_connect (extractor, "error",
                           G_CALLBACK (extract_job_on_error),
                           extract_job);
@@ -8568,24 +8530,27 @@ compress_job_on_progress (AutoarCompressor *compressor,
     double elapsed;
     double transfer_rate;
     int remaining_time;
+    g_autofree gchar *basename_output_file = NULL;
 
     files_left = compress_job->total_files - completed_files;
-
+    basename_output_file = get_basename (compress_job->output_file);
     if (compress_job->total_files == 1)
     {
-        status = f (_("Compressing “%B” into “%B”"),
-                    G_FILE (compress_job->source_files->data),
-                    compress_job->output_file);
+        g_autofree gchar *basename_data = NULL;
+
+        basename_data = get_basename (G_FILE (compress_job->source_files->data));
+        status = g_strdup_printf (_("Compressing “%s” into “%s”"),
+                                  basename_data,
+                                  basename_output_file);
     }
     else
     {
-        status = f (ngettext ("Compressing %'d file into “%B”",
-                              "Compressing %'d files into “%B”",
-                              compress_job->total_files),
-                    compress_job->total_files,
-                    compress_job->output_file);
+        status = g_strdup_printf (ngettext ("Compressing %'d file into “%s”",
+                                            "Compressing %'d files into “%s”",
+                                            compress_job->total_files),
+                                  compress_job->total_files,
+                                  basename_output_file);
     }
-
     nautilus_progress_info_take_status (common->progress, status);
 
     elapsed = g_timer_elapsed (common->time, NULL);
@@ -8612,65 +8577,88 @@ compress_job_on_progress (AutoarCompressor *compressor,
     {
         if (compress_job->total_files == 1)
         {
-            /* To translators: %S will expand to a size like "2 bytes" or "3 MB", so something like "4 kb / 4 MB" */
-            details = f (_("%S / %S"), completed_size, compress_job->total_size);
+            g_autofree gchar *formatted_size_completed_size = NULL;
+            g_autofree gchar *formatted_size_total_size = NULL;
+
+            formatted_size_completed_size = g_format_size (completed_size);
+            formatted_size_total_size = g_format_size (compress_job->total_size);
+            /* To translators: %s will expand to a size like "2 bytes" or "3 MB", so something like "4 kb / 4 MB" */
+            details = g_strdup_printf (_("%s / %s"), formatted_size_completed_size,
+                                       formatted_size_total_size);
         }
         else
         {
-            details = f (_("%'d / %'d"),
-                         files_left > 0 ? completed_files + 1 : completed_files,
-                         compress_job->total_files);
+            details = g_strdup_printf (_("%'d / %'d"),
+                                       files_left > 0 ? completed_files + 1 : completed_files,
+                                       compress_job->total_files);
         }
     }
     else
     {
         if (compress_job->total_files == 1)
         {
+            g_autofree gchar *formatted_size_completed_size = NULL;
+            g_autofree gchar *formatted_size_total_size = NULL;
+
+            formatted_size_completed_size = g_format_size (completed_size);
+            formatted_size_total_size = g_format_size (compress_job->total_size);
+
             if (files_left > 0)
             {
-                /* To translators: %S will expand to a size like "2 bytes" or "3 MB", %T to a time duration like
+                g_autofree gchar *formatted_time = NULL;
+                g_autofree gchar *formatted_size_transfer_rate = NULL;
+
+                formatted_time = get_formatted_time (remaining_time);
+                formatted_size_transfer_rate = g_format_size ((goffset) transfer_rate);
+                /* To translators: %s will expand to a size like "2 bytes" or "3 MB", %s to a time duration like
                  * "2 minutes". So the whole thing will be something like "2 kb / 4 MB -- 2 hours left (4kb/sec)"
                  *
-                 * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+                 * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
                  */
-                details = f (ngettext ("%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                                       "%S / %S \xE2\x80\x94 %T left (%S/sec)",
-                                       seconds_count_format_time_units (remaining_time)),
-                             completed_size, compress_job->total_size,
-                             remaining_time,
-                             (goffset) transfer_rate);
+                details = g_strdup_printf (ngettext ("%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                                     "%s / %s \xE2\x80\x94 %s left (%s/sec)",
+                                                     seconds_count_format_time_units (remaining_time)),
+                                           formatted_size_completed_size,
+                                           formatted_size_total_size,
+                                           formatted_time,
+                                           formatted_size_transfer_rate);
             }
             else
             {
-                /* To translators: %S will expand to a size like "2 bytes" or "3 MB". */
-                details = f (_("%S / %S"),
-                             completed_size,
-                             compress_job->total_size);
+                /* To translators: %s will expand to a size like "2 bytes" or "3 MB". */
+                details = g_strdup_printf (_("%s / %s"),
+                                           formatted_size_completed_size,
+                                           formatted_size_total_size);
             }
         }
         else
         {
             if (files_left > 0)
             {
-                /* To translators: %T will expand to a time duration like "2 minutes".
+                g_autofree gchar *formatted_time = NULL;
+                g_autofree gchar *formatted_size = NULL;
+
+                formatted_time = get_formatted_time (remaining_time);
+                formatted_size = g_format_size ((goffset) transfer_rate);
+                /* To translators: %s will expand to a time duration like "2 minutes".
                  * So the whole thing will be something like "1 / 5 -- 2 hours left (4kb/sec)"
                  *
-                 * The singular/plural form will be used depending on the remaining time (i.e. the %T argument).
+                 * The singular/plural form will be used depending on the remaining time (i.e. the %s argument).
                  */
-                details = f (ngettext ("%'d / %'d \xE2\x80\x94 %T left (%S/sec)",
-                                       "%'d / %'d \xE2\x80\x94 %T left (%S/sec)",
-                                       seconds_count_format_time_units (remaining_time)),
-                             completed_files + 1, compress_job->total_files,
-                             remaining_time,
-                             (goffset) transfer_rate);
+                details = g_strdup_printf (ngettext ("%'d / %'d \xE2\x80\x94 %s left (%s/sec)",
+                                                     "%'d / %'d \xE2\x80\x94 %s left (%s/sec)",
+                                                     seconds_count_format_time_units (remaining_time)),
+                                           completed_files + 1, compress_job->total_files,
+                                           formatted_time,
+                                           formatted_size);
             }
             else
             {
                 /* To translators: %'d is the number of files completed for the operation,
                  * so it will be something like 2/14. */
-                details = f (_("%'d / %'d"),
-                             completed_files,
-                             compress_job->total_files);
+                details = g_strdup_printf (_("%'d / %'d"),
+                                           completed_files,
+                                           compress_job->total_files);
             }
         }
     }
@@ -8697,22 +8685,26 @@ compress_job_on_error (AutoarCompressor *compressor,
 {
     CompressJob *compress_job = user_data;
     char *status;
+    g_autofree gchar *basename_output_file = NULL;
 
+    basename_output_file = get_basename (compress_job->output_file);
     if (compress_job->total_files == 1)
     {
-        status = f (_("Error compressing “%B” into “%B”"),
-                    G_FILE (compress_job->source_files->data),
-                    compress_job->output_file);
+        g_autofree gchar *basename_data = NULL;
+
+        basename_data = get_basename (G_FILE (compress_job->source_files->data));
+        status = g_strdup_printf (_("Error compressing “%s” into “%s”"),
+                                  basename_data,
+                                  basename_output_file);
     }
     else
     {
-        status = f (ngettext ("Error compressing %'d file into “%B”",
-                              "Error compressing %'d files into “%B”",
-                              compress_job->total_files),
-                    compress_job->total_files,
-                    compress_job->output_file);
+        status = g_strdup_printf (ngettext ("Error compressing %'d file into “%s”",
+                                            "Error compressing %'d files into “%s”",
+                                            compress_job->total_files),
+                                  compress_job->total_files,
+                                  basename_output_file);
     }
-
     nautilus_progress_info_take_status (compress_job->common.progress,
                                         status);
 
@@ -8734,20 +8726,25 @@ compress_job_on_completed (AutoarCompressor *compressor,
     CompressJob *compress_job = user_data;
     g_autoptr (GFile) destination_directory = NULL;
     char *status;
+    g_autofree gchar *basename_output_file = NULL;
 
+    basename_output_file = get_basename (compress_job->output_file);
     if (compress_job->total_files == 1)
     {
-        status = f (_("Compressed “%B” into “%B”"),
-                    G_FILE (compress_job->source_files->data),
-                    compress_job->output_file);
+        g_autofree gchar *basename_data = NULL;
+
+        basename_data = get_basename (G_FILE (compress_job->source_files->data));
+        status = g_strdup_printf (_("Compressed “%s” into “%s”"),
+                                  basename_data,
+                                  basename_output_file);
     }
     else
     {
-        status = f (ngettext ("Compressed %'d file into “%B”",
-                              "Compressed %'d files into “%B”",
-                              compress_job->total_files),
-                    compress_job->total_files,
-                    compress_job->output_file);
+        status = g_strdup_printf (ngettext ("Compressed %'d file into “%s”",
+                                            "Compressed %'d files into “%s”",
+                                            compress_job->total_files),
+                                  compress_job->total_files,
+                                  basename_output_file);
     }
 
     nautilus_progress_info_take_status (compress_job->common.progress,
@@ -8859,47 +8856,49 @@ nautilus_self_check_file_operations (void)
 
 
     /* test the next duplicate name generator */
-    EEL_CHECK_STRING_RESULT (get_duplicate_name (" (copy)", 1, -1), " (another copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo", 1, -1), "foo (copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name (".bashrc", 1, -1), ".bashrc (copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name (".foo.txt", 1, -1), ".foo (copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo", 1, -1), "foo foo (copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo.txt", 1, -1), "foo (copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo.txt", 1, -1), "foo foo (copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo.txt txt", 1, -1), "foo foo (copy).txt txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo...txt", 1, -1), "foo.. (copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo...", 1, -1), "foo... (copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo. (copy)", 1, -1), "foo. (another copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (copy)", 1, -1), "foo (another copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (copy).txt", 1, -1), "foo (another copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (another copy)", 1, -1), "foo (3rd copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (another copy).txt", 1, -1), "foo (3rd copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (another copy).txt", 1, -1), "foo foo (3rd copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (13th copy)", 1, -1), "foo (14th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (13th copy).txt", 1, -1), "foo (14th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (21st copy)", 1, -1), "foo (22nd copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (21st copy).txt", 1, -1), "foo (22nd copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (22nd copy)", 1, -1), "foo (23rd copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (22nd copy).txt", 1, -1), "foo (23rd copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (23rd copy)", 1, -1), "foo (24th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (23rd copy).txt", 1, -1), "foo (24th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (24th copy)", 1, -1), "foo (25th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (24th copy).txt", 1, -1), "foo (25th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (24th copy)", 1, -1), "foo foo (25th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (24th copy).txt", 1, -1), "foo foo (25th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (100000000000000th copy).txt", 1, -1), "foo foo (copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (10th copy)", 1, -1), "foo (11th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (10th copy).txt", 1, -1), "foo (11th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (11th copy)", 1, -1), "foo (12th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (11th copy).txt", 1, -1), "foo (12th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (12th copy)", 1, -1), "foo (13th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (12th copy).txt", 1, -1), "foo (13th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (110th copy)", 1, -1), "foo (111th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (110th copy).txt", 1, -1), "foo (111th copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (122nd copy)", 1, -1), "foo (123rd copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (122nd copy).txt", 1, -1), "foo (123rd copy).txt");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (123rd copy)", 1, -1), "foo (124th copy)");
-    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (123rd copy).txt", 1, -1), "foo (124th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name (" (copy)", 1, -1, FALSE), " (another copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo", 1, -1, FALSE), "foo (copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name (".bashrc", 1, -1, FALSE), ".bashrc (copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name (".foo.txt", 1, -1, FALSE), ".foo (copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo", 1, -1, FALSE), "foo foo (copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo.txt", 1, -1, FALSE), "foo (copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo.txt", 1, -1, FALSE), "foo foo (copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo.txt txt", 1, -1, FALSE), "foo foo (copy).txt txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo...txt", 1, -1, FALSE), "foo.. (copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo...", 1, -1, FALSE), "foo... (copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo. (copy)", 1, -1, FALSE), "foo. (another copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (copy)", 1, -1, FALSE), "foo (another copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (copy).txt", 1, -1, FALSE), "foo (another copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (another copy)", 1, -1, FALSE), "foo (3rd copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (another copy).txt", 1, -1, FALSE), "foo (3rd copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (another copy).txt", 1, -1, FALSE), "foo foo (3rd copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (13th copy)", 1, -1, FALSE), "foo (14th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (13th copy).txt", 1, -1, FALSE), "foo (14th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (21st copy)", 1, -1, FALSE), "foo (22nd copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (21st copy).txt", 1, -1, FALSE), "foo (22nd copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (22nd copy)", 1, -1, FALSE), "foo (23rd copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (22nd copy).txt", 1, -1, FALSE), "foo (23rd copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (23rd copy)", 1, -1, FALSE), "foo (24th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (23rd copy).txt", 1, -1, FALSE), "foo (24th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (24th copy)", 1, -1, FALSE), "foo (25th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (24th copy).txt", 1, -1, FALSE), "foo (25th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (24th copy)", 1, -1, FALSE), "foo foo (25th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (24th copy).txt", 1, -1, FALSE), "foo foo (25th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo foo (100000000000000th copy).txt", 1, -1, FALSE), "foo foo (copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (10th copy)", 1, -1, FALSE), "foo (11th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (10th copy).txt", 1, -1, FALSE), "foo (11th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (11th copy)", 1, -1, FALSE), "foo (12th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (11th copy).txt", 1, -1, FALSE), "foo (12th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (12th copy)", 1, -1, FALSE), "foo (13th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (12th copy).txt", 1, -1, FALSE), "foo (13th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (110th copy)", 1, -1, FALSE), "foo (111th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (110th copy).txt", 1, -1, FALSE), "foo (111th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (122nd copy)", 1, -1, FALSE), "foo (123rd copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (122nd copy).txt", 1, -1, FALSE), "foo (123rd copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (123rd copy)", 1, -1, FALSE), "foo (124th copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("foo (123rd copy).txt", 1, -1, FALSE), "foo (124th copy).txt");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("dir.with.dots", 1, -1, TRUE), "dir.with.dots (copy)");
+    EEL_CHECK_STRING_RESULT (get_duplicate_name ("dir (copy).dir", 1, -1, TRUE), "dir (another copy).dir");
 
     setlocale (LC_MESSAGES, "");
 }

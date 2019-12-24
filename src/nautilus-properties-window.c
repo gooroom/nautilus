@@ -1600,7 +1600,7 @@ schedule_group_change (NautilusPropertiesWindow *window,
 
     change->file = nautilus_file_ref (file);
     change->group = g_strdup (group);
-    change->window = g_object_ref (G_OBJECT (window));
+    change->window = GTK_WINDOW (g_object_ref (window));
     change->timeout =
         g_timeout_add (CHOWN_CHGRP_TIMEOUT,
                        (GSourceFunc) schedule_group_change_timeout,
@@ -2021,7 +2021,7 @@ schedule_owner_change (NautilusPropertiesWindow *window,
 
     change->file = nautilus_file_ref (file);
     change->owner = g_strdup (owner);
-    change->window = g_object_ref (G_OBJECT (window));
+    change->window = GTK_WINDOW (g_object_ref (window));
     change->timeout =
         g_timeout_add (CHOWN_CHGRP_TIMEOUT,
                        (GSourceFunc) schedule_owner_change_timeout,
@@ -2516,50 +2516,31 @@ append_directory_contents_fields (NautilusPropertiesWindow *window,
 }
 
 static GtkWidget *
-create_page_with_hbox (GtkNotebook *notebook,
-                       const char  *title,
-                       const char  *help_uri)
+create_page_with_box (GtkNotebook    *notebook,
+                      GtkOrientation  orientation,
+                      const gchar    *title,
+                      const gchar    *help_uri)
 {
-    GtkWidget *hbox;
+    GtkWidget *box;
 
     g_assert (GTK_IS_NOTEBOOK (notebook));
     g_assert (title != NULL);
 
-    hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_show (hbox);
-    gtk_container_set_border_width (GTK_CONTAINER (hbox), 12);
-    gtk_box_set_spacing (GTK_BOX (hbox), 12);
-    gtk_notebook_append_page (notebook, hbox, gtk_label_new (title));
+    box = gtk_box_new (orientation, 0);
+    gtk_widget_show (box);
+    gtk_container_set_border_width (GTK_CONTAINER (box), 12);
+    if (orientation == GTK_ORIENTATION_HORIZONTAL)
+    {
+        gtk_box_set_spacing (GTK_BOX (box), 12);
+    }
+    gtk_notebook_append_page (notebook, box, gtk_label_new (title));
     gtk_container_child_set (GTK_CONTAINER (notebook),
-                             hbox,
+                             box,
                              "tab-expand", TRUE,
                              NULL);
-    g_object_set_data_full (G_OBJECT (hbox), "help-uri", g_strdup (help_uri), g_free);
+    g_object_set_data_full (G_OBJECT (box), "help-uri", g_strdup (help_uri), g_free);
 
-    return hbox;
-}
-
-static GtkWidget *
-create_page_with_vbox (GtkNotebook *notebook,
-                       const char  *title,
-                       const char  *help_uri)
-{
-    GtkWidget *vbox;
-
-    g_assert (GTK_IS_NOTEBOOK (notebook));
-    g_assert (title != NULL);
-
-    vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
-    gtk_widget_show (vbox);
-    gtk_container_set_border_width (GTK_CONTAINER (vbox), 12);
-    gtk_notebook_append_page (notebook, vbox, gtk_label_new (title));
-    gtk_container_child_set (GTK_CONTAINER (notebook),
-                             vbox,
-                             "tab-expand", TRUE,
-                             NULL);
-    g_object_set_data_full (G_OBJECT (vbox), "help-uri", g_strdup (help_uri), g_free);
-
-    return vbox;
+    return box;
 }
 
 static GtkWidget *
@@ -2601,19 +2582,6 @@ create_grid_with_standard_properties (void)
     gtk_widget_show (grid);
 
     return grid;
-}
-
-static gboolean
-is_merged_trash_directory (NautilusFile *file)
-{
-    char *file_uri;
-    gboolean result;
-
-    file_uri = nautilus_file_get_uri (file);
-    result = strcmp (file_uri, "trash:///") == 0;
-    g_free (file_uri);
-
-    return result;
 }
 
 static gboolean
@@ -2669,19 +2637,6 @@ is_burn_directory (NautilusFile *file)
 }
 
 static gboolean
-is_recent_directory (NautilusFile *file)
-{
-    char *file_uri;
-    gboolean result;
-
-    file_uri = nautilus_file_get_uri (file);
-    result = strcmp (file_uri, "recent:///") == 0;
-    g_free (file_uri);
-
-    return result;
-}
-
-static gboolean
 should_show_custom_icon_buttons (NautilusPropertiesWindow *window)
 {
     if (is_multi_file_window (window))
@@ -2696,7 +2651,7 @@ static gboolean
 should_show_file_type (NautilusPropertiesWindow *window)
 {
     if (!is_multi_file_window (window)
-        && (is_merged_trash_directory (get_target_file (window)) ||
+        && (nautilus_file_is_in_trash (get_target_file (window)) ||
             is_computer_directory (get_target_file (window)) ||
             is_network_directory (get_target_file (window)) ||
             is_burn_directory (get_target_file (window))))
@@ -2712,7 +2667,7 @@ static gboolean
 should_show_location_info (NautilusPropertiesWindow *window)
 {
     if (!is_multi_file_window (window)
-        && (is_merged_trash_directory (get_target_file (window)) ||
+        && (nautilus_file_is_in_trash (get_target_file (window)) ||
             is_root_directory (get_target_file (window)) ||
             is_computer_directory (get_target_file (window)) ||
             is_network_directory (get_target_file (window)) ||
@@ -2766,10 +2721,10 @@ static gboolean
 should_show_free_space (NautilusPropertiesWindow *window)
 {
     if (!is_multi_file_window (window)
-        && (is_merged_trash_directory (get_target_file (window)) ||
+        && (nautilus_file_is_in_trash (get_target_file (window)) ||
             is_computer_directory (get_target_file (window)) ||
             is_network_directory (get_target_file (window)) ||
-            is_recent_directory (get_target_file (window)) ||
+            nautilus_file_is_in_recent (get_target_file (window)) ||
             is_burn_directory (get_target_file (window))))
     {
         return FALSE;
@@ -3161,8 +3116,10 @@ create_basic_page (NautilusPropertiesWindow *window)
     GtkWidget *volume_usage;
     GtkWidget *hbox, *vbox;
 
-    hbox = create_page_with_hbox (window->details->notebook, _("Basic"),
-                                  "help:gnome-help/nautilus-file-properties-basic");
+    hbox = create_page_with_box (window->details->notebook,
+                                 GTK_ORIENTATION_HORIZONTAL,
+                                 _("Basic"),
+                                 "help:gnome-help/nautilus-file-properties-basic");
 
     /* Icon pixmap */
 
@@ -4120,10 +4077,10 @@ create_permissions_combo_box (PermissionType type,
         if (type != PERMISSION_USER)
         {
             gtk_list_store_append (store, &iter);
-            /* Translators: this is referred to the permissions
-             * the user has in a directory.
-             */
             gtk_list_store_set (store, &iter,
+                                /* Translators: this is referred to the permissions
+                                 * the user has in a directory.
+                                 */
                                 COLUMN_NAME, _("None"),
                                 COLUMN_VALUE, 0,
                                 COLUMN_ID, "none",
@@ -4685,9 +4642,10 @@ create_permissions_page (NautilusPropertiesWindow *window)
     char *file_name, *prompt_text;
     GList *file_list;
 
-    vbox = create_page_with_vbox (window->details->notebook,
-                                  _("Permissions"),
-                                  "help:gnome-help/nautilus-file-properties-permissions");
+    vbox = create_page_with_box (window->details->notebook,
+                                 GTK_ORIENTATION_VERTICAL,
+                                 _("Permissions"),
+                                 "help:gnome-help/nautilus-file-properties-permissions");
 
     file_list = window->details->original_files;
 
@@ -4824,8 +4782,8 @@ should_show_permissions (NautilusPropertiesWindow *window)
      * really file system objects.
      */
     if (!is_multi_file_window (window)
-        && (is_merged_trash_directory (file) ||
-            is_recent_directory (file) ||
+        && (nautilus_file_is_in_trash (file) ||
+            nautilus_file_is_in_recent (file) ||
             is_computer_directory (file)))
     {
         return FALSE;
@@ -4921,14 +4879,14 @@ file_changed_callback (NautilusFile *file,
 static gboolean
 is_a_special_file (NautilusFile *file)
 {
-    if (file == NULL ||
-        nautilus_file_is_nautilus_link (file) ||
-        is_merged_trash_directory (file) ||
-        is_computer_directory (file))
-    {
-        return TRUE;
-    }
-    return FALSE;
+    gboolean is_special;
+
+    is_special = file == NULL ||
+                 nautilus_file_is_nautilus_link (file) ||
+                 nautilus_file_is_in_trash (file) ||
+                 is_computer_directory (file);
+
+    return is_special;
 }
 
 static gboolean
@@ -5405,16 +5363,16 @@ real_response (GtkDialog *dialog,
         case GTK_RESPONSE_NONE:
         case GTK_RESPONSE_CLOSE:
         case GTK_RESPONSE_DELETE_EVENT:
-            {
-                gtk_widget_destroy (GTK_WIDGET (dialog));
-            }
-            break;
+        {
+            gtk_widget_destroy (GTK_WIDGET (dialog));
+        }
+        break;
 
         default:
-            {
-                g_assert_not_reached ();
-            }
-            break;
+        {
+            g_assert_not_reached ();
+        }
+        break;
     }
 }
 
@@ -5512,45 +5470,6 @@ real_finalize (GObject *object)
     G_OBJECT_CLASS (nautilus_properties_window_parent_class)->finalize (object);
 }
 
-/* converts
- *  file://foo/foobar/foofoo/bar
- * to
- *  foofoo/bar
- * if
- *  file://foo/foobar
- * is the parent
- *
- * It does not resolve any symlinks.
- * */
-static char *
-make_relative_uri_from_full (const char *uri,
-                             const char *base_uri)
-{
-    g_assert (uri != NULL);
-    g_assert (base_uri != NULL);
-
-    if (g_str_has_prefix (uri, base_uri))
-    {
-        uri += strlen (base_uri);
-        if (*uri != '/')
-        {
-            return NULL;
-        }
-
-        while (*uri == '/')
-        {
-            uri++;
-        }
-
-        if (*uri != '\0')
-        {
-            return g_strdup (uri);
-        }
-    }
-
-    return NULL;
-}
-
 /* icon selection callback to set the image of the file object to the selected file */
 static void
 set_icon (const char               *icon_uri,
@@ -5559,7 +5478,6 @@ set_icon (const char               *icon_uri,
     NautilusFile *file;
     char *file_uri;
     char *icon_path;
-    char *real_icon_uri;
 
     g_assert (icon_uri != NULL);
     g_assert (NAUTILUS_IS_PROPERTIES_WINDOW (properties_window));
@@ -5587,7 +5505,17 @@ set_icon (const char               *icon_uri,
             }
             else
             {
-                real_icon_uri = make_relative_uri_from_full (icon_uri, file_uri);
+                g_autoptr (GFile) file_location = NULL;
+                g_autoptr (GFile) icon_location = NULL;
+                g_autofree gchar *real_icon_uri = NULL;
+
+                file_location = nautilus_file_get_location (file);
+                icon_location = g_file_new_for_uri (icon_uri);
+
+                /* ’Tis a little bit of a misnomer. Actually a path. */
+                real_icon_uri = g_file_get_relative_path (icon_location,
+                                                          file_location);
+
                 if (real_icon_uri == NULL)
                 {
                     real_icon_uri = g_strdup (icon_uri);
@@ -5595,8 +5523,6 @@ set_icon (const char               *icon_uri,
 
                 nautilus_file_set_metadata (file, NAUTILUS_METADATA_KEY_CUSTOM_ICON, NULL, real_icon_uri);
                 nautilus_file_set_metadata (file, NAUTILUS_METADATA_KEY_ICON_SCALE, NULL, NULL);
-
-                g_free (real_icon_uri);
             }
 
             g_free (file_uri);
@@ -5633,10 +5559,10 @@ update_preview_callback (GtkFileChooser           *icon_chooser,
             scale = (double) gdk_pixbuf_get_height (pixbuf) /
                     gdk_pixbuf_get_width (pixbuf);
 
-            scaled_pixbuf = gnome_desktop_thumbnail_scale_down_pixbuf
-                                (pixbuf,
-                                PREVIEW_IMAGE_WIDTH,
-                                scale * PREVIEW_IMAGE_WIDTH);
+            scaled_pixbuf = gdk_pixbuf_scale_simple (pixbuf,
+                                                     PREVIEW_IMAGE_WIDTH,
+                                                     scale * PREVIEW_IMAGE_WIDTH,
+                                                     GDK_INTERP_BILINEAR);
             g_object_unref (pixbuf);
             pixbuf = scaled_pixbuf;
         }
@@ -5666,30 +5592,30 @@ custom_icon_file_chooser_response_cb (GtkDialog                *dialog,
     switch (response)
     {
         case GTK_RESPONSE_NO:
+        {
+            reset_icon (window);
+        }
+        break;
+
+        case GTK_RESPONSE_OK:
+        {
+            uri = gtk_file_chooser_get_uri (GTK_FILE_CHOOSER (dialog));
+            if (uri != NULL)
+            {
+                set_icon (uri, window);
+            }
+            else
             {
                 reset_icon (window);
             }
-            break;
-
-        case GTK_RESPONSE_OK:
-            {
-                uri = gtk_file_chooser_get_uri (GTK_FILE_CHOOSER (dialog));
-                if (uri != NULL)
-                {
-                    set_icon (uri, window);
-                }
-                else
-                {
-                    reset_icon (window);
-                }
-                g_free (uri);
-            }
-            break;
+            g_free (uri);
+        }
+        break;
 
         default:
-            {
-            }
-            break;
+        {
+        }
+        break;
     }
 
     gtk_widget_hide (GTK_WIDGET (dialog));

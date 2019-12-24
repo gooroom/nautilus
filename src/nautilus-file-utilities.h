@@ -26,8 +26,7 @@
 #include <gio/gio.h>
 #include <gtk/gtk.h>
 
-#define NAUTILUS_SAVED_SEARCH_EXTENSION ".savedSearch"
-#define NAUTILUS_SAVED_SEARCH_MIMETYPE "application/x-gnome-saved-search"
+#define NAUTILUS_DESKTOP_ID "org.gnome.Nautilus.desktop"
 
 /* These functions all return something something that needs to be
  * freed with g_free, is not NULL, and is guaranteed to exist.
@@ -46,6 +45,8 @@ gboolean nautilus_is_home_directory_file             (GFile *dir,
 						      const char *filename);
 gboolean nautilus_is_in_system_dir                   (GFile *location);
 gboolean nautilus_is_search_directory                (GFile *dir);
+gboolean nautilus_is_recent_directory                (GFile *dir);
+gboolean nautilus_is_trash_directory                 (GFile *dir);
 gboolean nautilus_is_other_locations_directory       (GFile *dir);
 GMount * nautilus_get_mounted_mount_for_root         (GFile *location);
 
@@ -123,5 +124,7 @@ void nautilus_ensure_extension_builtins (void);
 gboolean nautilus_file_can_rename_files (GList *files);
 
 GList * nautilus_file_list_from_uri_list (GList *uris);
+
+gchar * nautilus_uri_to_native_uri (const gchar *uri);
 
 #endif /* NAUTILUS_FILE_UTILITIES_H */

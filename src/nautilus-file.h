@@ -58,7 +58,8 @@ typedef enum {
 	NAUTILUS_FILE_SORT_BY_MTIME,
         NAUTILUS_FILE_SORT_BY_ATIME,
 	NAUTILUS_FILE_SORT_BY_TRASHED_TIME,
-	NAUTILUS_FILE_SORT_BY_SEARCH_RELEVANCE
+	NAUTILUS_FILE_SORT_BY_SEARCH_RELEVANCE,
+	NAUTILUS_FILE_SORT_BY_RECENCY
 } NautilusFileSortType;	
 
 typedef enum {
@@ -214,6 +215,7 @@ gboolean		nautilus_file_is_archive			(NautilusFile			*file);
 gboolean                nautilus_file_is_in_search                      (NautilusFile                   *file);
 gboolean                nautilus_file_is_in_trash                       (NautilusFile                   *file);
 gboolean                nautilus_file_is_in_recent                      (NautilusFile                   *file);
+gboolean                nautilus_file_is_in_admin                       (NautilusFile                   *file);
 gboolean                nautilus_file_is_remote                         (NautilusFile                   *file);
 gboolean                nautilus_file_is_other_locations                (NautilusFile                   *file);
 gboolean		nautilus_file_is_home				(NautilusFile                   *file);
@@ -235,6 +237,10 @@ gboolean                nautilus_file_should_show_directory_item_count  (Nautilu
 
 void                    nautilus_file_set_search_relevance              (NautilusFile                   *file,
 									 gdouble                         relevance);
+void                    nautilus_file_set_search_fts_snippet            (NautilusFile                   *file,
+                                                                         const gchar                    *fts_snippet);
+const gchar*            nautilus_file_get_search_fts_snippet            (NautilusFile                   *file);
+
 void                    nautilus_file_set_attributes                    (NautilusFile                   *file, 
 									 GFileInfo                      *attributes,
 									 NautilusFileOperationCallback   callback,
@@ -326,12 +332,10 @@ void                    nautilus_file_rename                            (Nautilu
 									 const char                     *new_name,
 									 NautilusFileOperationCallback   callback,
 									 gpointer                        callback_data);
-#ifdef ENABLE_TRACKER
 void                    nautilus_file_batch_rename                      (GList                          *files,
                                                                          GList                          *new_names,
                                                                          NautilusFileOperationCallback   callback,
                                                                          gpointer                        callback_data);
-#endif /* ENABLE_TRACKER */
 void                    nautilus_file_cancel                            (NautilusFile                   *file,
 									 NautilusFileOperationCallback   callback,
 									 gpointer                        callback_data);
@@ -499,6 +503,7 @@ GList *                 nautilus_file_list_filter                       (GList  
                                                                          GList                         **failed,
                                                                          NautilusFileFilterFunc          filter_function,
                                                                          gpointer                        user_data);
+gboolean                nautilus_file_list_are_all_folders              (const GList                    *files);
 /* DND */
 gboolean                nautilus_drag_can_accept_item                   (NautilusFile                   *drop_target_item,
                                                                          const char                     *item_uri);
@@ -526,7 +531,8 @@ struct NautilusFile {
 typedef enum {
 	NAUTILUS_DATE_TYPE_MODIFIED,
 	NAUTILUS_DATE_TYPE_ACCESSED,
-	NAUTILUS_DATE_TYPE_TRASHED
+	NAUTILUS_DATE_TYPE_TRASHED,
+	NAUTILUS_DATE_TYPE_RECENCY
 } NautilusDateType;
 
 gboolean                nautilus_file_get_date                          (NautilusFile                   *file,

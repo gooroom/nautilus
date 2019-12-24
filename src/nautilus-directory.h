@@ -170,6 +170,8 @@ NautilusDirectory *nautilus_directory_get_for_file             (NautilusFile    
 NautilusDirectory *nautilus_directory_ref                      (NautilusDirectory         *directory);
 void               nautilus_directory_unref                    (NautilusDirectory         *directory);
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (NautilusDirectory, nautilus_directory_unref)
+
 /* Access to a URI. */
 char *             nautilus_directory_get_uri                  (NautilusDirectory         *directory);
 GFile *            nautilus_directory_get_location             (NautilusDirectory         *directory);
@@ -225,7 +227,7 @@ gboolean           nautilus_directory_is_local_or_fuse         (NautilusDirector
 
 gboolean           nautilus_directory_is_in_trash              (NautilusDirectory         *directory);
 gboolean           nautilus_directory_is_in_recent             (NautilusDirectory         *directory);
-gboolean           nautilus_directory_is_remote                (NautilusDirectory         *directory);
+gboolean           nautilus_directory_is_in_admin              (NautilusDirectory         *directory);
 
 /* Return false if directory contains anything besides a Nautilus metafile.
  * Only valid if directory is monitored. Used by the Trash monitor.

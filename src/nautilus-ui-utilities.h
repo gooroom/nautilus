@@ -38,14 +38,17 @@ void nautilus_pop_up_context_menu                  (GtkWidget         *parent,
                                                     GMenu             *menu,
                                                     GdkEventButton    *button_event);
 
-char * nautilus_escape_action_name                 (const char        *action_name,
-						    const char        *prefix);
 void   nautilus_ui_frame_image                     (GdkPixbuf        **pixbuf);
 void   nautilus_ui_frame_video                     (GdkPixbuf        **pixbuf);
 
 gboolean   nautilus_file_date_in_between           (guint64           file_unix_time,
                                                     GDateTime         *initial_date,
                                                     GDateTime         *end_date);
-gchar*     get_text_for_date_range                 (GPtrArray         *date_range);
+gchar*     get_text_for_date_range                 (GPtrArray         *date_range,
+                                                    gboolean           prefix_with_since);
+
+GtkDialog *    show_error_dialog                   (const gchar *primary_text,
+                                                    const gchar *secondary_text,
+                                                    GtkWindow   *parent);
 
 #endif /* NAUTILUS_UI_UTILITIES_H */

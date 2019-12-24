@@ -593,12 +593,31 @@ nautilus_is_search_directory (GFile *dir)
 }
 
 gboolean
+nautilus_is_recent_directory (GFile *dir)
+{
+    g_autofree gchar *uri = NULL;
+
+    uri = g_file_get_uri (dir);
+
+    return eel_uri_is_recent (uri);
+}
+
+gboolean
+nautilus_is_trash_directory (GFile *dir)
+{
+    g_autofree gchar *uri = NULL;
+
+    uri = g_file_get_uri (dir);
+    return eel_uri_is_trash (uri);
+}
+
+gboolean
 nautilus_is_other_locations_directory (GFile *dir)
 {
-  g_autofree gchar *uri = NULL;
+    g_autofree gchar *uri = NULL;
 
-  uri = g_file_get_uri (dir);
-  return eel_uri_is_other_locations (uri);
+    uri = g_file_get_uri (dir);
+    return eel_uri_is_other_locations (uri);
 }
 
 GMount *
@@ -1116,9 +1135,9 @@ get_message_for_content_type (const char *content_type)
     description = g_content_type_get_description (content_type);
 
     /* Customize greeting for well-known content types */
-    /* translators: these describe the contents of removable media */
     if (strcmp (content_type, "x-content/audio-cdda") == 0)
     {
+        /* translators: these describe the contents of removable media */
         message = g_strdup (_("Audio CD"));
     }
     else if (strcmp (content_type, "x-content/audio-dvd") == 0)
@@ -1180,9 +1199,9 @@ get_message_for_two_content_types (const char * const *content_types)
     if (strcmp (content_types[0], "x-content/image-dcf") == 0
         || strcmp (content_types[1], "x-content/image-dcf") == 0)
     {
-        /* translators: these describe the contents of removable media */
         if (strcmp (content_types[0], "x-content/audio-player") == 0)
         {
+            /* translators: these describe the contents of removable media */
             message = g_strdup (_("Contains music and photos"));
         }
         else if (strcmp (content_types[1], "x-content/audio-player") == 0)
@@ -1287,54 +1306,135 @@ nautilus_file_selection_equal (GList *selection_a,
     return selection_matches;
 }
 
+static char *
+trim_whitespace (const gchar *string)
+{
+    glong space_count;
+    glong length;
+    gchar *offset;
+
+    space_count = 0;
+    length = g_utf8_strlen (string, -1);
+    offset = g_utf8_offset_to_pointer (string, length);
+
+    while (space_count <= length)
+    {
+        gunichar character;
+
+        offset = g_utf8_prev_char (offset);
+        character = g_utf8_get_char (offset);
+
+        if (!g_unichar_isspace (character))
+        {
+            break;
+        }
+
+        space_count++;
+    }
+
+    if (space_count == 0)
+    {
+        return g_strdup (string);
+    }
+
+    return g_utf8_substring (string, 0, length - space_count);
+}
+
 char *
 nautilus_get_common_filename_prefix (GList *file_list,
                                      int    min_required_len)
 {
-    GList *l;
-    GList *strs = NULL;
-    char *name;
-    char *result;
+    GList *file_names = NULL;
+    GList *directory_names = NULL;
+    char *result_files;
+    g_autofree char *result = NULL;
+    g_autofree char *result_trimmed = NULL;
 
     if (file_list == NULL)
     {
         return NULL;
     }
 
-    for (l = file_list; l != NULL; l = l->next)
+    for (GList *l = file_list; l != NULL; l = l->next)
     {
+        char *name;
+
         g_return_val_if_fail (NAUTILUS_IS_FILE (l->data), NULL);
 
         name = nautilus_file_get_display_name (l->data);
-        strs = g_list_append (strs, name);
+
+        /* Since the concept of file extensions does not apply to directories,
+         * we filter those out.
+         */
+        if (nautilus_file_is_directory (l->data))
+        {
+            directory_names = g_list_prepend (directory_names, name);
+        }
+        else
+        {
+            file_names = g_list_prepend (file_names, name);
+        }
     }
 
-    result = nautilus_get_common_filename_prefix_from_filenames (strs, min_required_len);
-    g_list_free_full (strs, g_free);
+    result_files = nautilus_get_common_filename_prefix_from_filenames (file_names, min_required_len);
 
-    return result;
+    if (directory_names == NULL)
+    {
+        return result_files;
+    }
+
+    if (result_files != NULL)
+    {
+        directory_names = g_list_prepend (directory_names, result_files);
+    }
+
+    result = eel_str_get_common_prefix (directory_names, min_required_len);
+
+    g_list_free_full (file_names, g_free);
+    g_list_free_full (directory_names, g_free);
+
+    if (result == NULL)
+    {
+        return NULL;
+    }
+
+    result_trimmed = trim_whitespace (result);
+
+    if (g_utf8_strlen (result_trimmed, -1) < min_required_len)
+    {
+        return NULL;
+    }
+
+    return g_steal_pointer (&result_trimmed);
 }
 
 char *
 nautilus_get_common_filename_prefix_from_filenames (GList *filenames,
                                                     int    min_required_len)
 {
+    GList *stripped_filenames = NULL;
     char *common_prefix;
     char *truncated;
     int common_prefix_len;
 
-    common_prefix = eel_str_get_common_prefix (filenames, min_required_len);
+    for (GList *i = filenames; i != NULL; i = i->next)
+    {
+        gchar *stripped_filename;
 
+        stripped_filename = eel_filename_strip_extension (i->data);
+
+        stripped_filenames = g_list_prepend (stripped_filenames, stripped_filename);
+    }
+
+    common_prefix = eel_str_get_common_prefix (stripped_filenames, min_required_len);
     if (common_prefix == NULL)
     {
         return NULL;
     }
 
-    truncated = eel_filename_strip_extension (common_prefix);
-    g_free (common_prefix);
-    common_prefix = truncated;
+    g_list_free_full (stripped_filenames, g_free);
 
-    truncated = eel_str_rtrim_punctuation (common_prefix);
+    truncated = trim_whitespace (common_prefix);
     g_free (common_prefix);
 
     common_prefix_len = g_utf8_strlen (truncated, -1);
@@ -1396,3 +1496,24 @@ nautilus_file_can_rename_files (GList *files)
 
     return TRUE;
 }
+
+/* Try to get a native file:// URI instead of any other GVFS
+ * scheme, for interoperability with apps only handling file:// URIs.
+ */
+gchar *
+nautilus_uri_to_native_uri (const gchar *uri)
+{
+    g_autoptr (GFile) file = NULL;
+    g_autofree gchar *path = NULL;
+
+    file = g_file_new_for_uri (uri);
+    path = g_file_get_path (file);
+
+    if (path != NULL)
+    {
+        return g_filename_to_uri (path, NULL, NULL);
+    }
+
+    return NULL;
+}
+

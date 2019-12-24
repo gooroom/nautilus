@@ -30,12 +30,12 @@
 #include "nautilus-special-location-bar.h"
 #include "nautilus-toolbar.h"
 #include "nautilus-trash-bar.h"
+#include "nautilus-trash-monitor.h"
 #include "nautilus-view.h"
 #include "nautilus-window.h"
 #include "nautilus-x-content-bar.h"
 
 #include <glib/gi18n.h>
-#include <eel/eel-stock-dialogs.h>
 
 #include "nautilus-file.h"
 #include "nautilus-file-utilities.h"
@@ -44,6 +44,8 @@
 #include "nautilus-monitor.h"
 #include "nautilus-profile.h"
 #include <libnautilus-extension/nautilus-location-widget-provider.h>
+#include "nautilus-ui-utilities.h"
+#include <eel/eel-vfs-extensions.h>
 
 enum
 {
@@ -116,6 +118,7 @@ typedef struct
     guint location_change_distance;
     char *pending_scroll_to;
     GList *pending_selection;
+    NautilusFile *pending_file_to_activate;
     NautilusFile *determine_view_file;
     GCancellable *mount_cancellable;
     GError *mount_error;
@@ -148,6 +151,63 @@ static void nautilus_window_slot_set_search_visible (NautilusWindowSlot *self,
 static gboolean nautilus_window_slot_get_search_visible (NautilusWindowSlot *self);
 static void nautilus_window_slot_set_location (NautilusWindowSlot *self,
                                                GFile              *location);
+static void trash_state_changed_cb (NautilusTrashMonitor *monitor,
+                                    gboolean              is_empty,
+                                    gpointer              user_data);
+
+void
+nautilus_window_slot_restore_from_data (NautilusWindowSlot *self,
+                                             RestoreTabData     *data)
+{
+    NautilusWindowSlotPrivate *priv;
+
+    priv = nautilus_window_slot_get_instance_private (self);
+
+    priv->back_list = g_list_copy_deep (data->back_list, (GCopyFunc) g_object_ref, NULL);
+
+    priv->forward_list = g_list_copy_deep (data->forward_list, (GCopyFunc) g_object_ref, NULL);
+
+    priv->view_mode_before_search = data->view_before_search;
+
+    priv->location_change_type = NAUTILUS_LOCATION_CHANGE_RELOAD;
+}
+
+RestoreTabData*
+nautilus_window_slot_get_restore_tab_data (NautilusWindowSlot *self)
+{
+    NautilusWindowSlotPrivate *priv;
+    RestoreTabData *data;
+    GList *back_list;
+    GList *forward_list;
+
+    priv = nautilus_window_slot_get_instance_private (self);
+
+    if (priv->location == NULL)
+    {
+        return NULL;
+    }
+
+    back_list = g_list_copy_deep (priv->back_list,
+                                  (GCopyFunc) g_object_ref,
+                                  NULL);
+    forward_list = g_list_copy_deep (priv->forward_list,
+                                     (GCopyFunc) g_object_ref,
+                                     NULL);
+
+    /* This data is used to restore a tab after it was closed.
+     * In order to do that we need to keep the history, what was
+     * the view mode before search and a reference to the file.
+     * A GFile isn't enough, as the NautilusFile also keeps a
+     * reference to the search directory */
+    data = g_new0 (RestoreTabData, 1);
+    data->back_list = back_list;
+    data->forward_list = forward_list;
+    data->file = nautilus_file_get (priv->location);
+    data->view_before_search = priv->view_mode_before_search;
+
+    return data;
+}
+
 gboolean
 nautilus_window_slot_handles_location (NautilusWindowSlot *self,
                                        GFile              *location)
@@ -161,10 +221,13 @@ real_handles_location (NautilusWindowSlot *self,
 {
     NautilusFile *file;
     gboolean handles_location;
+    g_autofree char *uri = NULL;
+
+    uri = g_file_get_uri(location);
 
     file = nautilus_file_get (location);
     handles_location = !nautilus_file_is_other_locations (file) &&
-                       !nautilus_file_is_desktop_directory (file);
+                       !eel_uri_is_desktop (uri);
     nautilus_file_unref (file);
 
     return handles_location;
@@ -199,7 +262,7 @@ real_get_view_for_location (NautilusWindowSlot *self,
         /* If it's already set, is because we already made the change to search mode,
          * so the view mode of the current view will be the one search is using,
          * which is not the one we are interested in */
-        if (priv->view_mode_before_search == NAUTILUS_VIEW_INVALID_ID)
+        if (priv->view_mode_before_search == NAUTILUS_VIEW_INVALID_ID && priv->content_view)
         {
             priv->view_mode_before_search = nautilus_files_view_get_view_id (priv->content_view);
         }
@@ -357,8 +420,6 @@ query_editor_activated_callback (NautilusQueryEditor *editor,
         {
             nautilus_files_view_activate_selection (NAUTILUS_FILES_VIEW (priv->content_view));
         }
-
-        nautilus_window_slot_set_search_visible (self, FALSE);
     }
 }
 
@@ -453,6 +514,10 @@ show_query_editor (NautilusWindowSlot *self)
 
     priv = nautilus_window_slot_get_instance_private (self);
     view = nautilus_window_slot_get_current_view (self);
+    if (view == NULL)
+    {
+        return;
+    }
 
     if (nautilus_view_is_searching (view))
     {
@@ -563,6 +628,18 @@ nautilus_window_slot_handle_event (NautilusWindowSlot *self,
     retval = FALSE;
     action = g_action_map_lookup_action (G_ACTION_MAP (priv->slot_action_group),
                                          "search-visible");
+
+    if (event->keyval == GDK_KEY_Escape)
+    {
+        g_autoptr (GVariant) state = NULL;
+
+        state = g_action_get_state (action);
+
+        if (g_variant_get_boolean (state))
+        {
+            nautilus_window_slot_set_search_visible (self, FALSE);
+        }
+    }
 
     /* If the action is not enabled, don't try to handle search */
     if (g_action_get_enabled (action))
@@ -887,6 +964,10 @@ nautilus_window_slot_init (NautilusWindowSlot *self)
     priv = nautilus_window_slot_get_instance_private (self);
     app = g_application_get_default ();
 
+    g_signal_connect (nautilus_trash_monitor_get (),
+                      "trash-state-changed",
+                      G_CALLBACK (trash_state_changed_cb), self);
+
     priv->slot_action_group = G_ACTION_GROUP (g_simple_action_group_new ());
     g_action_map_add_action_entries (G_ACTION_MAP (priv->slot_action_group),
                                      slot_entries,
@@ -921,6 +1002,7 @@ static gboolean setup_view (NautilusWindowSlot *self,
 static void load_new_location (NautilusWindowSlot *slot,
                                GFile              *location,
                                GList              *selection,
+                               NautilusFile       *file_to_activate,
                                gboolean            tell_current_content_view,
                                gboolean            tell_new_content_view);
 
@@ -1355,7 +1437,7 @@ nautilus_window_slot_display_view_selection_failure (NautilusWindow *window,
         }
         else
         {
-            detail_message = g_strdup (_("This location doesn't appear to be a folder."));
+            detail_message = g_strdup (_("This location doesn’t appear to be a folder."));
         }
     }
     else if (error->domain == G_IO_ERROR)
@@ -1363,60 +1445,60 @@ nautilus_window_slot_display_view_selection_failure (NautilusWindow *window,
         switch (error->code)
         {
             case G_IO_ERROR_NOT_FOUND:
-                {
-                    detail_message = g_strdup (_("Unable to find the requested file. Please check the spelling and try again."));
-                }
-                break;
+            {
+                detail_message = g_strdup (_("Unable to find the requested file. Please check the spelling and try again."));
+            }
+            break;
 
             case G_IO_ERROR_NOT_SUPPORTED:
+            {
+                scheme_string = g_file_get_uri_scheme (location);
+                if (scheme_string != NULL)
                 {
-                    scheme_string = g_file_get_uri_scheme (location);
-                    if (scheme_string != NULL)
-                    {
-                        detail_message = g_strdup_printf (_("“%s” locations are not supported."),
-                                                          scheme_string);
-                    }
-                    else
-                    {
-                        detail_message = g_strdup (_("Unable to handle this kind of location."));
-                    }
-                    g_free (scheme_string);
+                    detail_message = g_strdup_printf (_("“%s” locations are not supported."),
+                                                      scheme_string);
                 }
-                break;
+                else
+                {
+                    detail_message = g_strdup (_("Unable to handle this kind of location."));
+                }
+                g_free (scheme_string);
+            }
+            break;
 
             case G_IO_ERROR_NOT_MOUNTED:
-                {
-                    detail_message = g_strdup (_("Unable to access the requested location."));
-                }
-                break;
+            {
+                detail_message = g_strdup (_("Unable to access the requested location."));
+            }
+            break;
 
             case G_IO_ERROR_PERMISSION_DENIED:
-                {
-                    detail_message = g_strdup (_("Don't have permission to access the requested location."));
-                }
-                break;
+            {
+                detail_message = g_strdup (_("Don’t have permission to access the requested location."));
+            }
+            break;
 
             case G_IO_ERROR_HOST_NOT_FOUND:
-                {
-                    /* This case can be hit for user-typed strings like "foo" due to
-                     * the code that guesses web addresses when there's no initial "/".
-                     * But this case is also hit for legitimate web addresses when
-                     * the proxy is set up wrong.
-                     */
-                    detail_message = g_strdup (_("Unable to find the requested location. Please check the spelling or the network settings."));
-                }
-                break;
+            {
+                /* This case can be hit for user-typed strings like "foo" due to
+                 * the code that guesses web addresses when there's no initial "/".
+                 * But this case is also hit for legitimate web addresses when
+                 * the proxy is set up wrong.
+                 */
+                detail_message = g_strdup (_("Unable to find the requested location. Please check the spelling or the network settings."));
+            }
+            break;
 
             case G_IO_ERROR_CANCELLED:
             case G_IO_ERROR_FAILED_HANDLED:
-                {
-                    goto done;
-                }
+            {
+                goto done;
+            }
 
             default:
-                {
-                }
-                break;
+            {
+            }
+            break;
         }
     }
 
@@ -1425,7 +1507,8 @@ nautilus_window_slot_display_view_selection_failure (NautilusWindow *window,
         detail_message = g_strdup_printf (_("Unhandled error message: %s"), error->message);
     }
 
-    eel_show_error_dialog (error_message, detail_message, GTK_WINDOW (window));
+    show_error_dialog (error_message, detail_message, GTK_WINDOW (window));
+
 done:
     g_free (error_message);
     g_free (detail_message);
@@ -1515,10 +1598,18 @@ handle_regular_file_if_needed (NautilusWindowSlot *self,
         }
 
         g_clear_object (&priv->pending_location);
+        g_clear_object (&priv->pending_file_to_activate);
         g_free (priv->pending_scroll_to);
 
         priv->pending_location = nautilus_file_get_parent_location (file);
-        priv->pending_selection = g_list_prepend (NULL, nautilus_file_ref (file));
+        if (nautilus_file_is_archive (file))
+        {
+            priv->pending_file_to_activate = nautilus_file_ref (file);
+        }
+        else
+        {
+            priv->pending_selection = g_list_prepend (NULL, nautilus_file_ref (file));
+        }
         priv->determine_view_file = nautilus_file_ref (parent_file);
         priv->pending_scroll_to = nautilus_file_get_uri (file);
 
@@ -1712,6 +1803,7 @@ setup_view (NautilusWindowSlot *self,
         load_new_location (self,
                            priv->pending_location,
                            priv->pending_selection,
+                           priv->pending_file_to_activate,
                            FALSE,
                            TRUE);
 
@@ -1727,6 +1819,7 @@ setup_view (NautilusWindowSlot *self,
         load_new_location (self,
                            old_location,
                            selection,
+                           NULL,
                            FALSE,
                            TRUE);
         nautilus_file_list_free (selection);
@@ -1750,6 +1843,7 @@ static void
 load_new_location (NautilusWindowSlot *self,
                    GFile              *location,
                    GList              *selection,
+                   NautilusFile       *file_to_activate,
                    gboolean            tell_current_content_view,
                    gboolean            tell_new_content_view)
 {
@@ -1779,9 +1873,21 @@ load_new_location (NautilusWindowSlot *self,
     }
     if (view)
     {
-        /* new_content_view might have changed here if
-         *  report_load_underway was called from load_location */
         nautilus_view_set_selection (view, selection);
+        if (file_to_activate != NULL)
+        {
+            g_autoptr (GAppInfo) app_info = NULL;
+            const gchar *app_id;
+
+            g_return_if_fail (NAUTILUS_IS_FILES_VIEW (view));
+            app_info = nautilus_mime_get_default_application_for_file (file_to_activate);
+            app_id = g_app_info_get_id (app_info);
+            if (g_strcmp0 (app_id, NAUTILUS_DESKTOP_ID) == 0)
+            {
+                nautilus_files_view_activate_file (NAUTILUS_FILES_VIEW (view),
+                                                   file_to_activate, 0);
+            }
+        }
     }
 
     nautilus_profile_end (NULL);
@@ -1819,6 +1925,7 @@ free_location_change (NautilusWindowSlot *self)
 
     priv = nautilus_window_slot_get_instance_private (self);
     g_clear_object (&priv->pending_location);
+    g_clear_object (&priv->pending_file_to_activate);
     nautilus_file_list_free (priv->pending_selection);
     priv->pending_selection = NULL;
 
@@ -2162,8 +2269,10 @@ handle_go_elsewhere (NautilusWindowSlot *self,
     NautilusWindowSlotPrivate *priv;
 
     priv = nautilus_window_slot_get_instance_private (self);
+
     /* Clobber the entire forward list, and move displayed location to back list */
     nautilus_window_slot_clear_forward_list (self);
+
     slot_location = nautilus_window_slot_get_location (self);
 
     if (slot_location != NULL)
@@ -2192,22 +2301,22 @@ update_history (NautilusWindowSlot         *self,
     switch (type)
     {
         case NAUTILUS_LOCATION_CHANGE_STANDARD:
-            {
-                handle_go_elsewhere (self, new_location);
-                return;
-            }
+        {
+            handle_go_elsewhere (self, new_location);
+            return;
+        }
 
         case NAUTILUS_LOCATION_CHANGE_RELOAD:
-            {
-                /* for reload there is no work to do */
-                return;
-            }
+        {
+            /* for reload there is no work to do */
+            return;
+        }
 
         case NAUTILUS_LOCATION_CHANGE_BACK:
-            {
-                handle_go_direction (self, new_location, FALSE);
-                return;
-            }
+        {
+            handle_go_direction (self, new_location, FALSE);
+            return;
+        }
 
         case NAUTILUS_LOCATION_CHANGE_FORWARD:
             handle_go_direction (self, new_location, TRUE);
@@ -2307,6 +2416,30 @@ found_mount_cb (GObject      *source_object,
 out:
     g_object_unref (data->cancellable);
     g_free (data);
+}
+
+static void
+trash_state_changed_cb (NautilusTrashMonitor *monitor,
+                        gboolean              is_empty,
+                        gpointer              user_data)
+{
+    GFile *location;
+    NautilusDirectory *directory;
+
+    location = nautilus_window_slot_get_current_location (user_data);
+
+    if (location == NULL)
+    {
+        return;
+    }
+
+    directory = nautilus_directory_get (location);
+
+    if (nautilus_directory_is_in_trash (directory) &&
+        nautilus_trash_monitor_is_empty ())
+    {
+        nautilus_window_slot_remove_extra_location_widgets (user_data);
+    }
 }
 
 static void
@@ -2488,7 +2621,10 @@ nautilus_window_slot_setup_extra_location_widgets (NautilusWindowSlot *self)
 
     if (nautilus_directory_is_in_trash (directory))
     {
-        nautilus_window_slot_show_trash_bar (self);
+        if (!nautilus_trash_monitor_is_empty ())
+        {
+            nautilus_window_slot_show_trash_bar (self);
+        }
     }
     else
     {
@@ -2645,11 +2781,12 @@ static void
 nautilus_window_slot_dispose (GObject *object)
 {
     NautilusWindowSlot *self;
-    GtkWidget *widget;
     NautilusWindowSlotPrivate *priv;
 
     self = NAUTILUS_WINDOW_SLOT (object);
     priv = nautilus_window_slot_get_instance_private (self);
+
+    g_signal_handlers_disconnect_by_data (nautilus_trash_monitor_get (), self);
 
     nautilus_window_slot_clear_forward_list (self);
     nautilus_window_slot_clear_back_list (self);
@@ -2658,44 +2795,45 @@ nautilus_window_slot_dispose (GObject *object)
 
     if (priv->content_view)
     {
-        widget = GTK_WIDGET (priv->content_view);
-        gtk_widget_destroy (widget);
-        g_object_unref (priv->content_view);
-        priv->content_view = NULL;
+        gtk_widget_destroy (GTK_WIDGET (priv->content_view));
+        g_clear_object (&priv->content_view);
     }
 
     if (priv->new_content_view)
     {
-        widget = GTK_WIDGET (priv->new_content_view);
-        gtk_widget_destroy (widget);
-        g_object_unref (priv->new_content_view);
-        priv->new_content_view = NULL;
+        gtk_widget_destroy (GTK_WIDGET (priv->new_content_view));
+        g_clear_object (&priv->new_content_view);
     }
 
     nautilus_window_slot_set_viewed_file (self, NULL);
 
     g_clear_object (&priv->location);
-
-    nautilus_file_list_free (priv->pending_selection);
-    priv->pending_selection = NULL;
+    g_clear_object (&priv->pending_file_to_activate);
+    g_clear_pointer (&priv->pending_selection, nautilus_file_list_free);
 
     g_clear_object (&priv->current_location_bookmark);
     g_clear_object (&priv->last_location_bookmark);
+    g_clear_object (&priv->slot_action_group);
 
-    if (priv->find_mount_cancellable != NULL)
-    {
-        g_cancellable_cancel (priv->find_mount_cancellable);
-        priv->find_mount_cancellable = NULL;
-    }
-
-    priv->window = NULL;
-
-    g_free (priv->title);
-    priv->title = NULL;
+    g_clear_pointer (&priv->find_mount_cancellable, g_cancellable_cancel);
 
     free_location_change (self);
 
     G_OBJECT_CLASS (nautilus_window_slot_parent_class)->dispose (object);
+}
+
+static void
+nautilus_window_slot_finalize (GObject *object)
+{
+    NautilusWindowSlot *self;
+    NautilusWindowSlotPrivate *priv;
+
+    self = NAUTILUS_WINDOW_SLOT (object);
+    priv = nautilus_window_slot_get_instance_private (self);
+
+    g_clear_pointer (&priv->title, g_free);
+
+    G_OBJECT_CLASS (nautilus_window_slot_parent_class)->finalize (object);
 }
 
 static void
@@ -2735,6 +2873,7 @@ nautilus_window_slot_class_init (NautilusWindowSlotClass *klass)
     klass->handles_location = real_handles_location;
 
     oclass->dispose = nautilus_window_slot_dispose;
+    oclass->finalize = nautilus_window_slot_finalize;
     oclass->constructed = nautilus_window_slot_constructed;
     oclass->set_property = nautilus_window_slot_set_property;
     oclass->get_property = nautilus_window_slot_get_property;
@@ -2972,6 +3111,7 @@ nautilus_window_slot_stop_loading (NautilusWindowSlot *self)
         load_new_location (self,
                            location,
                            selection,
+                           NULL,
                            TRUE,
                            FALSE);
         nautilus_file_list_free (selection);
@@ -3064,16 +3204,19 @@ nautilus_window_slot_get_icon (NautilusWindowSlot *self)
             return nautilus_view_get_icon (NAUTILUS_VIEW_GRID_ID);
         }
         break;
+
         case NAUTILUS_VIEW_GRID_ID:
         {
             return nautilus_view_get_icon (NAUTILUS_VIEW_LIST_ID);
         }
         break;
+
         case NAUTILUS_VIEW_OTHER_LOCATIONS_ID:
         {
             return nautilus_view_get_icon (NAUTILUS_VIEW_OTHER_LOCATIONS_ID);
         }
         break;
+
         default:
         {
             return NULL;

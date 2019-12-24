@@ -15,6 +15,7 @@ typedef enum {
 	NAUTILUS_CANVAS_ZOOM_LEVEL_STANDARD,
 	NAUTILUS_CANVAS_ZOOM_LEVEL_LARGE,
 	NAUTILUS_CANVAS_ZOOM_LEVEL_LARGER,
+	NAUTILUS_CANVAS_ZOOM_LEVEL_LARGEST,
 } NautilusCanvasZoomLevel;
 
 typedef enum {
@@ -25,7 +26,7 @@ typedef enum {
 } NautilusListZoomLevel;
 
 #define NAUTILUS_LIST_ZOOM_LEVEL_N_ENTRIES (NAUTILUS_LIST_ZOOM_LEVEL_LARGER + 1)
-#define NAUTILUS_CANVAS_ZOOM_LEVEL_N_ENTRIES (NAUTILUS_CANVAS_ZOOM_LEVEL_LARGER + 1)
+#define NAUTILUS_CANVAS_ZOOM_LEVEL_N_ENTRIES (NAUTILUS_CANVAS_ZOOM_LEVEL_LARGEST + 1)
 
 /* Nominal icon sizes for each Nautilus zoom level.
  * This scheme assumes that icons are designed to
@@ -42,23 +43,13 @@ typedef enum {
 #define NAUTILUS_CANVAS_ICON_SIZE_STANDARD	64
 #define NAUTILUS_CANVAS_ICON_SIZE_LARGE		96
 #define NAUTILUS_CANVAS_ICON_SIZE_LARGER	128
+#define NAUTILUS_CANVAS_ICON_SIZE_LARGEST	256
 
 /* Maximum size of an icon that the icon factory will ever produce */
 #define NAUTILUS_ICON_MAXIMUM_SIZE     320
 
-typedef struct _NautilusIconInfo      NautilusIconInfo;
-typedef struct _NautilusIconInfoClass NautilusIconInfoClass;
-
-
-#define NAUTILUS_TYPE_ICON_INFO                 (nautilus_icon_info_get_type ())
-#define NAUTILUS_ICON_INFO(obj)                 (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_ICON_INFO, NautilusIconInfo))
-#define NAUTILUS_ICON_INFO_CLASS(klass)         (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_ICON_INFO, NautilusIconInfoClass))
-#define NAUTILUS_IS_ICON_INFO(obj)              (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_ICON_INFO))
-#define NAUTILUS_IS_ICON_INFO_CLASS(klass)      (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_ICON_INFO))
-#define NAUTILUS_ICON_INFO_GET_CLASS(obj)       (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_ICON_INFO, NautilusIconInfoClass))
-
-
-GType    nautilus_icon_info_get_type (void) G_GNUC_CONST;
+#define NAUTILUS_TYPE_ICON_INFO (nautilus_icon_info_get_type ())
+G_DECLARE_FINAL_TYPE (NautilusIconInfo, nautilus_icon_info, NAUTILUS, ICON_INFO, GObject)
 
 NautilusIconInfo *    nautilus_icon_info_new_for_pixbuf               (GdkPixbuf         *pixbuf,
 								       int                scale);

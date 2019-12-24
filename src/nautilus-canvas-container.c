@@ -385,8 +385,13 @@ nautilus_canvas_container_get_grid_size_for_zoom_level (NautilusCanvasZoomLevel 
             return LARGER_ICON_GRID_WIDTH;
         }
         break;
+
+        default:
+        {
+            g_return_val_if_reached (STANDARD_ICON_GRID_WIDTH);
+        }
+        break;
     }
-    g_return_val_if_reached (STANDARD_ICON_GRID_WIDTH);
 }
 
 guint
@@ -417,8 +422,13 @@ nautilus_canvas_container_get_icon_size_for_zoom_level (NautilusCanvasZoomLevel 
             return NAUTILUS_CANVAS_ICON_SIZE_LARGER;
         }
         break;
+
+        default:
+        {
+            g_return_val_if_reached (NAUTILUS_CANVAS_ICON_SIZE_STANDARD);
+        }
+        break;
     }
-    g_return_val_if_reached (NAUTILUS_CANVAS_ICON_SIZE_STANDARD);
 }
 
 static void
@@ -2527,8 +2537,6 @@ rubberband_timeout_callback (gpointer data)
     double world_x, world_y;
     int x_scroll, y_scroll;
     int adj_x, adj_y;
-    GdkDisplay *display;
-    GdkSeat *seat;
     gboolean adj_changed;
     GtkAllocation allocation;
 
@@ -2557,11 +2565,8 @@ rubberband_timeout_callback (gpointer data)
         adj_changed = TRUE;
     }
 
-    display = gtk_widget_get_display (widget);
-    seat = gdk_display_get_default_seat (display);
-
     gdk_window_get_device_position (gtk_widget_get_window (widget),
-                                    gdk_seat_get_pointer (seat),
+                                    band_info->device,
                                     &x, &y, NULL);
 
     if (x < RUBBERBAND_SCROLL_THRESHOLD)
@@ -2736,6 +2741,10 @@ get_rubber_color (NautilusCanvasContainer *container,
 }
 
 static void
+stop_rubberbanding (NautilusCanvasContainer *container,
+                    GdkEventButton          *event);
+
+static void
 start_rubberbanding (NautilusCanvasContainer *container,
                      GdkEventButton          *event)
 {
@@ -2749,8 +2758,16 @@ start_rubberbanding (NautilusCanvasContainer *container,
     details = container->details;
     band_info = &details->rubberband_info;
 
+    if (band_info->active)
+    {
+        g_debug ("Canceling active rubberband by device %s", gdk_device_get_name (band_info->device));
+        stop_rubberbanding (container, NULL);
+    }
+
     g_signal_emit (container,
                    signals[BAND_SELECT_STARTED], 0);
+
+    band_info->device = event->device;
 
     for (p = details->icons; p != NULL; p = p->next)
     {
@@ -2804,7 +2821,8 @@ start_rubberbanding (NautilusCanvasContainer *container,
 }
 
 static void
-stop_rubberbanding (NautilusCanvasContainer *container)
+stop_rubberbanding (NautilusCanvasContainer *container,
+                    GdkEventButton          *event)
 {
     NautilusCanvasRubberbandInfo *band_info;
     GList *icons;
@@ -2812,11 +2830,18 @@ stop_rubberbanding (NautilusCanvasContainer *container)
 
     band_info = &container->details->rubberband_info;
 
+    if (event != NULL && event->device != band_info->device)
+    {
+        return;
+    }
+
     g_assert (band_info->timer_id != 0);
     g_source_remove (band_info->timer_id);
     band_info->timer_id = 0;
 
     band_info->active = FALSE;
+
+    band_info->device = NULL;
 
     g_object_get (gtk_settings_get_default (), "gtk-enable-animations", &enable_animation, NULL);
 
@@ -4951,7 +4976,7 @@ button_release_event (GtkWidget      *widget,
 
     if (event->button == RUBBERBAND_BUTTON && details->rubberband_info.active)
     {
-        stop_rubberbanding (container);
+        stop_rubberbanding (container, event);
         return TRUE;
     }
 
@@ -5183,22 +5208,6 @@ key_press_event (GtkWidget   *widget,
         }
         break;
 
-        case GDK_KEY_Return:
-        case GDK_KEY_KP_Enter:
-        {
-            if ((event->state & GDK_SHIFT_MASK) != 0)
-            {
-                activate_selected_items_alternate (container, NULL);
-            }
-            else
-            {
-                activate_selected_items (container);
-            }
-
-            handled = TRUE;
-        }
-        break;
-
         case GDK_KEY_Escape:
         {
             handled = undo_stretching (container);
@@ -5295,7 +5304,7 @@ grab_notify_cb  (GtkWidget *widget,
          * up (e.g. authentication or an error). Stop
          * the rubberbanding so that we can handle the
          * dialog. */
-        stop_rubberbanding (container);
+        stop_rubberbanding (container, NULL);
     }
 }
 

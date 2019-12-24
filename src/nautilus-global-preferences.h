@@ -32,9 +32,6 @@ G_BEGIN_DECLS
 /* Trash options */
 #define NAUTILUS_PREFERENCES_CONFIRM_TRASH			"confirm-trash"
 
-/* Automatic decompression */
-#define NAUTILUS_PREFERENCES_AUTOMATIC_DECOMPRESSION            "automatic-decompression"
-
 /* Display  */
 #define NAUTILUS_PREFERENCES_SHOW_HIDDEN_FILES			"show-hidden"
 
@@ -92,6 +89,9 @@ typedef enum
 
 /* Icon View */
 #define NAUTILUS_PREFERENCES_ICON_VIEW_DEFAULT_ZOOM_LEVEL		"default-zoom-level"
+
+/* Experimental views */
+#define NAUTILUS_PREFERENCES_USE_EXPERIMENTAL_VIEWS "use-experimental-views"
 
 /* Which text attributes appear beneath icon names */
 #define NAUTILUS_PREFERENCES_ICON_VIEW_CAPTIONS				"captions"
@@ -173,6 +173,9 @@ typedef enum
 /* Context menu options */
 #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
 #define NAUTILUS_PREFERENCES_SHOW_CREATE_LINK "show-create-link"
+
+/* Full Text Search as default */
+#define NAUTILUS_PREFERENCES_FTS_DEFAULT "fts-default"
 
 void nautilus_global_preferences_init                      (void);
 

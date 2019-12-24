@@ -37,12 +37,18 @@
 #include "nautilus-file-undo-manager.h"
 #include "nautilus-toolbar-menu-sections.h"
 
+#include "animation/ide-box-theatric.h"
+#include "animation/egg-animation.h"
+
 #include <glib/gi18n.h>
 #include <math.h>
 
 #define OPERATION_MINIMUM_TIME 2 /*s */
 #define NEEDS_ATTENTION_ANIMATION_TIMEOUT 2000 /*ms */
 #define REMOVE_FINISHED_OPERATIONS_TIEMOUT 3 /*s */
+
+#define ANIMATION_X_GROW 30
+#define ANIMATION_Y_GROW 30
 
 typedef enum
 {
@@ -63,6 +69,7 @@ struct _NautilusToolbar
     GtkWidget *location_entry;
 
     gboolean show_location_entry;
+    gboolean location_entry_should_auto_hide;
 
     guint popup_timeout_id;
     guint start_operations_timeout_id;
@@ -184,78 +191,10 @@ fill_menu (NautilusWindow *window,
     }
 }
 
-/* adapted from gtk/gtkmenubutton.c */
-static void
-menu_position_func (GtkMenu   *menu,
-                    gint      *x,
-                    gint      *y,
-                    gboolean  *push_in,
-                    GtkWidget *widget)
-{
-    GtkWidget *toplevel;
-    GtkRequisition menu_req;
-    GdkRectangle monitor;
-    gint monitor_num;
-    GdkScreen *screen;
-    GdkWindow *window;
-    GtkAllocation allocation;
-
-    /* Set the dropdown menu hint on the toplevel, so the WM can omit the top side
-     * of the shadows.
-     */
-    toplevel = gtk_widget_get_toplevel (GTK_WIDGET (menu));
-    gtk_window_set_type_hint (GTK_WINDOW (toplevel), GDK_WINDOW_TYPE_HINT_DROPDOWN_MENU);
-
-    window = gtk_widget_get_window (widget);
-    screen = gtk_widget_get_screen (GTK_WIDGET (menu));
-    monitor_num = gdk_screen_get_monitor_at_window (screen, window);
-    if (monitor_num < 0)
-    {
-        monitor_num = 0;
-    }
-
-    gdk_screen_get_monitor_workarea (screen, monitor_num, &monitor);
-    gtk_widget_get_preferred_size (GTK_WIDGET (menu), &menu_req, NULL);
-    gtk_widget_get_allocation (widget, &allocation);
-    gdk_window_get_origin (window, x, y);
-
-    *x += allocation.x;
-    *y += allocation.y;
-
-    if (gtk_widget_get_direction (widget) == GTK_TEXT_DIR_RTL)
-    {
-        *x -= MAX (menu_req.width - allocation.width, 0);
-    }
-    else
-    {
-        *x += MAX (allocation.width - menu_req.width, 0);
-    }
-
-    if ((*y + allocation.height + menu_req.height) <= monitor.y + monitor.height)
-    {
-        *y += allocation.height;
-    }
-    else if ((*y - menu_req.height) >= monitor.y)
-    {
-        *y -= menu_req.height;
-    }
-    else if (monitor.y + monitor.height - (*y + allocation.height) > *y)
-    {
-        *y += allocation.height;
-    }
-    else
-    {
-        *y -= menu_req.height;
-    }
-
-    *push_in = FALSE;
-}
-
 static void
 show_menu (NautilusToolbar *self,
            GtkWidget       *widget,
-           guint            button,
-           guint32          event_time)
+           const GdkEvent  *event)
 {
     NautilusWindow *window;
     GtkWidget *menu;
@@ -289,9 +228,10 @@ show_menu (NautilusToolbar *self,
     }
 
     gtk_menu_attach_to_widget (GTK_MENU (menu), GTK_WIDGET (window), NULL);
-    gtk_menu_popup (GTK_MENU (menu), NULL, NULL,
-                    (GtkMenuPositionFunc) menu_position_func, widget,
-                    button, event_time);
+    gtk_menu_popup_at_widget (GTK_MENU (menu), widget,
+                              GDK_GRAVITY_SOUTH_WEST,
+                              GDK_GRAVITY_NORTH_WEST,
+                              event);
 }
 
 #define MENU_POPUP_TIMEOUT 1200
@@ -300,11 +240,13 @@ typedef struct
 {
     NautilusToolbar *self;
     GtkWidget *widget;
+    GdkEvent *event;
 } ScheduleMenuData;
 
 static void
 schedule_menu_data_free (ScheduleMenuData *data)
 {
+    gdk_event_free (data->event);
     g_slice_free (ScheduleMenuData, data);
 }
 
@@ -313,10 +255,12 @@ popup_menu_timeout_cb (gpointer user_data)
 {
     ScheduleMenuData *data = user_data;
 
-    show_menu (data->self, data->widget,
-               1, gtk_get_current_event_time ());
+    show_menu (data->self, data->widget, data->event);
 
-    return FALSE;
+    /* Need to also reset the ID here. */
+    unschedule_menu_popup_timeout (data->self);
+
+    return G_SOURCE_REMOVE;
 }
 
 static void
@@ -331,7 +275,8 @@ unschedule_menu_popup_timeout (NautilusToolbar *self)
 
 static void
 schedule_menu_popup_timeout (NautilusToolbar *self,
-                             GtkWidget       *widget)
+                             GtkWidget       *widget,
+                             GdkEvent        *event)
 {
     ScheduleMenuData *data;
 
@@ -341,28 +286,32 @@ schedule_menu_popup_timeout (NautilusToolbar *self,
     data = g_slice_new0 (ScheduleMenuData);
     data->self = self;
     data->widget = widget;
+    data->event = gdk_event_copy (event);
 
     self->popup_timeout_id = g_timeout_add_full (G_PRIORITY_DEFAULT, MENU_POPUP_TIMEOUT,
                                                  popup_menu_timeout_cb, data,
                                                  (GDestroyNotify) schedule_menu_data_free);
 }
 static gboolean
-navigation_button_press_cb (GtkButton      *button,
-                            GdkEventButton *event,
-                            gpointer        user_data)
+navigation_button_press_cb (GtkButton *button,
+                            GdkEvent  *event,
+                            gpointer   user_data)
 {
     NautilusToolbar *self = user_data;
+    GdkEventButton *button_event;
 
-    if (event->button == 3)
+    button_event = (GdkEventButton *) event;
+
+    if (button_event->button == 3)
     {
         /* right click */
-        show_menu (self, GTK_WIDGET (button), event->button, event->time);
+        show_menu (self, GTK_WIDGET (button), event);
         return TRUE;
     }
 
-    if (event->button == 1)
+    if (button_event->button == 1)
     {
-        schedule_menu_popup_timeout (self, GTK_WIDGET (button));
+        schedule_menu_popup_timeout (self, GTK_WIDGET (button), event);
     }
 
     return FALSE;
@@ -632,8 +581,32 @@ update_operations (NautilusToolbar *self)
          * property set. */
         if (gtk_widget_is_visible (GTK_WIDGET (self)))
         {
-            gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (self->operations_button),
-                                          TRUE);
+            GtkAllocation rect;
+            IdeBoxTheatric *theatric;
+
+            gtk_widget_get_allocation (GTK_WIDGET (self->operations_button), &rect);
+            theatric = g_object_new (IDE_TYPE_BOX_THEATRIC,
+                                     "alpha", 0.9,
+                                     "background", "#fdfdfd",
+                                     "target", self->operations_button,
+                                     "height", rect.height,
+                                     "width", rect.width,
+                                     "x", rect.x,
+                                     "y", rect.y,
+                                     NULL);
+
+            egg_object_animate_full (theatric,
+                                     EGG_ANIMATION_EASE_IN_CUBIC,
+                                     250,
+                                     gtk_widget_get_frame_clock (GTK_WIDGET (self->operations_button)),
+                                     g_object_unref,
+                                     theatric,
+                                     "x", rect.x - ANIMATION_X_GROW,
+                                     "width", rect.width + (ANIMATION_X_GROW * 2),
+                                     "y", rect.y - ANIMATION_Y_GROW,
+                                     "height", rect.height + (ANIMATION_Y_GROW * 2),
+                                     "alpha", 0.0,
+                                     NULL);
         }
     }
 
@@ -881,11 +854,64 @@ undo_manager_changed (NautilusToolbar *self)
 
     /* Set the label of the undo and redo menu items, and activate them appropriately
      */
-    undo_label = undo_active && undo_label != NULL ? undo_label : g_strdup (_("_Undo"));
+    if (!undo_active || undo_label == NULL)
+    {
+        g_free (undo_label);
+        undo_label = g_strdup (_("_Undo"));
+    }
     update_menu_item (self->undo_button, self, "undo", undo_active, undo_label);
 
-    redo_label = redo_active && redo_label != NULL ? redo_label : g_strdup (_("_Redo"));
+    if (!redo_active || redo_label == NULL)
+    {
+        g_free (redo_label);
+        redo_label = g_strdup (_("_Redo"));
+    }
     update_menu_item (self->redo_button, self, "redo", redo_active, redo_label);
+}
+
+static gboolean
+on_location_entry_populate_popup (GtkEntry  *entry,
+                                  GtkWidget *widget,
+                                  gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    toolbar->location_entry_should_auto_hide = FALSE;
+
+    return GDK_EVENT_PROPAGATE;
+}
+
+static gboolean
+on_location_entry_focus_out_event (GtkWidget *widget,
+                                   GdkEvent  *event,
+                                   gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    if (toolbar->location_entry_should_auto_hide)
+    {
+        nautilus_toolbar_set_show_location_entry (toolbar, FALSE);
+    }
+
+    return GDK_EVENT_PROPAGATE;
+}
+
+static gboolean
+on_location_entry_focus_in_event (GtkWidget *widget,
+                                  GdkEvent  *event,
+                                  gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    toolbar->location_entry_should_auto_hide = TRUE;
+
+    return GDK_EVENT_PROPAGATE;
 }
 
 static void
@@ -898,6 +924,8 @@ nautilus_toolbar_init (NautilusToolbar *self)
 
     builder = gtk_builder_new_from_resource ("/org/gnome/nautilus/ui/nautilus-toolbar-menu.ui");
     menu_popover = GTK_WIDGET (gtk_builder_get_object (builder, "menu_popover"));
+
+    self->window = NULL;
     self->view_menu_zoom_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_zoom_section"));
     self->view_menu_undo_redo_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_undo_redo_section"));
     self->view_menu_extended_section = GTK_WIDGET (gtk_builder_get_object (builder, "view_menu_extended_section"));
@@ -938,6 +966,12 @@ nautilus_toolbar_init (NautilusToolbar *self)
                       (GCallback) gtk_widget_grab_focus, NULL);
     g_signal_connect_swapped (self->operations_popover, "closed",
                               (GCallback) gtk_widget_grab_focus, self);
+    g_signal_connect (self->location_entry, "populate-popup",
+                      G_CALLBACK (on_location_entry_populate_popup), self);
+    g_signal_connect (self->location_entry, "focus-out-event",
+                      G_CALLBACK (on_location_entry_focus_out_event), self);
+    g_signal_connect (self->location_entry, "focus-in-event",
+                      G_CALLBACK (on_location_entry_focus_in_event), self);
 
     gtk_widget_show_all (GTK_WIDGET (self));
     toolbar_update_appearance (self);
@@ -982,6 +1016,58 @@ nautilus_toolbar_get_property (GObject    *object,
     }
 }
 
+/* The working assumption being made here is, if the location entry is visible,
+ * the user must have switched windows while having keyboard focus on the entry
+ * (because otherwise it would be invisible),
+ * so we focus the entry explicitly to reset the “should auto-hide” flag.
+ */
+static gboolean
+on_window_focus_in_event (GtkWidget *widget,
+                          GdkEvent  *event,
+                          gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    if (g_settings_get_boolean (nautilus_preferences,
+                                NAUTILUS_PREFERENCES_ALWAYS_USE_LOCATION_ENTRY))
+    {
+        return GDK_EVENT_PROPAGATE;
+    }
+
+    if (toolbar->show_location_entry)
+    {
+        gtk_widget_grab_focus (toolbar->location_entry);
+    }
+
+    return GDK_EVENT_PROPAGATE;
+}
+
+/* The location entry in general is hidden when it loses focus,
+ * but hiding it when switching windows could be undesirable, as the user
+ * might want to copy a path from somewhere. This here prevents that from happening.
+ */
+static gboolean
+on_window_focus_out_event (GtkWidget *widget,
+                           GdkEvent  *event,
+                           gpointer   user_data)
+{
+    NautilusToolbar *toolbar;
+
+    toolbar = user_data;
+
+    if (g_settings_get_boolean (nautilus_preferences,
+                                NAUTILUS_PREFERENCES_ALWAYS_USE_LOCATION_ENTRY))
+    {
+        return GDK_EVENT_PROPAGATE;
+    }
+
+    toolbar->location_entry_should_auto_hide = FALSE;
+
+    return GDK_EVENT_PROPAGATE;
+}
+
 static void
 nautilus_toolbar_set_property (GObject      *object,
                                guint         property_id,
@@ -994,7 +1080,21 @@ nautilus_toolbar_set_property (GObject      *object,
     {
         case PROP_WINDOW:
         {
+            if (self->window != NULL)
+            {
+                g_signal_handlers_disconnect_by_func (self->window,
+                                                      on_window_focus_in_event, self);
+                g_signal_handlers_disconnect_by_func (self->window,
+                                                      on_window_focus_out_event, self);
+            }
             self->window = g_value_get_object (value);
+            if (self->window != NULL)
+            {
+                g_signal_connect (self->window, "focus-in-event",
+                                  G_CALLBACK (on_window_focus_in_event), self);
+                g_signal_connect (self->window, "focus-out-event",
+                                  G_CALLBACK (on_window_focus_out_event), self);
+            }
         }
         break;
 
@@ -1027,6 +1127,11 @@ nautilus_toolbar_finalize (GObject *obj)
 
     g_signal_handlers_disconnect_by_data (self->progress_manager, self);
     g_clear_object (&self->progress_manager);
+
+    g_signal_handlers_disconnect_by_func (self->window,
+                                          on_window_focus_in_event, self);
+    g_signal_handlers_disconnect_by_func (self->window,
+                                          on_window_focus_out_event, self);
 
     G_OBJECT_CLASS (nautilus_toolbar_parent_class)->finalize (obj);
 }
