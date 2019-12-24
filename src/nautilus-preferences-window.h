@@ -22,7 +22,8 @@
    Authors: Jan Arne Petersen <jpetersen@uni-bonn.de>
 */
 
-#pragma once
+#ifndef NAUTILUS_PREFERENCES_WINDOW_H
+#define NAUTILUS_PREFERENCES_WINDOW_H
 
 #include <glib-object.h>
 #include <gtk/gtk.h>
@@ -32,3 +33,5 @@ G_BEGIN_DECLS
 void nautilus_preferences_window_show(GtkWindow *window);
 
 G_END_DECLS
+
+#endif /* NAUTILUS_PREFERENCES_WINDOW_H */

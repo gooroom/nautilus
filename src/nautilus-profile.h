@@ -23,7 +23,8 @@
  *       See: http://www.gnome.org/~federico/news-2006-03.html#09
  */
 
-#pragma once
+#ifndef __NAUTILUS_PROFILE_H
+#define __NAUTILUS_PROFILE_H
 
 #include <glib.h>
 
@@ -51,3 +52,5 @@ void            _nautilus_profile_log    (const char *func,
                                           ...) G_GNUC_PRINTF (3, 4);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_PROFILE_H */

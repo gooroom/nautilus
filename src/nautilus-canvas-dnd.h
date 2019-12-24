@@ -23,7 +23,8 @@
 	    Andy Hertzfeld <andy@eazel.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_CANVAS_DND_H
+#define NAUTILUS_CANVAS_DND_H
 
 #include "nautilus-canvas-container.h"
 #include "nautilus-dnd.h"
@@ -54,3 +55,5 @@ void   nautilus_canvas_dnd_end_drag              (NautilusCanvasContainer *conta
 
 NautilusDragInfo* nautilus_canvas_dnd_get_drag_source_data (NautilusCanvasContainer *container,
                                                             GdkDragContext          *context);
+
+#endif /* NAUTILUS_CANVAS_DND_H */

@@ -21,25 +21,67 @@
  *
  */
 
+#include <config.h>
 #include "nautilus-column-provider.h"
 
-G_DEFINE_INTERFACE (NautilusColumnProvider, nautilus_column_provider, G_TYPE_OBJECT)
+#include <glib-object.h>
+
+/**
+ * SECTION:nautilus-column-provider
+ * @title: NautilusColumnProvider
+ * @short_description: Interface to provide additional list view columns
+ * @include: libnautilus-extension/nautilus-column-provider.h
+ *
+ * #NautilusColumnProvider allows extension to provide additional columns
+ * in the file manager list view.
+ */
 
 static void
-nautilus_column_provider_default_init (NautilusColumnProviderInterface *klass)
+nautilus_column_provider_base_init (gpointer g_class)
 {
 }
 
-GList *
-nautilus_column_provider_get_columns (NautilusColumnProvider *self)
+GType
+nautilus_column_provider_get_type (void)
 {
-    NautilusColumnProviderInterface *iface;
+    static GType type = 0;
 
-    g_return_val_if_fail (NAUTILUS_IS_COLUMN_PROVIDER (self), NULL);
+    if (!type)
+    {
+        const GTypeInfo info =
+        {
+            sizeof (NautilusColumnProviderIface),
+            nautilus_column_provider_base_init,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            0,
+            0,
+            NULL
+        };
 
-    iface = NAUTILUS_COLUMN_PROVIDER_GET_IFACE (self);
+        type = g_type_register_static (G_TYPE_INTERFACE,
+                                       "NautilusColumnProvider",
+                                       &info, 0);
+        g_type_interface_add_prerequisite (type, G_TYPE_OBJECT);
+    }
 
-    g_return_val_if_fail (iface->get_columns != NULL, NULL);
+    return type;
+}
 
-    return iface->get_columns (self);
+/**
+ * nautilus_column_provider_get_columns:
+ * @provider: a #NautilusColumnProvider
+ *
+ * Returns: (element-type NautilusColumn) (transfer full): the provided #NautilusColumn objects
+ */
+GList *
+nautilus_column_provider_get_columns (NautilusColumnProvider *provider)
+{
+    g_return_val_if_fail (NAUTILUS_IS_COLUMN_PROVIDER (provider), NULL);
+    g_return_val_if_fail (NAUTILUS_COLUMN_PROVIDER_GET_IFACE (provider)->get_columns != NULL, NULL);
+
+    return NAUTILUS_COLUMN_PROVIDER_GET_IFACE (provider)->get_columns
+               (provider);
 }

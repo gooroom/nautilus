@@ -23,15 +23,29 @@
             Ramiro Estrugo <ramiro@eazel.com>
 */
 
-#pragma once
+#ifndef EEL_GTK_EXTENSIONS_H
+#define EEL_GTK_EXTENSIONS_H
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gtk/gtk.h>
+#include <eel/eel-gdk-extensions.h>
 
 /* GtkWindow */
+void                  eel_gtk_window_set_initial_geometry_from_string (GtkWindow            *window,
+								       const char           *geometry_string,
+								       guint                 minimum_width,
+								       guint                 minimum_height,
+								       gboolean		     ignore_position);
 char *                eel_gtk_window_get_geometry_string              (GtkWindow            *window);
+
 
 /* GtkMenu and GtkMenuItem */
 GtkMenuItem *         eel_gtk_menu_append_separator                   (GtkMenu              *menu);
 GtkMenuItem *         eel_gtk_menu_insert_separator                   (GtkMenu              *menu,
 								       int                   index);
+
+/* GtkMessageDialog */
+void                  eel_gtk_message_dialog_set_details_label        (GtkMessageDialog          *dialog,
+								       const gchar               *details_text);
+
+#endif /* EEL_GTK_EXTENSIONS_H */

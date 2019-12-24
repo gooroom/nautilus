@@ -17,7 +17,8 @@
  *
  */
 
-#pragma once
+#ifndef NAUTILUS_COMPRESS_DIALOG_CONTROLLER_H
+#define NAUTILUS_COMPRESS_DIALOG_CONTROLLER_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -31,3 +32,5 @@ G_DECLARE_FINAL_TYPE (NautilusCompressDialogController, nautilus_compress_dialog
 NautilusCompressDialogController * nautilus_compress_dialog_controller_new (GtkWindow         *parent_window,
                                                                             NautilusDirectory *destination_directory,
                                                                             gchar             *initial_name);
+
+#endif /* NAUTILUS_COMPRESS_DIALOG_CONTROLLER_H */

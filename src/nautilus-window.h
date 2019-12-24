@@ -24,21 +24,37 @@
  */
 /* nautilus-window.h: Interface of the main window object */
 
-#pragma once
+#ifndef NAUTILUS_WINDOW_H
+#define NAUTILUS_WINDOW_H
 
 #include <gtk/gtk.h>
-
-#include "nautilus-types.h"
+#include <eel/eel-glib-extensions.h>
+#include "nautilus-bookmark.h"
+#include "nautilus-search-directory.h"
 
 G_BEGIN_DECLS
 
+typedef enum {
+        NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND = 1 << 0,
+        NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW = 1 << 1,
+        NAUTILUS_WINDOW_OPEN_FLAG_NEW_TAB = 1 << 2,
+        NAUTILUS_WINDOW_OPEN_SLOT_APPEND = 1 << 3,
+        NAUTILUS_WINDOW_OPEN_FLAG_DONT_MAKE_ACTIVE = 1 << 4
+} NautilusWindowOpenFlags;
+
 #define NAUTILUS_TYPE_WINDOW (nautilus_window_get_type ())
-G_DECLARE_FINAL_TYPE (NautilusWindow, nautilus_window, NAUTILUS, WINDOW, GtkApplicationWindow);
+G_DECLARE_DERIVABLE_TYPE (NautilusWindow, nautilus_window, NAUTILUS, WINDOW, GtkApplicationWindow);
 
 typedef gboolean (* NautilusWindowGoToCallback) (NautilusWindow *window,
                                                  GFile *location,
                                                  GError *error,
                                                  gpointer user_data);
+
+#include "nautilus-files-view.h"
+#include "nautilus-window-slot.h"
+
+#define NAUTILUS_WINDOW_SIDEBAR_PLACES "places"
+#define NAUTILUS_WINDOW_SIDEBAR_TREE "tree"
 
 /* window geometry */
 /* Min values are very small, and a Nautilus window at this tiny size is *almost*
@@ -50,6 +66,22 @@ typedef gboolean (* NautilusWindowGoToCallback) (NautilusWindow *window,
 #define NAUTILUS_WINDOW_MIN_HEIGHT		200
 #define NAUTILUS_WINDOW_DEFAULT_WIDTH		890
 #define NAUTILUS_WINDOW_DEFAULT_HEIGHT		550
+
+
+struct _NautilusWindowClass
+{
+        GtkApplicationWindowClass parent_spot;
+
+	/* Function pointers for overriding, without corresponding signals */
+        void   (* sync_title) (NautilusWindow *window,
+			       NautilusWindowSlot *slot);
+        void   (* close) (NautilusWindow *window);
+        /* Use this in case your window has a special slot. Also is expected that
+         * the slot is initialized with nautilus_window_initialize_slot.
+         */
+        NautilusWindowSlot * (* create_slot) (NautilusWindow *window,
+                                              GFile          *location);
+};
 
 NautilusWindow * nautilus_window_new                  (GdkScreen         *screen);
 void             nautilus_window_close                (NautilusWindow    *window);
@@ -76,6 +108,7 @@ void     nautilus_window_back_or_forward      (NautilusWindow *window,
                                                gboolean        back,
                                                guint           distance,
                                                NautilusWindowOpenFlags flags);
+void nautilus_window_hide_view_menu (NautilusWindow *window);
 void nautilus_window_reset_menus (NautilusWindow *window);
 
 GtkWidget *         nautilus_window_get_notebook (NautilusWindow *window);
@@ -102,10 +135,12 @@ void nautilus_window_end_dnd (NautilusWindow *window,
                               GdkDragContext *context);
 
 void nautilus_window_search (NautilusWindow *window,
-                             NautilusQuery  *query);
+                             const gchar    *text);
 
 void nautilus_window_initialize_slot (NautilusWindow          *window,
                                       NautilusWindowSlot      *slot,
                                       NautilusWindowOpenFlags  flags);
 
 G_END_DECLS
+
+#endif

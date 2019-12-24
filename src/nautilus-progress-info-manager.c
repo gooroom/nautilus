@@ -93,6 +93,7 @@ nautilus_progress_info_manager_constructor (GType                  type,
 static void
 nautilus_progress_info_manager_init (NautilusProgressInfoManager *self)
 {
+    
 }
 
 static void

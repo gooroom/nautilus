@@ -28,64 +28,44 @@
  * Extensions are called when Nautilus displays a location.
  */
 
-#pragma once
-
-#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
-#warning "Only <nautilus-extension.h> should be included directly."
-#endif
+#ifndef NAUTILUS_LOCATION_WIDGET_PROVIDER_H
+#define NAUTILUS_LOCATION_WIDGET_PROVIDER_H
 
 #include <glib-object.h>
 #include <gtk/gtk.h>
-/* This should be removed at some point. */
 #include "nautilus-extension-types.h"
 
 G_BEGIN_DECLS
 
-#define NAUTILUS_TYPE_LOCATION_WIDGET_PROVIDER (nautilus_location_widget_provider_get_type ())
+#define NAUTILUS_TYPE_LOCATION_WIDGET_PROVIDER           (nautilus_location_widget_provider_get_type ())
+#define NAUTILUS_LOCATION_WIDGET_PROVIDER(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_LOCATION_WIDGET_PROVIDER, NautilusLocationWidgetProvider))
+#define NAUTILUS_IS_LOCATION_WIDGET_PROVIDER(obj)        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_LOCATION_WIDGET_PROVIDER))
+#define NAUTILUS_LOCATION_WIDGET_PROVIDER_GET_IFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), NAUTILUS_TYPE_LOCATION_WIDGET_PROVIDER, NautilusLocationWidgetProviderIface))
 
-G_DECLARE_INTERFACE (NautilusLocationWidgetProvider, nautilus_location_widget_provider,
-                     NAUTILUS, LOCATION_WIDGET_PROVIDER,
-                     GObject)
-
-/* For compatibility reasons, remove this once you start introducing breaking changes. */
-typedef NautilusLocationWidgetProviderInterface NautilusLocationWidgetProviderIface;
-
-/**
- * SECTION:nautilus-location-widget-provider
- * @title: NautilusLocationWidgetProvider
- * @short_description: Interface to provide additional location widgets
- *
- * #NautilusLocationWidgetProvider allows extension to provide additional location
- * widgets in the file manager views.
- */
+typedef struct _NautilusLocationWidgetProvider       NautilusLocationWidgetProvider;
+typedef struct _NautilusLocationWidgetProviderIface  NautilusLocationWidgetProviderIface;
 
 /**
- * NautilusLocationWidgetProviderInterface:
+ * NautilusLocationWidgetProviderIface:
  * @g_iface: The parent interface.
  * @get_widget: Returns a #GtkWidget.
  *   See nautilus_location_widget_provider_get_widget() for details.
  *
  * Interface for extensions to provide additional location widgets.
  */
-struct _NautilusLocationWidgetProviderInterface
-{
-    GTypeInterface g_iface;
+struct _NautilusLocationWidgetProviderIface {
+	GTypeInterface g_iface;
 
-    GtkWidget *(*get_widget) (NautilusLocationWidgetProvider *provider,
-                              const char                     *uri,
-                              GtkWidget                      *window);
+	GtkWidget * (*get_widget) (NautilusLocationWidgetProvider *provider,
+				   const char                     *uri,
+				   GtkWidget                      *window);
 };
 
-/**
- * nautilus_location_widget_provider_get_widget:
- * @provider: a #NautilusLocationWidgetProvider
- * @uri: the URI of the location
- * @window: parent #GtkWindow
- *
- * Returns: (transfer none): the location widget for @provider at @uri
- */
-GtkWidget *nautilus_location_widget_provider_get_widget (NautilusLocationWidgetProvider *provider,
-                                                         const char                     *uri,
-                                                         GtkWidget                      *window);
-
+/* Interface Functions */
+GType       nautilus_location_widget_provider_get_type      (void);
+GtkWidget * nautilus_location_widget_provider_get_widget    (NautilusLocationWidgetProvider     *provider,
+							     const char                         *uri,
+							     GtkWidget                          *window);
 G_END_DECLS
+
+#endif

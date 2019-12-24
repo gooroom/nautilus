@@ -19,11 +19,8 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#pragma once
-
-#include <gio/gio.h>
-
-#include "nautilus-types.h"
+#include <gdk/gdk.h>
+#include "nautilus-file.h"
 
 typedef struct {
 	char *from_uri;
@@ -34,6 +31,13 @@ typedef struct {
 	GFile *from;
 	GFile *to;
 } GFilePair;
+
+typedef struct {
+	GFile *location;
+	gboolean set;
+	GdkPoint point;
+	int screen;
+} NautilusFileChangesQueuePosition;
 
 /* Almost-public change notification calls */
 void nautilus_directory_notify_files_added   (GList *files);
@@ -48,6 +52,7 @@ void nautilus_directory_schedule_metadata_remove (GList        *files);
 void nautilus_directory_schedule_metadata_copy_by_uri   (GList        *uri_pairs);
 void nautilus_directory_schedule_metadata_move_by_uri   (GList        *uri_pairs);
 void nautilus_directory_schedule_metadata_remove_by_uri (GList        *uris);
+void nautilus_directory_schedule_position_set    (GList        *position_setting_list);
 
 /* Change notification hack.
  * This is called when code modifies the file and it needs to trigger

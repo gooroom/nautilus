@@ -20,13 +20,15 @@
    Authors: Maciej Stachowiak <mjs@eazel.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_MIME_ACTIONS_H
+#define NAUTILUS_MIME_ACTIONS_H
 
 #include <gio/gio.h>
 #include <glib/gi18n.h>
-#include <gtk/gtk.h>
 
-#include "nautilus-types.h"
+#include "nautilus-file.h"
+
+#include "nautilus-window.h"
 
 NautilusFileAttributes nautilus_mime_actions_get_required_file_attributes (void);
 
@@ -52,3 +54,6 @@ void                   nautilus_mime_activate_file                        (GtkWi
 gint                   nautilus_mime_types_get_number_of_groups           (void);
 const gchar*           nautilus_mime_types_group_get_name                 (gint                     group_index);
 GList*                 nautilus_mime_types_group_get_mimetypes            (gint                     group_index);
+
+
+#endif /* NAUTILUS_MIME_ACTIONS_H */

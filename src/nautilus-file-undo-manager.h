@@ -19,7 +19,8 @@
  * Author: Amos Brocco <amos.brocco@gmail.com>
  */
 
-#pragma once
+#ifndef __NAUTILUS_FILE_UNDO_MANAGER_H__
+#define __NAUTILUS_FILE_UNDO_MANAGER_H__
 
 #include <glib.h>
 #include <glib-object.h>
@@ -51,3 +52,5 @@ void nautilus_file_undo_manager_undo (GtkWindow *parent_window);
 void nautilus_file_undo_manager_redo (GtkWindow *parent_window);
 
 gboolean nautilus_file_undo_manager_is_operating (void);
+
+#endif /* __NAUTILUS_FILE_UNDO_MANAGER_H__ */

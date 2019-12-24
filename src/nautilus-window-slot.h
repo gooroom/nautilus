@@ -19,13 +19,12 @@
    Author: Christian Neumair <cneumair@gnome.org>
 */
 
-#pragma once
+#ifndef NAUTILUS_WINDOW_SLOT_H
+#define NAUTILUS_WINDOW_SLOT_H
 
 #include <gdk/gdk.h>
 #include <gio/gio.h>
 #include <gtk/gtk.h>
-
-#include "nautilus-types.h"
 
 typedef enum {
 	NAUTILUS_LOCATION_CHANGE_STANDARD,
@@ -36,6 +35,12 @@ typedef enum {
 
 #define NAUTILUS_TYPE_WINDOW_SLOT (nautilus_window_slot_get_type ())
 G_DECLARE_DERIVABLE_TYPE (NautilusWindowSlot, nautilus_window_slot, NAUTILUS, WINDOW_SLOT, GtkBox)
+
+#include "nautilus-query-editor.h"
+#include "nautilus-files-view.h"
+#include "nautilus-view.h"
+#include "nautilus-window.h"
+#include "nautilus-toolbar-menu-sections.h"
 
 typedef struct
 {
@@ -77,7 +82,6 @@ void nautilus_window_slot_open_location_full              (NautilusWindowSlot   
                                                            GList                   *new_selection);
 
 GFile * nautilus_window_slot_get_location		   (NautilusWindowSlot *slot);
-GFile * nautilus_window_slot_get_pending_location          (NautilusWindowSlot *slot);
 
 NautilusBookmark *nautilus_window_slot_get_bookmark        (NautilusWindowSlot *slot);
 
@@ -93,7 +97,7 @@ const gchar *nautilus_window_slot_get_title                (NautilusWindowSlot *
 void         nautilus_window_slot_update_title		   (NautilusWindowSlot *slot);
 
 gboolean nautilus_window_slot_handle_event       	   (NautilusWindowSlot *slot,
-							    GdkEvent           *event);
+							    GdkEventKey        *event);
 
 void    nautilus_window_slot_queue_reload		   (NautilusWindowSlot *slot);
 
@@ -101,22 +105,14 @@ GIcon*   nautilus_window_slot_get_icon                     (NautilusWindowSlot *
 
 NautilusToolbarMenuSections * nautilus_window_slot_get_toolbar_menu_sections (NautilusWindowSlot *slot);
 
-GMenu* nautilus_window_slot_get_templates_menu (NautilusWindowSlot *self);
-
-GMenu* nautilus_window_slot_get_extensions_background_menu (NautilusWindowSlot *self);
-
 gboolean nautilus_window_slot_get_active                   (NautilusWindowSlot *slot);
 
 void     nautilus_window_slot_set_active                   (NautilusWindowSlot *slot,
                                                             gboolean            active);
 gboolean nautilus_window_slot_get_loading                  (NautilusWindowSlot *slot);
 
-gboolean nautilus_window_slot_get_searching                (NautilusWindowSlot *slot);
-
-GList* nautilus_window_slot_get_selection                  (NautilusWindowSlot *slot);
-
 void     nautilus_window_slot_search                       (NautilusWindowSlot *slot,
-                                                            NautilusQuery      *query);
+                                                            const gchar        *text);
 
 gboolean nautilus_window_slot_handles_location (NautilusWindowSlot *self,
                                                 GFile              *location);
@@ -126,7 +122,7 @@ void nautilus_window_slot_restore_from_data (NautilusWindowSlot *self,
 
 RestoreTabData* nautilus_window_slot_get_restore_tab_data (NautilusWindowSlot *self);
 
-NautilusQueryEditor *nautilus_window_slot_get_query_editor (NautilusWindowSlot *self);
-
 /* Only used by slot-dnd */
 NautilusView*  nautilus_window_slot_get_current_view       (NautilusWindowSlot *slot);
+
+#endif /* NAUTILUS_WINDOW_SLOT_H */

@@ -18,15 +18,16 @@
  *          Federico Mena Quintero <federico@gnome.org>
  */
 
+#include <config.h>
+
+#include "nautilus-application.h"
 #include "nautilus-freedesktop-dbus.h"
+#include "nautilus-freedesktop-generated.h"
 
 /* We share the same debug domain as nautilus-dbus-manager */
 #define DEBUG_FLAG NAUTILUS_DEBUG_DBUS
 #include "nautilus-debug.h"
 
-#include "nautilus-application.h"
-#include "nautilus-file.h"
-#include "nautilus-freedesktop-generated.h"
 #include "nautilus-properties-window.h"
 
 #include <gio/gio.h>
@@ -40,11 +41,6 @@ struct _NautilusFreedesktopDBus
 
     /* Our DBus implementation skeleton */
     NautilusFreedesktopFileManager1 *skeleton;
-
-    GStrv pending_open_locations;
-    GVariant *pending_open_windows_with_locations;
-
-    gboolean name_lost;
 };
 
 struct _NautilusFreedesktopDBusClass
@@ -118,12 +114,6 @@ skeleton_handle_show_folders_cb (NautilusFreedesktopFileManager1 *object,
     return TRUE;
 }
 
-static void
-properties_window_on_finished (gpointer user_data)
-{
-    g_application_release (g_application_get_default ());
-}
-
 static gboolean
 skeleton_handle_show_item_properties_cb (NautilusFreedesktopFileManager1 *object,
                                          GDBusMethodInvocation           *invocation,
@@ -143,9 +133,7 @@ skeleton_handle_show_item_properties_cb (NautilusFreedesktopFileManager1 *object
 
     files = g_list_reverse (files);
 
-    g_application_hold (g_application_get_default ());
-    nautilus_properties_window_present (files, NULL, startup_id,
-                                        properties_window_on_finished, NULL);
+    nautilus_properties_window_present (files, NULL, startup_id);
 
     nautilus_file_list_free (files);
 
@@ -172,24 +160,6 @@ bus_acquired_cb (GDBusConnection *conn,
                       G_CALLBACK (skeleton_handle_show_item_properties_cb), fdb);
 
     g_dbus_interface_skeleton_export (G_DBUS_INTERFACE_SKELETON (fdb->skeleton), conn, NAUTILUS_FDO_DBUS_PATH, NULL);
-
-    if (G_UNLIKELY (fdb->pending_open_locations != NULL))
-    {
-        g_auto (GStrv) locations = NULL;
-
-        locations = g_steal_pointer (&fdb->pending_open_locations);
-
-        nautilus_freedesktop_dbus_set_open_locations (fdb, (const gchar **) locations);
-    }
-
-    if (G_UNLIKELY (fdb->pending_open_windows_with_locations != NULL))
-    {
-        g_autoptr (GVariant) locations = NULL;
-
-        locations = g_steal_pointer (&fdb->pending_open_windows_with_locations);
-
-        nautilus_freedesktop_dbus_set_open_windows_with_locations (fdb, locations);
-    }
 }
 
 static void
@@ -205,13 +175,7 @@ name_lost_cb (GDBusConnection *connection,
               const gchar     *name,
               gpointer         user_data)
 {
-    NautilusFreedesktopDBus *fdb;
-
     DEBUG ("Lost (or failed to acquire) the name %s on the session message bus\n", name);
-
-    fdb = NAUTILUS_FREEDESKTOP_DBUS (user_data);
-
-    fdb->name_lost = TRUE;
 }
 
 static void
@@ -236,23 +200,11 @@ nautilus_freedesktop_dbus_dispose (GObject *object)
 }
 
 static void
-nautilus_freedesktop_dbus_finalize (GObject *object)
-{
-    NautilusFreedesktopDBus *fdb;
-
-    fdb = NAUTILUS_FREEDESKTOP_DBUS (object);
-
-    g_clear_pointer (&fdb->pending_open_locations, g_strfreev);
-    g_clear_pointer (&fdb->pending_open_windows_with_locations, g_variant_unref);
-}
-
-static void
 nautilus_freedesktop_dbus_class_init (NautilusFreedesktopDBusClass *klass)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
     object_class->dispose = nautilus_freedesktop_dbus_dispose;
-    object_class->finalize = nautilus_freedesktop_dbus_finalize;
 }
 
 static void
@@ -266,10 +218,6 @@ nautilus_freedesktop_dbus_init (NautilusFreedesktopDBus *fdb)
                                     name_lost_cb,
                                     fdb,
                                     NULL);
-    fdb->skeleton = NULL;
-    fdb->pending_open_locations = NULL;
-    fdb->pending_open_windows_with_locations = NULL;
-    fdb->name_lost = FALSE;
 }
 
 void
@@ -278,55 +226,7 @@ nautilus_freedesktop_dbus_set_open_locations (NautilusFreedesktopDBus  *fdb,
 {
     g_return_if_fail (NAUTILUS_IS_FREEDESKTOP_DBUS (fdb));
 
-    if (G_UNLIKELY (fdb->skeleton == NULL))
-    {
-        if (G_LIKELY (fdb->name_lost))
-        {
-            return;
-        }
-
-        g_clear_pointer (&fdb->pending_open_locations, g_strfreev);
-
-        fdb->pending_open_locations = g_strdupv ((gchar **) locations);
-    }
-    else
-    {
-        nautilus_freedesktop_file_manager1_set_open_locations (fdb->skeleton, locations);
-    }
-}
-
-/**
- * nautilus_freedesktop_dbus_set_open_windows_with_locations:
- * fdb: The skeleton for the dbus interface
- * locations: Mapping of windows to locations open in each window
- *
- * This allows the application to publish the locations that are open in each window.
- * It is used by shell extensions like dash-to-dock/ubuntu-dock to match special dock
- * icons to the windows where the icon's location is open. For example, the Trash or
- * a removable device.
- */
-void
-nautilus_freedesktop_dbus_set_open_windows_with_locations (NautilusFreedesktopDBus *fdb,
-                                                           GVariant                *locations)
-{
-    g_return_if_fail (NAUTILUS_IS_FREEDESKTOP_DBUS (fdb));
-
-    if (G_UNLIKELY (fdb->skeleton == NULL))
-    {
-        if (G_LIKELY (fdb->name_lost))
-        {
-            return;
-        }
-
-        g_clear_pointer (&fdb->pending_open_windows_with_locations, g_variant_unref);
-
-        fdb->pending_open_windows_with_locations = g_variant_ref (locations);
-    }
-    else
-    {
-        nautilus_freedesktop_file_manager1_set_open_windows_with_locations (fdb->skeleton,
-                                                                            locations);
-    }
+    nautilus_freedesktop_file_manager1_set_open_locations (fdb->skeleton, locations);
 }
 
 /* Tries to own the org.freedesktop.FileManager1 service name */

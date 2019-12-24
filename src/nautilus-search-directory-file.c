@@ -20,26 +20,23 @@
  *  Author: Anders Carlsson <andersca@imendio.com>
  */
 
+#include <config.h>
 #include "nautilus-search-directory-file.h"
-
-#include <eel/eel-glib-extensions.h>
-#include <glib/gi18n.h>
-#include <gtk/gtk.h>
-#include <string.h>
 
 #include "nautilus-directory-notify.h"
 #include "nautilus-directory-private.h"
-#include "nautilus-enums.h"
+#include "nautilus-file-attributes.h"
 #include "nautilus-file-private.h"
 #include "nautilus-file-utilities.h"
 #include "nautilus-keyfile-metadata.h"
-#include "nautilus-query.h"
+#include <eel/eel-glib-extensions.h>
 #include "nautilus-search-directory.h"
+#include <gtk/gtk.h>
+#include <glib/gi18n.h>
+#include <string.h>
 
-struct _NautilusSearchDirectoryFile
+struct NautilusSearchDirectoryFileDetails
 {
-    NautilusFile parent_instance;
-
     gchar *metadata_filename;
 };
 
@@ -102,10 +99,7 @@ search_directory_file_get_item_count (NautilusFile *file,
 
     if (count)
     {
-        NautilusDirectory *directory;
-
-        directory = nautilus_file_get_directory (file);
-        file_list = nautilus_directory_get_file_list (directory);
+        file_list = nautilus_directory_get_file_list (file->details->directory);
 
         *count = g_list_length (file_list);
 
@@ -122,14 +116,12 @@ search_directory_file_get_deep_counts (NautilusFile *file,
                                        guint        *unreadable_directory_count,
                                        goffset      *total_size)
 {
-    NautilusDirectory *directory;
     NautilusFile *dir_file;
     GList *file_list, *l;
     guint dirs, files;
     GFileType type;
 
-    directory = nautilus_file_get_directory (file);
-    file_list = nautilus_directory_get_file_list (directory);
+    file_list = nautilus_directory_get_file_list (file->details->directory);
 
     dirs = files = 0;
     for (l = file_list; l != NULL; l = l->next)
@@ -184,7 +176,7 @@ search_directory_file_set_metadata (NautilusFile *file,
 
     search_file = NAUTILUS_SEARCH_DIRECTORY_FILE (file);
     nautilus_keyfile_metadata_set_string (file,
-                                          search_file->metadata_filename,
+                                          search_file->details->metadata_filename,
                                           "directory", key, value);
 }
 
@@ -197,7 +189,7 @@ search_directory_file_set_metadata_as_list (NautilusFile  *file,
 
     search_file = NAUTILUS_SEARCH_DIRECTORY_FILE (file);
     nautilus_keyfile_metadata_set_stringv (file,
-                                           search_file->metadata_filename,
+                                           search_file->details->metadata_filename,
                                            "directory", key, (const gchar **) value);
 }
 
@@ -205,7 +197,6 @@ void
 nautilus_search_directory_file_update_display_name (NautilusSearchDirectoryFile *search_file)
 {
     NautilusFile *file;
-    NautilusDirectory *directory;
     NautilusSearchDirectory *search_dir;
     NautilusQuery *query;
     char *display_name;
@@ -214,10 +205,9 @@ nautilus_search_directory_file_update_display_name (NautilusSearchDirectoryFile 
 
     display_name = NULL;
     file = NAUTILUS_FILE (search_file);
-    directory = nautilus_file_get_directory (file);
-    if (directory != NULL)
+    if (file->details->directory)
     {
-        search_dir = NAUTILUS_SEARCH_DIRECTORY (directory);
+        search_dir = NAUTILUS_SEARCH_DIRECTORY (file->details->directory);
         query = nautilus_search_directory_get_query (search_dir);
 
         if (query != NULL)
@@ -249,10 +239,14 @@ nautilus_search_directory_file_init (NautilusSearchDirectoryFile *search_file)
 
     file = NAUTILUS_FILE (search_file);
 
+    search_file->details = G_TYPE_INSTANCE_GET_PRIVATE (search_file,
+                                                        NAUTILUS_TYPE_SEARCH_DIRECTORY_FILE,
+                                                        NautilusSearchDirectoryFileDetails);
+
     xdg_dir = nautilus_get_user_directory ();
-    search_file->metadata_filename = g_build_filename (xdg_dir,
-                                                       "search-metadata",
-                                                       NULL);
+    search_file->details->metadata_filename = g_build_filename (xdg_dir,
+                                                                "search-metadata",
+                                                                NULL);
     g_free (xdg_dir);
 
     file->details->got_file_info = TRUE;
@@ -264,6 +258,8 @@ nautilus_search_directory_file_init (NautilusSearchDirectoryFile *search_file)
 
     file->details->custom_icon = NULL;
     file->details->activation_uri = NULL;
+    file->details->got_link_info = TRUE;
+    file->details->link_info_is_up_to_date = TRUE;
 
     file->details->directory_count = 0;
     file->details->got_directory_count = TRUE;
@@ -279,7 +275,7 @@ nautilus_search_directory_file_finalize (GObject *object)
 
     search_file = NAUTILUS_SEARCH_DIRECTORY_FILE (object);
 
-    g_free (search_file->metadata_filename);
+    g_free (search_file->details->metadata_filename);
 
     G_OBJECT_CLASS (nautilus_search_directory_file_parent_class)->finalize (object);
 }
@@ -307,4 +303,6 @@ nautilus_search_directory_file_class_init (NautilusSearchDirectoryFileClass *kla
     file_class->get_where_string = search_directory_file_get_where_string;
     file_class->set_metadata = search_directory_file_set_metadata;
     file_class->set_metadata_as_list = search_directory_file_set_metadata_as_list;
+
+    g_type_class_add_private (object_class, sizeof (NautilusSearchDirectoryFileDetails));
 }

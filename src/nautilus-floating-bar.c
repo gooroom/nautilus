@@ -227,31 +227,27 @@ check_pointer_timeout (gpointer user_data)
 }
 
 static gboolean
-overlay_event_cb (GtkWidget *parent,
-                  GdkEvent  *event,
-                  gpointer   user_data)
+overlay_enter_notify_cb (GtkWidget        *parent,
+                         GdkEventCrossing *event,
+                         gpointer          user_data)
 {
-    NautilusFloatingBar *self = NAUTILUS_FLOATING_BAR (user_data);
     GtkWidget *widget = user_data;
     CheckPointerData *data;
     gint y_pos;
 
-    if (gdk_event_get_event_type (event) != GDK_ENTER_NOTIFY)
-    {
-        return GDK_EVENT_PROPAGATE;
-    }
+    NautilusFloatingBar *self = NAUTILUS_FLOATING_BAR (widget);
 
     if (self->hover_timeout_id != 0)
     {
         g_source_remove (self->hover_timeout_id);
     }
 
-    if (gdk_event_get_window (event) != gtk_widget_get_window (widget))
+    if (event->window != gtk_widget_get_window (widget))
     {
         return GDK_EVENT_PROPAGATE;
     }
 
-    if (self->is_interactive)
+    if (NAUTILUS_FLOATING_BAR (widget)->is_interactive)
     {
         return GDK_EVENT_PROPAGATE;
     }
@@ -261,7 +257,7 @@ overlay_event_cb (GtkWidget *parent,
     data = g_slice_new (CheckPointerData);
     data->overlay = parent;
     data->floating_bar = widget;
-    data->device = gdk_event_get_device (event);
+    data->device = gdk_event_get_device ((GdkEvent *) event);
     data->y_down_limit = y_pos;
     data->y_upper_limit = y_pos + gtk_widget_get_allocated_height (widget);
 
@@ -269,7 +265,7 @@ overlay_event_cb (GtkWidget *parent,
                                                  check_pointer_timeout, data,
                                                  check_pointer_data_free);
 
-    g_source_set_name_by_id (self->hover_timeout_id, "[nautilus-floating-bar] overlay_event_cb");
+    g_source_set_name_by_id (self->hover_timeout_id, "[nautilus-floating-bar] overlay_enter_notify_cb");
 
     return GDK_EVENT_STOP;
 }
@@ -285,13 +281,13 @@ nautilus_floating_bar_parent_set (GtkWidget *widget,
     if (old_parent != NULL)
     {
         g_signal_handlers_disconnect_by_func (old_parent,
-                                              overlay_event_cb, widget);
+                                              overlay_enter_notify_cb, widget);
     }
 
     if (parent != NULL)
     {
-        g_signal_connect (parent, "event",
-                          G_CALLBACK (overlay_event_cb), widget);
+        g_signal_connect (parent, "enter-notify-event",
+                          G_CALLBACK (overlay_enter_notify_cb), widget);
     }
 }
 

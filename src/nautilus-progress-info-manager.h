@@ -20,7 +20,8 @@
  * Author: Cosimo Cecchi <cosimoc@redhat.com>
  */
 
-#pragma once
+#ifndef __NAUTILUS_PROGRESS_INFO_MANAGER_H__
+#define __NAUTILUS_PROGRESS_INFO_MANAGER_H__
 
 #include <glib-object.h>
 
@@ -42,3 +43,5 @@ void nautilus_progress_manager_remove_viewer (NautilusProgressInfoManager *self,
 gboolean nautilus_progress_manager_has_viewers (NautilusProgressInfoManager *self);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_PROGRESS_INFO_MANAGER_H__ */

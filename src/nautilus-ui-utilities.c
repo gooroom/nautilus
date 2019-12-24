@@ -23,7 +23,6 @@
 
 #include "nautilus-ui-utilities.h"
 #include "nautilus-icon-info.h"
-#include "nautilus-application.h"
 #include <eel/eel-graphic-effects.h>
 
 #include <gio/gio.h>
@@ -167,6 +166,27 @@ nautilus_gmenu_add_item_in_submodel (GMenu       *menu,
     }
 
     g_object_unref (submodel);
+}
+
+void
+nautilus_pop_up_context_menu (GtkWidget      *parent,
+                              GMenu          *menu,
+                              GdkEventButton *button_event)
+{
+    GtkWidget *gtk_menu;
+
+    g_return_if_fail (G_IS_MENU (menu));
+    g_return_if_fail (GTK_IS_WIDGET (parent));
+
+    gtk_menu = gtk_menu_new_from_model (G_MENU_MODEL (menu));
+    gtk_menu_attach_to_widget (GTK_MENU (gtk_menu), parent, NULL);
+
+    gtk_menu_popup_at_pointer (GTK_MENU (gtk_menu),
+                               button_event ? (GdkEvent *) button_event :
+                               gtk_get_current_event ());
+
+    g_object_ref_sink (gtk_menu);
+    g_object_unref (gtk_menu);
 }
 
 #define NAUTILUS_THUMBNAIL_FRAME_LEFT 3
@@ -370,10 +390,9 @@ get_text_for_date_range (GPtrArray *date_range,
 }
 
 GtkDialog *
-show_dialog (const gchar *primary_text,
-             const gchar *secondary_text,
-             GtkWindow   *parent,
-             GtkMessageType type)
+show_error_dialog (const gchar *primary_text,
+                   const gchar *secondary_text,
+                   GtkWindow   *parent)
 {
     GtkWidget *dialog;
 
@@ -381,7 +400,7 @@ show_dialog (const gchar *primary_text,
 
     dialog = gtk_message_dialog_new (parent,
                                      GTK_DIALOG_MODAL,
-                                     type,
+                                     GTK_MESSAGE_ERROR,
                                      GTK_BUTTONS_OK,
                                      "%s", primary_text);
 
@@ -396,87 +415,4 @@ show_dialog (const gchar *primary_text,
                       G_CALLBACK (gtk_widget_destroy), NULL);
 
     return GTK_DIALOG (dialog);
-}
-
-static void
-notify_unmount_done (GMountOperation *op,
-                     const gchar     *message)
-{
-    NautilusApplication *application;
-    gchar *notification_id;
-
-    application = nautilus_application_get_default ();
-    notification_id = g_strdup_printf ("nautilus-mount-operation-%p", op);
-    nautilus_application_withdraw_notification (application, notification_id);
-
-    if (message != NULL)
-    {
-        GNotification *unplug;
-        GIcon *icon;
-        gchar **strings;
-
-        strings = g_strsplit (message, "\n", 0);
-        icon = g_themed_icon_new ("media-removable-symbolic");
-        unplug = g_notification_new (strings[0]);
-        g_notification_set_body (unplug, strings[1]);
-        g_notification_set_icon (unplug, icon);
-
-        nautilus_application_send_notification (application, notification_id, unplug);
-        g_object_unref (unplug);
-        g_object_unref (icon);
-        g_strfreev (strings);
-    }
-
-    g_free (notification_id);
-}
-
-static void
-notify_unmount_show (GMountOperation *op,
-                     const gchar     *message)
-{
-    NautilusApplication *application;
-    GNotification *unmount;
-    gchar *notification_id;
-    GIcon *icon;
-    gchar **strings;
-
-    application = nautilus_application_get_default ();
-    strings = g_strsplit (message, "\n", 0);
-    icon = g_themed_icon_new ("media-removable");
-
-    unmount = g_notification_new (strings[0]);
-    g_notification_set_body (unmount, strings[1]);
-    g_notification_set_icon (unmount, icon);
-    g_notification_set_priority (unmount, G_NOTIFICATION_PRIORITY_URGENT);
-
-    notification_id = g_strdup_printf ("nautilus-mount-operation-%p", op);
-    nautilus_application_send_notification (application, notification_id, unmount);
-    g_object_unref (unmount);
-    g_object_unref (icon);
-    g_strfreev (strings);
-    g_free (notification_id);
-}
-
-void
-show_unmount_progress_cb (GMountOperation *op,
-                          const gchar     *message,
-                          gint64           time_left,
-                          gint64           bytes_left,
-                          gpointer         user_data)
-{
-    if (bytes_left == 0)
-    {
-        notify_unmount_done (op, message);
-    }
-    else
-    {
-        notify_unmount_show (op, message);
-    }
-}
-
-void
-show_unmount_progress_aborted_cb (GMountOperation *op,
-                                  gpointer         user_data)
-{
-    notify_unmount_done (op, NULL);
 }

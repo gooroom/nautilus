@@ -20,13 +20,18 @@
    Authors: Maciej Stachowiak <mjs@eazel.com>
 */
 
-#pragma once
+#ifndef EEL_H
+#define EEL_H
 
 #include <eel/eel-art-extensions.h>
+#include <eel/eel-gdk-extensions.h>
 #include <eel/eel-glib-extensions.h>
+#include <eel/eel-gnome-extensions.h>
 #include <eel/eel-graphic-effects.h>
 #include <eel/eel-gtk-extensions.h>
 #include <eel/eel-self-checks.h>
 #include <eel/eel-stock-dialogs.h>
 #include <eel/eel-string.h>
 #include <eel/eel-vfs-extensions.h>
+
+#endif /* EEL_H */

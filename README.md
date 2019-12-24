@@ -1,27 +1,23 @@
-# Nautilus
-[![Pipeline status](https://gitlab.gnome.org/GNOME/nautilus/badges/master/build.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/master)
-[![Code coverage](https://gitlab.gnome.org/GNOME/nautilus/badges/master/coverage.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/master)
+This is Nautilus, the file manager for the GNOME desktop.
+https://wiki.gnome.org/Apps/Nautilus
 
-
-
-This is [Nautilus](https://wiki.gnome.org/Apps/Nautilus), the file manager for
-GNOME.
-
-## Hacking on Nautilus
+# Hacking on Nautilus
 
 To build the development version of Nautilus and hack on the code
-see the [general guide](https://wiki.gnome.org/Newcomers/BuildProject)
-for building GNOME apps with Flatpak and GNOME Builder.
+see the general guide for build the GNOME platform at
+are in https://wiki.gnome.org/Newcomers/BuildProject
 
-# Runtime depepdencies
-- [Bubblewrap](https://github.com/projectatomic/bubblewrap) installed. Used for security reasons.
-- [Tracker](https://gitlab.gnome.org/GNOME/tracker) properly set up and with all features enabled. Used for fast search and metadata extraction, starred files and batch renaming.
+Guidelines and tutorials to contribute to the GNOME platform
+are in https://wiki.gnome.org/Newcomers
 
-## Mailing List
+# Mailing List
 
-The nautilus mailing list is nautilus-list@gnome.org. Read the [subscription
-information](https://mail.gnome.org/mailman/listinfo/nautilus-list) for more.
+The nautilus mailing list is nautilus-list@gnome.org.  Subscription
+information is available at
+https://mail.gnome.org/mailman/listinfo/nautilus-list
 
-## How to report issues
+# How to report bugs
 
-Report issues to the GNOME [issue tracking system](https://gitlab.gnome.org/GNOME/nautilus/issues).
+Bugs should be reported to the GNOME bug tracking system at
+https://gitlab.gnome.org/GNOME/nautilus/issues.
+

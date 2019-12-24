@@ -17,6 +17,10 @@
  *
  */
 
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include "gd-types-catalog.h"
 
 #ifdef LIBGD__BOX_COMMON

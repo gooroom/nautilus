@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef NAUTILUS_BATCH_RENAME_DIALOG_H
+#define NAUTILUS_BATCH_RENAME_DIALOG_H
 
 #include <glib.h>
 #include <glib/gprintf.h>
@@ -230,3 +231,5 @@ void            nautilus_batch_rename_dialog_query_finished           (NautilusB
                                                                        GList                     *selection_metadata);
 
 G_END_DECLS
+
+#endif

@@ -21,48 +21,42 @@
  *
  */
 
-#pragma once
-
-#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
-#warning "Only <nautilus-extension.h> should be included directly."
-#endif
+#ifndef NAUTILUS_PROPERTY_PAGE_H
+#define NAUTILUS_PROPERTY_PAGE_H
 
 #include <glib-object.h>
 #include <gtk/gtk.h>
-/* This should be removed at some point. */
 #include "nautilus-extension-types.h"
 
 G_BEGIN_DECLS
 
-#define NAUTILUS_TYPE_PROPERTY_PAGE (nautilus_property_page_get_type ())
+#define NAUTILUS_TYPE_PROPERTY_PAGE            (nautilus_property_page_get_type())
+#define NAUTILUS_PROPERTY_PAGE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_PROPERTY_PAGE, NautilusPropertyPage))
+#define NAUTILUS_PROPERTY_PAGE_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_PROPERTY_PAGE, NautilusPropertyPageClass))
+#define NAUTILUS_IS_PROPERTY_PAGE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_PROPERTY_PAGE))
+#define NAUTILUS_IS_PROPERTY_PAGE_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((obj), NAUTILUS_TYPE_PROPERTY_PAGE))
+#define NAUTILUS_PROPERTY_PAGE_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj), NAUTILUS_TYPE_PROPERTY_PAGE, NautilusPropertyPageClass))
 
-G_DECLARE_FINAL_TYPE (NautilusPropertyPage, nautilus_property_page,
-                      NAUTILUS, PROPERTY_PAGE,
-                      GObject)
+typedef struct _NautilusPropertyPage        NautilusPropertyPage;
+typedef struct _NautilusPropertyPageDetails NautilusPropertyPageDetails;
+typedef struct _NautilusPropertyPageClass   NautilusPropertyPageClass;
 
-/**
- * SECTION:nautilus-property-page
- * @title: NautilusPropertyPage
- * @short_description: Property page descriptor object
- *
- * #NautilusPropertyPage is an object that describes a page in the file
- * properties dialog. Extensions can provide #NautilusPropertyPage objects
- * by registering a #NautilusPropertyPageProvider and returning them from
- * nautilus_property_page_provider_get_pages(), which will be called by the
- * main application when creating file properties dialogs.
- */
+struct _NautilusPropertyPage
+{
+	GObject parent;
 
-/**
- * nautilus_property_page_new:
- * @name: the identifier for the property page
- * @label: the user-visible label of the property page
- * @page: the property page to display
- *
- * Returns: (transfer full): a new #NautilusPropertyPage
- */
-NautilusPropertyPage *nautilus_property_page_new (const char *name,
-                                                  GtkWidget  *label,
-                                                  GtkWidget  *page);
+	NautilusPropertyPageDetails *details;
+};
+
+struct _NautilusPropertyPageClass 
+{
+	GObjectClass parent;
+};
+
+GType                 nautilus_property_page_get_type  (void);
+NautilusPropertyPage *nautilus_property_page_new       (const char           *name,
+							GtkWidget            *label,
+							GtkWidget            *page);
 
 /* NautilusPropertyPage has the following properties:
  *   name (string)        - the identifier for the property page
@@ -71,3 +65,5 @@ NautilusPropertyPage *nautilus_property_page_new (const char *name,
  */
 
 G_END_DECLS
+
+#endif

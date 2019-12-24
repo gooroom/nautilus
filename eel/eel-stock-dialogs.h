@@ -20,7 +20,8 @@
    Authors: Darin Adler <darin@eazel.com>
 */
 
-#pragma once
+#ifndef EEL_STOCK_DIALOGS_H
+#define EEL_STOCK_DIALOGS_H
 
 #include <gtk/gtk.h>
 
@@ -73,3 +74,5 @@ GtkDialog *eel_create_question_dialog         (const char        *primary_text,
 					       const char        *answer_two,
 					       int                response_two,
 					       GtkWindow         *parent);
+
+#endif /* EEL_STOCK_DIALOGS_H */

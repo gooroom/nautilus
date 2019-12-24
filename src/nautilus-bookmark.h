@@ -22,7 +22,8 @@
  *          Cosimo Cecchi <cosimoc@redhat.com>
  */
 
-#pragma once
+#ifndef NAUTILUS_BOOKMARK_H
+#define NAUTILUS_BOOKMARK_H
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
@@ -55,3 +56,5 @@ char *                nautilus_bookmark_get_scroll_pos         (NautilusBookmark
 GtkWidget *           nautilus_bookmark_menu_item_new          (NautilusBookmark      *bookmark);
 
 G_END_DECLS
+
+#endif /* NAUTILUS_BOOKMARK_H */

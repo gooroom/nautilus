@@ -19,15 +19,17 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#pragma once
-
-#include <eel/eel-vfs-extensions.h>
 #include <gio/gio.h>
-#include <nautilus-extension.h>
-
+#include <eel/eel-vfs-extensions.h>
 #include "nautilus-directory.h"
+#include "nautilus-file-queue.h"
 #include "nautilus-file.h"
+#include "nautilus-monitor.h"
+#include <libnautilus-extension/nautilus-info-provider.h>
+#include <libxml/tree.h>
 
+typedef struct LinkInfoReadState LinkInfoReadState;
+typedef struct TopLeftTextReadState TopLeftTextReadState;
 typedef struct FileMonitors FileMonitors;
 typedef struct DirectoryLoadState DirectoryLoadState;
 typedef struct DirectoryCountState DirectoryCountState;
@@ -40,6 +42,7 @@ typedef struct MountState MountState;
 typedef struct FilesystemInfoState FilesystemInfoState;
 
 typedef enum {
+	REQUEST_LINK_INFO,
 	REQUEST_DEEP_COUNT,
 	REQUEST_DIRECTORY_COUNT,
 	REQUEST_FILE_INFO,
@@ -120,6 +123,8 @@ struct NautilusDirectoryDetails
 	MountState *mount_state;
 
 	FilesystemInfoState *filesystem_info_state;
+	
+	LinkInfoReadState *link_info_read_state;
 
 	GList *file_operations_in_progress; /* list of FileOperation * */
 };

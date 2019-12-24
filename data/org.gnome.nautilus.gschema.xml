@@ -68,6 +68,7 @@
     <child schema="org.gnome.nautilus.compression" name="compression"/>
     <child schema="org.gnome.nautilus.icon-view" name="icon-view"/>
     <child schema="org.gnome.nautilus.list-view" name="list-view"/>
+    <child schema="org.gnome.nautilus.desktop" name="desktop"/>
     <child schema="org.gnome.nautilus.window-state" name="window-state"/>
   </schema>
 
@@ -131,6 +132,11 @@
       <summary>Show the package installer for unknown MIME types</summary>
       <description>Whether to show the user a package installer dialog in case an unknown MIME type is opened, in order to search for an application to handle it.</description>
     </key>
+    <key type="b" name="show-move-to-trash-shortcut-changed-dialog">
+      <default>true</default>
+      <summary>Show a warning dialog for the change of the shortcut for move to the Trash</summary>
+      <description>Show a warning dialog for the change of the shortcut for move to the Trash from Control + Delete to just Delete.</description>
+    </key>
     <key type="b" name="mouse-use-extra-buttons">
       <default>true</default>
       <summary>Use extra mouse button events in Nautilus’ browser window</summary>
@@ -153,10 +159,9 @@
       <description>Speed trade-off for when to show a file as a thumbnail. If set to “always” then always thumbnail, even if the folder is on a remote server. If set to “local-only” then only show thumbnails for local file systems. If set to “never” then never bother to thumbnail files, just use a generic icon. Despite what the name may suggest, this applies to any previewable file type.</description>
     </key>
     <key type="t" name="thumbnail-limit">
-      <range max="5000"/>
-      <default>10</default>
+      <default>10485760</default>
       <summary>Maximum image size for thumbnailing</summary>
-      <description>Images over this size (in megabytes) won’t be thumbnailed. The purpose of this setting is to avoid thumbnailing large images that may take a long time to load or use lots of memory.</description>
+      <description>Images over this size (in bytes) won’t be thumbnailed. The purpose of this setting is to avoid thumbnailing large images that may take a long time to load or use lots of memory.</description>
     </key>
     <key name="default-sort-order" enum="org.gnome.nautilus.SortOrder">
       <aliases>
@@ -192,6 +197,11 @@
       <summary>What viewer should be used when searching</summary>
       <description>When searching Nautilus will switch to the type of view in this setting.</description>
     </key>
+    <key type="ay" name="bulk-rename-tool">
+      <default>[]</default>
+      <summary>Bulk rename utility</summary>
+      <description>If set, Nautilus will append URIs of selected files and treat the result as a command line for bulk renaming. Bulk rename applications can register themselves in this key by setting the key to a space-separated string of their executable name and any command line options. If the executable name is not set to a full path, it will be searched for in the search path.</description>
+    </key>
     <key type="b" name="open-folder-on-dnd-hover">
       <default>true</default>
       <summary>Whether to open the hovered folder after a timeout when drag and drop operation</summary>
@@ -202,10 +212,10 @@
       <summary>Enable new experimental views</summary>
       <description>Whether to use the new experimental views using the latest GTK+ widgets to help giving feedback and shaping their future.</description>
     </key>
-    <key type="b" name="fts-enabled">
+    <key type="b" name="fts-default">
       <default>true</default>
       <summary>Whether to have full text search enabled by default when opening a new window/tab</summary>
-      <description>If set to true, then Nautilus will also match the file contents besides the name. This toggles the default active state, which can still be overridden in the search popover</description>
+      <description>If set to true, then Nautilus will also match the file contents besides the name. This toggles the default active state, which can still be overriden in the search popover</description>
     </key>
   </schema>
 
@@ -221,11 +231,17 @@
     <key type="as" name="captions">
       <default>[ 'none', 'none', 'none' ]</default>
       <summary>List of possible captions on icons</summary>
-      <description>A list of captions below an icon in the icon view. The actual number of captions shown depends on the zoom level. Some possible values are: “size”, “type”, “date_modified”, “owner”, “group”, “permissions”, and “mime_type”.</description>
+      <description>A list of captions below an icon in the icon view and the desktop. The actual number of captions shown depends on the zoom level. Some possible values are: “size”, “type”, “date_modified”, “owner”, “group”, “permissions”, and “mime_type”.</description>
     </key>
     <key name="default-zoom-level" enum="org.gnome.nautilus.CanvasZoomLevel">
       <default>'large'</default>
-      <summary>Default icon view zoom level</summary>
+      <summary>Default icon zoom level</summary>
+      <description>Default zoom level used by the icon view.</description>
+    </key>
+    <key type="i" name="thumbnail-size">
+      <default>64</default>
+      <summary>Default Thumbnail Icon Size</summary>
+      <description>The default size of an icon for a thumbnail in the icon view when using NAUTILUS_ICON_SIZE_STANDARD size.</description>
     </key>
     <key type="as" name="text-ellipsis-limit">
       <default>[ '3' ]</default>
@@ -237,15 +253,18 @@
   <schema path="/org/gnome/nautilus/list-view/" id="org.gnome.nautilus.list-view" gettext-domain="nautilus">
     <key name="default-zoom-level" enum="org.gnome.nautilus.ListZoomLevel">
       <default>'standard'</default>
-      <summary>Default list view zoom level</summary>
+      <summary>Default list zoom level</summary>
+      <description>Default zoom level used by the list view.</description>
     </key>
     <key type="as" name="default-visible-columns">
-      <default>[ 'name', 'size', 'date_modified', 'starred' ]</default>
-      <summary>Columns visible in list view</summary>
+      <default>[ 'name', 'size', 'date_modified' ]</default>
+      <summary>Default list of columns visible in the list view</summary>
+      <description>Default list of columns visible in the list view.</description>
     </key>
     <key type="as" name="default-column-order">
-      <default>[ 'name', 'size', 'type', 'owner', 'group', 'permissions', 'mime_type', 'where', 'date_modified', 'date_modified_with_time', 'date_accessed', 'recency', 'starred' ]</default>
-      <summary>Column order in list view</summary>
+      <default>[ 'name', 'size', 'type', 'owner', 'group', 'permissions', 'mime_type', 'where', 'date_modified', 'date_modified_with_time', 'date_accessed' ]</default>
+      <summary>Default column order in the list view</summary>
+      <description>Default column order in the list view.</description>
     </key>
     <key type="b" name="use-tree-view">
       <default>false</default>
@@ -254,11 +273,65 @@
     </key>
   </schema>
 
+  <schema path="/org/gnome/nautilus/desktop/" id="org.gnome.nautilus.desktop" gettext-domain="nautilus">
+    <key type="s" name="font">
+      <default l10n="messages" context="desktop-font">''</default>
+      <summary>Desktop font</summary>
+      <description>The font description used for the icons on the desktop.</description>
+    </key>
+    <key type="b" name="home-icon-visible">
+      <default>true</default>
+      <summary>Home icon visible on desktop</summary>
+      <description>If this is set to true, an icon linking to the home folder will be put on the desktop.</description>
+    </key>
+    <key type="b" name="trash-icon-visible">
+      <default>true</default>
+      <summary>Trash icon visible on desktop</summary>
+      <description>If this is set to true, an icon linking to the Trash will be put on the desktop.</description>
+    </key>
+    <key type="b" name="volumes-visible">
+      <default>true</default>
+      <summary>Show mounted volumes on the desktop</summary>
+      <description>If this is set to true, icons linking to mounted volumes will be put on the desktop.</description>
+    </key>
+    <key type="b" name="network-icon-visible">
+      <default>false</default>
+      <summary>Network Servers icon visible on the desktop</summary>
+      <description>If this is set to true, an icon linking to the Network Servers view will be put on the desktop.</description>
+    </key>
+    <key type="s" name="home-icon-name">
+      <default l10n="messages" context="home-icon-name">'Home'</default>
+      <summary>Desktop home icon name</summary>
+      <description>This name can be set if you want a custom name for the home icon on the desktop.</description>
+    </key>
+    <key type="s" name="trash-icon-name">
+      <default l10n="messages" context="trash-icon-name">'Trash'</default>
+      <summary>Desktop Trash icon name</summary>
+      <description>This name can be set if you want a custom name for the Trash icon on the desktop.</description>
+    </key>
+    <key type="s" name="network-icon-name">
+      <default l10n="messages" context="network-icon-name">'Network Servers'</default>
+      <summary>Network servers icon name</summary>
+      <description>This name can be set if you want a custom name for the network servers icon on the desktop.</description>
+    </key>
+    <key type="i" name="text-ellipsis-limit">
+      <default>3</default>
+      <summary>Text Ellipsis Limit</summary>
+      <description>An integer specifying how parts of overlong file names should be replaced by ellipses on the desktop. If the number is larger than 0, the file name will not exceed the given number of lines. If the number is 0 or smaller, no limit is imposed on the number of displayed lines.</description>
+    </key>
+    <key type="b" name="background-fade">
+      <default>true</default>
+      <summary>Fade the background on change</summary>
+      <description>If set to true, then Nautilus will use a fade effect to change the desktop background.</description>
+    </key>
+  </schema>
+
   <schema path="/org/gnome/nautilus/window-state/" id="org.gnome.nautilus.window-state" gettext-domain="nautilus">
-    <key type="(ii)" name="initial-size">
-      <default>(890, 550)</default>
-      <summary>Initial size of the window</summary>
-      <description>A tuple containing the initial width and height of the application window.</description>
+    <key type="s" name="geometry">
+      <default>''</default>
+
+      <summary>The geometry string for a navigation window</summary>
+      <description>A string containing the saved geometry and coordinates string for navigation windows.</description>
     </key>
     <key type="b" name="maximized">
       <default>false</default>

@@ -16,18 +16,25 @@
  * 
  */
 
-#pragma once
+#ifndef NAUTILUS_PATHBAR_H
+#define NAUTILUS_PATHBAR_H
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
 
 #define NAUTILUS_TYPE_PATH_BAR (nautilus_path_bar_get_type ())
-G_DECLARE_FINAL_TYPE (NautilusPathBar, nautilus_path_bar, NAUTILUS, PATH_BAR, GtkContainer)
+G_DECLARE_DERIVABLE_TYPE (NautilusPathBar, nautilus_path_bar, NAUTILUS, PATH_BAR, GtkContainer)
 
-void     nautilus_path_bar_set_path                       (NautilusPathBar *path_bar,
-                                                           GFile           *file);
+struct _NautilusPathBarClass
+{
+	GtkContainerClass parent_class;
 
-void     nautilus_path_bar_set_extensions_background_menu (NautilusPathBar *path_bar,
-                                                           GMenu           *menu);
-void     nautilus_path_bar_set_templates_menu             (NautilusPathBar *path_bar,
-                                                           GMenu           *menu);
+	void     (* path_clicked)   (NautilusPathBar  *self,
+				     GFile            *location);
+        void     (* open_location)  (NautilusPathBar   *self,
+                                     GFile             *location,
+                                     GtkPlacesOpenFlags flags);
+};
+void     nautilus_path_bar_set_path    (NautilusPathBar *self, GFile *file);
+
+#endif /* NAUTILUS_PATHBAR_H */

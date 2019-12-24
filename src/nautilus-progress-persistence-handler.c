@@ -127,7 +127,8 @@ nautilus_progress_persistence_handler_make_persistent (NautilusProgressPersisten
     GList *windows;
 
     windows = nautilus_application_get_windows (self->app);
-    if (self->active_infos > 0 && windows == NULL)
+    if (self->active_infos > 0 &&
+        g_list_length (windows) == 0)
     {
         progress_persistence_handler_update_notification (self);
     }
@@ -176,12 +177,12 @@ progress_info_finished_cb (NautilusProgressInfo               *info,
     windows = nautilus_application_get_windows (self->app);
     if (self->active_infos > 0)
     {
-        if (windows == NULL)
+        if (g_list_length (windows) == 0)
         {
             progress_persistence_handler_update_notification (self);
         }
     }
-    else if (windows == NULL)
+    else if (g_list_length (windows) == 0)
     {
         progress_persistence_handler_hide_notification (self);
         progress_persistence_handler_show_complete_notification (self);
@@ -199,7 +200,7 @@ handle_new_progress_info (NautilusProgressPersistenceHandler *self,
     self->active_infos++;
     windows = nautilus_application_get_windows (self->app);
 
-    if (windows == NULL)
+    if (g_list_length (windows) == 0)
     {
         progress_persistence_handler_update_notification (self);
     }

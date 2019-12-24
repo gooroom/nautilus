@@ -20,17 +20,21 @@
  *
  */
 
-#pragma once
+#ifndef __NAUTILUS_DBUS_MANAGER_H__
+#define __NAUTILUS_DBUS_MANAGER_H__
 
 #include <glib-object.h>
 #include <gio/gio.h>
 
-#define NAUTILUS_TYPE_DBUS_MANAGER (nautilus_dbus_manager_get_type())
-G_DECLARE_FINAL_TYPE (NautilusDBusManager, nautilus_dbus_manager, NAUTILUS, DBUS_MANAGER, GObject)
+typedef struct _NautilusDBusManager NautilusDBusManager;
+typedef struct _NautilusDBusManagerClass NautilusDBusManagerClass;
 
+GType nautilus_dbus_manager_get_type (void);
 NautilusDBusManager * nautilus_dbus_manager_new (void);
 
 gboolean nautilus_dbus_manager_register   (NautilusDBusManager *self,
                                            GDBusConnection     *connection,
                                            GError             **error);
 void     nautilus_dbus_manager_unregister (NautilusDBusManager *self);
+
+#endif /* __NAUTILUS_DBUS_MANAGER_H__ */

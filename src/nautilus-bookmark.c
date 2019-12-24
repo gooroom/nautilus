@@ -32,6 +32,7 @@
 
 #include "nautilus-file.h"
 #include "nautilus-file-utilities.h"
+#include "nautilus-global-preferences.h"
 #include "nautilus-icon-names.h"
 
 #define DEBUG_FLAG NAUTILUS_DEBUG_BOOKMARKS
@@ -97,7 +98,7 @@ static void
 bookmark_set_name_from_ready_file (NautilusBookmark *self,
                                    NautilusFile     *file)
 {
-    g_autofree gchar *display_name = NULL;
+    gchar *display_name;
 
     if (self->has_custom_name)
     {
@@ -119,13 +120,15 @@ bookmark_set_name_from_ready_file (NautilusBookmark *self,
         nautilus_bookmark_set_name_internal (self, display_name);
         DEBUG ("%s: name changed to %s", nautilus_bookmark_get_name (self), display_name);
     }
+
+    g_free (display_name);
 }
 
 static void
 bookmark_file_changed_callback (NautilusFile     *file,
                                 NautilusBookmark *bookmark)
 {
-    g_autoptr (GFile) location = NULL;
+    GFile *location;
 
     g_assert (file == bookmark->file);
 
@@ -144,6 +147,8 @@ bookmark_file_changed_callback (NautilusFile     *file,
         g_object_notify_by_pspec (G_OBJECT (bookmark), properties[PROP_LOCATION]);
         g_signal_emit (bookmark, signals[CONTENTS_CHANGED], 0);
     }
+
+    g_object_unref (location);
 
     if (nautilus_file_is_gone (file) ||
         nautilus_file_is_in_trash (file))
@@ -174,9 +179,8 @@ static void
 apply_warning_emblem (GIcon    **base,
                       gboolean   symbolic)
 {
-    GIcon *emblemed_icon;
-    g_autoptr (GIcon) warning = NULL;
-    g_autoptr (GEmblem) emblem = NULL;
+    GIcon *warning, *emblemed_icon;
+    GEmblem *emblem;
 
     if (symbolic)
     {
@@ -190,6 +194,8 @@ apply_warning_emblem (GIcon    **base,
     emblem = g_emblem_new (warning);
     emblemed_icon = g_emblemed_icon_new (*base, emblem);
 
+    g_object_unref (emblem);
+    g_object_unref (warning);
     g_object_unref (*base);
 
     *base = emblemed_icon;
@@ -207,9 +213,13 @@ nautilus_bookmark_get_is_builtin (NautilusBookmark *bookmark)
     }
 
     /* exclude XDG locations which are not in our builtin list */
-    return (xdg_type != G_USER_DIRECTORY_DESKTOP) &&
-           (xdg_type != G_USER_DIRECTORY_TEMPLATES) &&
-           (xdg_type != G_USER_DIRECTORY_PUBLIC_SHARE);
+    if (xdg_type == G_USER_DIRECTORY_DESKTOP &&
+        !g_settings_get_boolean (gnome_background_preferences, NAUTILUS_PREFERENCES_SHOW_DESKTOP))
+    {
+        return FALSE;
+    }
+
+    return (xdg_type != G_USER_DIRECTORY_TEMPLATES) && (xdg_type != G_USER_DIRECTORY_PUBLIC_SHARE);
 }
 
 gboolean
@@ -297,8 +307,8 @@ out:
 static void
 nautilus_bookmark_set_icon_to_default (NautilusBookmark *bookmark)
 {
-    g_autoptr (GIcon) icon = NULL;
-    g_autoptr (GIcon) symbolic_icon = NULL;
+    GIcon *icon, *symbolic_icon;
+    char *uri;
 
     if (g_file_is_native (bookmark->location))
     {
@@ -307,8 +317,10 @@ nautilus_bookmark_set_icon_to_default (NautilusBookmark *bookmark)
     }
     else
     {
+        uri = nautilus_bookmark_get_uri (bookmark);
         symbolic_icon = g_themed_icon_new (NAUTILUS_ICON_FOLDER_REMOTE);
         icon = g_themed_icon_new (NAUTILUS_ICON_FULLCOLOR_FOLDER_REMOTE);
+        g_free (uri);
     }
 
     if (!bookmark->exists)
@@ -325,6 +337,9 @@ nautilus_bookmark_set_icon_to_default (NautilusBookmark *bookmark)
                   "icon", icon,
                   "symbolic-icon", symbolic_icon,
                   NULL);
+
+    g_object_unref (icon);
+    g_object_unref (symbolic_icon);
 }
 
 static void
@@ -425,23 +440,26 @@ exists_query_info_ready_cb (GObject      *source,
                             GAsyncResult *res,
                             gpointer      user_data)
 {
-    g_autoptr (GFileInfo) info = NULL;
+    GFileInfo *info;
     NautilusBookmark *bookmark;
-    g_autoptr (GError) error = NULL;
+    GError *error = NULL;
     gboolean exists = FALSE;
 
     info = g_file_query_info_finish (G_FILE (source), res, &error);
     if (!info && g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
     {
+        g_clear_error (&error);
         return;
     }
 
+    g_clear_error (&error);
     bookmark = user_data;
 
     if (info)
     {
         exists = TRUE;
 
+        g_object_unref (info);
         g_clear_object (&bookmark->cancellable);
     }
 
@@ -780,11 +798,13 @@ nautilus_bookmark_get_location (NautilusBookmark *bookmark)
 char *
 nautilus_bookmark_get_uri (NautilusBookmark *bookmark)
 {
-    g_autoptr (GFile) file = NULL;
+    GFile *file;
+    char *uri;
 
     file = nautilus_bookmark_get_location (bookmark);
-
-    return g_file_get_uri (file);
+    uri = g_file_get_uri (file);
+    g_object_unref (file);
+    return uri;
 }
 
 NautilusBookmark *

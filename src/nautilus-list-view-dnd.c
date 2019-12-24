@@ -130,7 +130,14 @@ item_get_data_binder (GtkTreeModel *model,
                                  column,
                                  &cell_area);
 
-    uri = nautilus_file_get_activation_uri (file);
+    if (nautilus_file_is_nautilus_link (file))
+    {
+        uri = nautilus_file_get_uri (file);
+    }
+    else
+    {
+        uri = nautilus_file_get_activation_uri (file);
+    }
 
     nautilus_file_unref (file);
 
@@ -268,38 +275,37 @@ nautilus_list_view_dnd_init (NautilusListView *list_view)
                              G_CALLBACK (drag_data_get_callback), list_view, 0);
 }
 
-void
+gboolean
 nautilus_list_view_dnd_drag_begin (NautilusListView *list_view,
-                                   gdouble           offset_x,
-                                   gdouble           offset_y,
-                                   const GdkEvent   *event)
+                                   GdkEventMotion   *event)
 {
-    if (list_view->details->drag_button == 0)
+    if (list_view->details->drag_button != 0)
     {
-        return;
+        if (!source_target_list)
+        {
+            source_target_list = nautilus_list_model_get_drag_target_list ();
+        }
+
+        if (gtk_drag_check_threshold (GTK_WIDGET (list_view->details->tree_view),
+                                      list_view->details->drag_x,
+                                      list_view->details->drag_y,
+                                      event->x,
+                                      event->y))
+        {
+            guint32 actions;
+
+            actions = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK | GDK_ACTION_ASK;
+            list_view->details->drag_source_info->source_actions = actions;
+            gtk_drag_begin_with_coordinates (GTK_WIDGET (list_view->details->tree_view),
+                                             source_target_list,
+                                             actions,
+                                             list_view->details->drag_button,
+                                             (GdkEvent *) event,
+                                             -1,
+                                             -1);
+        }
+        return TRUE;
     }
 
-    if (!source_target_list)
-    {
-        source_target_list = nautilus_list_model_get_drag_target_list ();
-    }
-
-    if (gtk_drag_check_threshold (GTK_WIDGET (list_view->details->tree_view),
-                                  list_view->details->drag_x,
-                                  list_view->details->drag_y,
-                                  list_view->details->drag_x + offset_x,
-                                  list_view->details->drag_y + offset_y))
-    {
-        guint32 actions;
-
-        actions = GDK_ACTION_MOVE | GDK_ACTION_COPY | GDK_ACTION_LINK | GDK_ACTION_ASK;
-        list_view->details->drag_source_info->source_actions = actions;
-        gtk_drag_begin_with_coordinates (GTK_WIDGET (list_view->details->tree_view),
-                                         source_target_list,
-                                         actions,
-                                         list_view->details->drag_button,
-                                         (GdkEvent *) event,
-                                         -1,
-                                         -1);
-    }
+    return FALSE;
 }

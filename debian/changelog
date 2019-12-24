@@ -1,164 +1,16 @@
-nautilus (3.30.5-2+grm2u1) unstable; urgency=medium
+nautilus (3.26.3.1-1+grm2u1) unstable; urgency=medium
 
-  [ cjheo ]
-  * [ed7c563c] [Bug:1324]Fixed to reset input method context when clearing search entry
+  * Added 99_gooroom-desktop-background.override
 
-  [ Heo, ChangJu ]
-  * [f4c578e4] Revert "[Bug:1324]Fixed to reset input method context when clearing search entry"
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Tue, 24 Dec 2019 11:35:22 +0900
 
-  [ donghun ]
-  * [d89cacde] Added the patch to modify context menu and prevent root folder access
-  * [3852e19a] Removed permission setting tab from property window
-  * [dc9ace9b] Moved header button to bottom in file conflict dialog
-  * [7a0ef343] Added a package dependency due to starred error
-  * [842452c1] Fixed Flawfinder - High Priority
-
-  [ Gooroom Autobuilder ]
-
- -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sun, 01 Dec 2019 19:59:30 +0900
-
-nautilus (3.30.5-2) unstable; urgency=medium
-
-  * debian/control{,.in}, gbp.conf: Update debian branch to debian/buster
-  * Update gnome-desktop code. Nautilus contains a copy of this code,
-    which originated in gnome-desktop3.
-      + Fixes a potential crash during thumbnailing
-      + Fixes thumbnailer on 32-bit systems where /lib64 is not available.
-      + Also improves handling of usrmerged and non-usrmerged systems.
-      + Mounts the fontconfig cache dir, to improve performance if fontconfig
-        is used
-        - Add a corresponding BD on libfontconfig1-dev, to fetch the needed
-          variable from its pcfile.
-      + Fixes seccomp filter bypass. CVE-2019-11461
-      + Closes: #928054
-
- -- Iain Lane <laney@debian.org>  Wed, 29 May 2019 12:47:33 +0100
-
-nautilus (3.30.5-1) unstable; urgency=medium
+nautilus (3.26.3.1-1) unstable; urgency=medium
 
   * New upstream release
-  * Don't have nautilus-data recommend nautilus
-  * Restore -Wl,-O1 to our LDFLAGS
-  * debian/copyright: nautilus is GPL-3+ instead of GPL-2+
+  * Update Vcs fields for 3.26 series
+  * debian/nautilus.install: Update for new AppStream metadata location
 
- -- Jeremy Bicha <jbicha@debian.org>  Sat, 22 Dec 2018 08:53:04 -0500
-
-nautilus (3.30.4-1) unstable; urgency=medium
-
-  * New upstream release
-  * debian/rules: Make .gtk-bookmarks in $HOME for the testsuite
-
- -- Iain Lane <laney@debian.org>  Wed, 28 Nov 2018 12:46:20 +0000
-
-nautilus (3.30.3-1) unstable; urgency=medium
-
-  * Team upload
-
-  [ Jeremy Bicha ]
-  * Build-Depend on dbus and xvfb for build tests
-  * debian/rules: Run all build tests
-  * Depend on tracker instead of Suggests. It is no longer optional.
-    (Closes: #908800)
-
-  [ Simon McVittie ]
-  * New upstream release
-  * d/p/tests-Make-timeout-bigger.patch: Drop, applied upstream
-  * Increase meson B-D to 0.47.0 as per meson.build
-  * Use a temporary XDG_RUNTIME_DIR to run tests.
-    Otherwise they will fail under sbuild, which inherits the buildd user's
-    XDG_RUNTIME_DIR from the host system environment variables, but does
-    not create a corresponding directory inside the build chroot.
-
- -- Simon McVittie <smcv@debian.org>  Fri, 09 Nov 2018 11:11:51 +0000
-
-nautilus (3.30.0-4) unstable; urgency=medium
-
-  * Build-Depend on tracker for build tests
-
- -- Jeremy Bicha <jbicha@debian.org>  Thu, 13 Sep 2018 10:25:38 -0400
-
-nautilus (3.30.0-3) unstable; urgency=medium
-
-  * Update debian/gbp.conf
-  * Cherry-pick tests-Make-timeout-bigger.patch:
-    - Increase timeout for a slow test to 120 seconds
-
- -- Jeremy Bicha <jbicha@debian.org>  Thu, 13 Sep 2018 08:46:24 -0400
-
-nautilus (3.30.0-2) unstable; urgency=medium
-
-  * Drop unneeded dh_translations overrides
-  * Run build tests
-  * Bump Standards-Version to 4.2.1
-
- -- Jeremy Bicha <jbicha@debian.org>  Mon, 10 Sep 2018 07:31:29 -0400
-
-nautilus (3.30.0-1) unstable; urgency=medium
-
-  * New upstream release.
-  * Revert "debian/watch: Watch for unstable releases"
-
- -- Andreas Henriksson <andreas@fatal.se>  Tue, 04 Sep 2018 17:49:29 +0200
-
-nautilus (3.29.90.1-1) experimental; urgency=medium
-
-  * Team upload
-
-  [ Laurent Bigonville ]
-  * debian/nautilus.maintscript: Remove nautilus-autostart.desktop
-    on upgrade now that nautilus is not providing the desktop icons
-    any more (Closes: #896800)
-
-  [ Simon McVittie ]
-  * New upstream release
-  * Build-Depend on meson 0.46.0
-  * (Build-)Depend on GTK+ 3.22.27
-  * d/copyright: Update
-  * Sort installed file lists (wrap-and-sort -a)
-  * Sort dependency lists (wrap-and-sort -a)
-  * d/control: Sort binary package stanzas other than the first
-    (wrap-and-sort -abk)
-  * Depend on bubblewrap (on Linux), for sandboxed thumbnailers
-  * Build-depend on libseccomp (on Linux), for sandboxed thumbnailers
-  * Set Rules-Requires-Root to no
-  * Bump Standards-Version to 4.2.0
-  * d/p/git-build-fix-icon-renaming.patch: Drop, applied upstream
-
- -- Simon McVittie <smcv@debian.org>  Tue, 21 Aug 2018 11:44:27 +0100
-
-nautilus (3.28.1-1) experimental; urgency=medium
-
-  * New upstream release
-  * d/p/git-build-fix-icon-renaming.patch: Cherry-pick upstream commit
-    to fix installation of icons.
-
- -- Tim Lunn <tim@feathertop.org>  Sun, 15 Apr 2018 14:03:09 +1000
-
-nautilus (3.28.0.1-1) experimental; urgency=medium
-
-  * New upstream release
-
- -- Tim Lunn <tim@feathertop.org>  Fri, 30 Mar 2018 11:01:32 +1100
-
-nautilus (3.27.90-1) experimental; urgency=medium
-
-  [ Jeremy Bicha ]
-  * New upstream release
-    - No longer handles desktop icons
-  * debian/control.in:
-    - Bump minimum gtk3 to 3.22.26 for starred locations feature
-    - Build-Depend on libgexiv2-dev instead libexif-dev
-    - Build-Depend on appstream-util and desktop-file-utils
-  * debian/rules: Clean up configure options for new version
-  * debian/nautilus.install: autostart files aren't provided any more
-
-  [ Tim Lunn ]
-  * debian/rules: updated for renamed configure option
-  * debian/control.in:
-    - drop Build-Depend on libexempi-dev, its no longer used
-  * debian/nautilus.install: appdata is installed in metainfo now
-
- -- Tim Lunn <tim@feathertop.org>  Mon, 19 Feb 2018 17:24:02 +1100
+ -- Jeremy Bicha <jbicha@debian.org>  Fri, 06 Apr 2018 17:57:32 -0400
 
 nautilus (3.26.2-2) unstable; urgency=medium
 
@@ -576,7 +428,7 @@ nautilus (3.7.91-1) experimental; urgency=low
   * New upstream release
   * debian/control.in:
     - Bump minimum glib and gtk
-    - Suggest brasero instead of recommending it
+    - Suggest brasero instead of recommending it 
   * debian/nautilus.install:
     - Shell search provider doesn't need a separate library any more
 
@@ -708,7 +560,7 @@ nautilus (3.0.2-3) experimental; urgency=low
 
 nautilus (3.0.2-2) experimental; urgency=low
 
-  * Rename libnautilus-extension1 to libnautilus-extension1a, and add
+  * Rename libnautilus-extension1 to libnautilus-extension1a, and add 
     appropriate Replaces/Conflicts. Closes: #627361.
 
  -- Josselin Mouette <joss@debian.org>  Tue, 31 May 2011 23:39:28 +0200
@@ -717,7 +569,7 @@ nautilus (3.0.2-1) experimental; urgency=low
 
   * Rebuild against a cdbs+debhelper with dh_installgsettings.
     Closes: #627477.
-  * libnautilus-extension1 breaks nautilus (< 3.0) and that’s the
+  * libnautilus-extension1 breaks nautilus (< 3.0) and that’s the 
     beginning of a very long list (nautilus transition).
     + gnome-disk-utility < 3.0
     + brasero < 2.91
@@ -725,15 +577,15 @@ nautilus (3.0.2-1) experimental; urgency=low
     + nautilus-sendto < 3
   * Replace nautilus-sendto since it is now included in nautilus.
   * New upstream translation and bugfix release.
-  * 00_do_not_require_unpackage_libexif.patch: dropped, we have the
+  * 00_do_not_require_unpackage_libexif.patch: dropped, we have the 
     latest libexif now.
     + Bump build-dependencies accordingly.
   * Bump libnotify requirement.
   * Reintroduce some nautilus 2.x patches.
     + 03_deprecated.patch: still necessary, refreshed.
-    + 12_list-view_expand.patch: still necessary, file was renamed,
+    + 12_list-view_expand.patch: still necessary, file was renamed, 
       refreshed. Update to GTK+ 3.
-  * nautilus.install: install the autostart file. This should bring back
+  * nautilus.install: install the autostart file. This should bring back 
     the desktop icons functionality completely.
 
  -- Josselin Mouette <joss@debian.org>  Tue, 31 May 2011 19:30:35 +0200
@@ -858,7 +710,7 @@ nautilus (2.91.3-1) experimental; urgency=low
 
 nautilus (2.30.1-3) unstable; urgency=low
 
-  * 15_nautilus_file_peek_crash.patch: stolen from upstream git. Fix a
+  * 15_nautilus_file_peek_crash.patch: stolen from upstream git. Fix a 
     crasher with lots of upstream duplicates from squeeze systems.
 
  -- Josselin Mouette <joss@debian.org>  Sun, 27 Feb 2011 12:50:09 +0100
@@ -867,10 +719,10 @@ nautilus (2.30.1-2) unstable; urgency=low
 
   * Drop type-handling usage. Closes: #587872.
   * Bump standards version accordingly.
-  * 13_shortcuts.patch: stolen from upstream git. Fix an annoying bug
+  * 13_shortcuts.patch: stolen from upstream git. Fix an annoying bug 
     that makes a number of keyboard shortcuts inoperant the first time.
     Closes: #592016.
-  * 14_dont_show_umount.patch: stolen from upstream git. Don’t show both
+  * 14_dont_show_umount.patch: stolen from upstream git. Don’t show both 
     “unmount” and “safe removal”/“eject” entries. Closes: #564859.
 
  -- Josselin Mouette <joss@debian.org>  Sat, 18 Sep 2010 14:31:36 +0200
@@ -879,7 +731,7 @@ nautilus (2.30.1-1) unstable; urgency=low
 
   * Bump shlibs for libnautilus-extension1. Closes: #577856.
   * New upstream release.
-  * 02_eel_libadd.patch, 04_tracker_0.8.patch: dropped, merged upstream.
+  * 02_eel_libadd.patch, 04_tracker_0.8.patch: dropped, merged upstream. 
   * 90_relibtoolize.patch: updated for the new version.
 
  -- Josselin Mouette <joss@debian.org>  Tue, 27 Apr 2010 19:06:00 +0200
@@ -907,7 +759,7 @@ nautilus (2.30.0-1) experimental; urgency=low
 
 nautilus (2.28.4-2) unstable; urgency=low
 
-  * 03_deprecated.patch: new patch. Don’t use -D*DISABLE_DEPRECATED for
+  * 03_deprecated.patch: new patch. Don’t use -D*DISABLE_DEPRECATED for 
     a production build, it often FTBFS. Closes: #576977.
   * 90_relibtoolize.patch: updated accordingly.
 
@@ -944,7 +796,7 @@ nautilus (2.28.3-1) unstable; urgency=low
 nautilus (2.28.1-1) unstable; urgency=low
 
   [ Josselin Mouette ]
-  * Drop gnome-mount recommends, it’s already pulled by gvfs if needed
+  * Drop gnome-mount recommends, it’s already pulled by gvfs if needed 
     (i.e. for gvfs builds that use HAL).
 
   [ Andrea Veri ]
@@ -958,7 +810,7 @@ nautilus (2.28.1-1) unstable; urgency=low
       libnautilus-extension-dev making lintian stop complaining.
 
   [ Josselin Mouette ]
-  * nautilus-data.gconf-defaults: set exit_with_last_window to false so
+  * nautilus-data.gconf-defaults: set exit_with_last_window to false so 
     that nautilus doesn’t go in a loop when show_desktop = false.
   * 13_autostart.patch: removed, it is no longer necessary.
     + Automount works even when show_desktop = false. Closes: #538108.
@@ -981,7 +833,7 @@ nautilus (2.28.0-1) unstable; urgency=low
   * New upstream release.
     + Fixes duplicate ID in UI file. Closes: #545254.
   * Bump glib build-dependency.
-  * 12_list-view_expand.patch, 13_autostart.patch, 90_relibtoolize.patch:
+  * 12_list-view_expand.patch, 13_autostart.patch, 90_relibtoolize.patch: 
     updated for the new version.
   * Install nautilus-convert-metadata.
 
@@ -991,8 +843,8 @@ nautilus (2.26.3-1) unstable; urgency=low
 
   * New upstream release.
     + Updated Spanish translation. Closes: #532288.
-  * 13_autostart.patch: start with -n so that the default window is not
-    created, even when nautilus doesn’t detect correctly it is started
+  * 13_autostart.patch: start with -n so that the default window is not 
+    created, even when nautilus doesn’t detect correctly it is started 
     by the session startup. Closes: #532799.
   * 90_relibtoolize.patch: regenerated for the new version.
 
@@ -1000,8 +852,8 @@ nautilus (2.26.3-1) unstable; urgency=low
 
 nautilus (2.26.2-5) unstable; urgency=low
 
-  * 11_restart_mode.patch: removed, it is useless now that we never
-    autorespawn nautilus. Furthermore, nautilus-home.desktop is lacking
+  * 11_restart_mode.patch: removed, it is useless now that we never 
+    autorespawn nautilus. Furthermore, nautilus-home.desktop is lacking 
     a X-GNOME-Provides: field.
   * 13_autostart.patch: refreshed accordingly.
 
@@ -1011,12 +863,12 @@ nautilus (2.26.2-4) unstable; urgency=low
 
   * 11_restart_mode.patch: add reference.
   * Remove scrollkeeper dependency.
-  * 13_autostart.patch: new patch. Put nautilus.desktop into the
-    autostart directory so that we don’t rely on gnome-session’s
-    required_applications mechanism. This allows to add an autostart
+  * 13_autostart.patch: new patch. Put nautilus.desktop into the 
+    autostart directory so that we don’t rely on gnome-session’s 
+    required_applications mechanism. This allows to add an autostart 
     condition on the show_desktop GConf key.
-    + Remove the AutoRestart on the same basis; there’s no point in
-      restarting nautilus and not e.g. gnome-power-manager, and it
+    + Remove the AutoRestart on the same basis; there’s no point in 
+      restarting nautilus and not e.g. gnome-power-manager, and it 
       causes many issues.
   * 90_relibtoolize.patch: update accordingly.
 
@@ -1024,36 +876,36 @@ nautilus (2.26.2-4) unstable; urgency=low
 
 nautilus (2.26.2-3) unstable; urgency=low
 
-  * 11_restart_mode.patch: new patch. Do not get the session manager to
-    automatically restart nautilus when using --no-desktop. Thanks to
+  * 11_restart_mode.patch: new patch. Do not get the session manager to 
+    automatically restart nautilus when using --no-desktop. Thanks to 
     Roland Mas for testing.
 
  -- Josselin Mouette <joss@debian.org>  Wed, 29 Apr 2009 17:55:35 +0200
 
 nautilus (2.26.2-2) unstable; urgency=low
 
-  * 20_open-with_install.patch: fix a crash when switching tabs in the
+  * 20_open-with_install.patch: fix a crash when switching tabs in the 
     dialog.
 
  -- Josselin Mouette <joss@debian.org>  Sat, 25 Apr 2009 23:44:05 +0200
 
 nautilus (2.26.2-1) unstable; urgency=low
 
-  * Break eiciel, diff-ext, nautilus-gksu, nautilus-actions,
-    nautilus-share and seahorse-plugins until versions rebuilt with the
+  * Break eiciel, diff-ext, nautilus-gksu, nautilus-actions, 
+    nautilus-share and seahorse-plugins until versions rebuilt with the 
     new extension path.
-  * Only suggest xdg-user-dirs, nautilus works perfectly fine without
+  * Only suggest xdg-user-dirs, nautilus works perfectly fine without 
     it.
   * New upstream release.
     + Correctly cleans up session files. Closes: #469267.
-    + Checks whether the session is active with ConsoleKit before
+    + Checks whether the session is active with ConsoleKit before 
       mounting a removable media. Closes: #512824.
     + Follows OnlyShowIn/NotShowIn for .desktop files on the desktop.
       Closes: #422570.
     + Only accepts .desktop with executable permissions.
       Closes: #515078, #515104.
   * 07_desktop_file_activation.patch: removed from the sources.
-  * 02_eel_libadd.patch: stolen from the eel2 sources. Fix linking of
+  * 02_eel_libadd.patch: stolen from the eel2 sources. Fix linking of 
     the eel convenience library.
   * 14_sidebar_network-protocol.patch: removed, useless since 2.24.
     Closes: #518773.
@@ -1065,19 +917,19 @@ nautilus (2.26.2-1) unstable; urgency=low
   * Recommend consolekit.
   * Pass --disable-packagekit.
   * Fix section of debug package.
-  * Update build-dependencies and dependencies according to the upstream
+  * Update build-dependencies and dependencies according to the upstream 
     changes.
-  * Build-depend on libglib2.0-doc and libgtk2.0-doc to ensure proper
+  * Build-depend on libglib2.0-doc and libgtk2.0-doc to ensure proper 
     xrefs.
   * nautilus-data.install: there are no more bonobo files to ship.
-  * 10_load_session.patch: new patch. Support --load-session so that
+  * 10_load_session.patch: new patch. Support --load-session so that 
     sessions saved with older nautilus versions will load correctly.
 
  -- Josselin Mouette <joss@debian.org>  Sat, 25 Apr 2009 01:33:51 +0200
 
 nautilus (2.24.2-3) unstable; urgency=low
 
-  * Require shared-mime-info 0.50 to have support for the x-content
+  * Require shared-mime-info 0.50 to have support for the x-content 
     types. Closes: #511370.
   * Recommend gnome-mount.
   * Break rhythmbox < 0.12.
@@ -1088,21 +940,21 @@ nautilus (2.24.2-3) unstable; urgency=low
 
 nautilus (2.24.2-2) experimental; urgency=low
 
-  * Add a Breaks with g-v-m << 2.24 to avoid double actions on device
+  * Add a Breaks with g-v-m << 2.24 to avoid double actions on device 
     insertion. Closes: #507630, #510692.
-  * 20_open-with_install.patch: add missing argument to
+  * 20_open-with_install.patch: add missing argument to 
     gtk_tree_model_get. Closes: #510694.
 
  -- Josselin Mouette <joss@debian.org>  Tue, 06 Jan 2009 17:07:39 +0100
 
 nautilus (2.24.2-1) experimental; urgency=low
 
-  * nautilus-data.gconf-defaults: enable autorun actions for all media
+  * nautilus-data.gconf-defaults: enable autorun actions for all media 
     CD/DVD/etc. by default instead of asking.
     + Also do it for blank media.
   * libnautilus-extension1 breaks nautilus << 2.22.
-  * Build-depend on libgnome-desktop-dev 2.24 to be sure to link with
-    libgnome-desktop-2-7. Otherwise, since symbols are not versioned,
+  * Build-depend on libgnome-desktop-dev 2.24 to be sure to link with 
+    libgnome-desktop-2-7. Otherwise, since symbols are not versioned, 
     libeel2-2.24 will load it anyway and ka-boom. Closes: #507632.
   * New upstream release.
 
@@ -1117,9 +969,9 @@ nautilus (2.24.1-1) experimental; urgency=low
 
   [ Josselin Mouette ]
   * Update (build-)dependencies according to the new version.
-  * Add Breaks in libnautilus-extension1 against all packages that use
+  * Add Breaks in libnautilus-extension1 against all packages that use 
     the old API.
-  * 12_list-view_expand.patch, 14_sidebar_network-protocol.patch:
+  * 12_list-view_expand.patch, 14_sidebar_network-protocol.patch: 
     refreshed.
   * Update shlibs version to 2.23.1.
   * Only require gvfs (>= 1.0.2), only recommend gvfs-backends.
@@ -1134,7 +986,7 @@ nautilus (2.24.1-1) experimental; urgency=low
 nautilus (2.22.5.1-1) experimental; urgency=low
 
   [ Josselin Mouette ]
-  * 20_open-with_install.patch: handle the case where content_type =
+  * 20_open-with_install.patch: handle the case where content_type = 
     NULL. See bugzilla #541183.
 
   [ Sebastian Dröge ]
@@ -1254,8 +1106,8 @@ nautilus (2.22.0-1) experimental; urgency=low
 
 nautilus (2.20.0-7) unstable; urgency=low
 
-  * 25_disable_sighandler.patch: patch from upstream SVN. Disable the
-    horrible signal handler that makes nautilus go wild while filling
+  * 25_disable_sighandler.patch: patch from upstream SVN. Disable the 
+    horrible signal handler that makes nautilus go wild while filling 
     its debug log. Closes: #454764, #494788.
   * Don’t require libselinux on non-linux OSes. Closes: #494645.
 
@@ -1263,20 +1115,20 @@ nautilus (2.20.0-7) unstable; urgency=low
 
 nautilus (2.20.0-6) unstable; urgency=low
 
-  * 24_smb_crash.patch: patch from upstream to handle NULL MIME types
+  * 24_smb_crash.patch: patch from upstream to handle NULL MIME types 
     set by the SMB module gracefully, avoiding a lot of crashes.
 
  -- Josselin Mouette <joss@debian.org>  Mon, 21 Jul 2008 17:09:01 +0200
 
 nautilus (2.20.0-5) unstable; urgency=low
 
-  * 05_places-sidebar_single-click.patch: replaced by upstream version
-    of the patch, that does not activate items while right-clicking
+  * 05_places-sidebar_single-click.patch: replaced by upstream version 
+    of the patch, that does not activate items while right-clicking 
     them. Closes: #414960.
-  * 06_dont_create_Desktop.patch,
-    20_upstream_nautilus-dnd-user-owned.patch: make patches apply with
+  * 06_dont_create_Desktop.patch, 
+    20_upstream_nautilus-dnd-user-owned.patch: make patches apply with 
     -p1. Closes: #484953.
-  * Recommend app-install-data and synaptic now that libeel doesn’t
+  * Recommend app-install-data and synaptic now that libeel doesn’t 
     anymore.
 
  -- Josselin Mouette <joss@debian.org>  Fri, 18 Jul 2008 13:27:27 +0200
@@ -1291,8 +1143,8 @@ nautilus (2.20.0-4) unstable; urgency=low
 
   [ Josselin Mouette ]
   * Demote fam to a Suggests; only g-d-e really needs to recommend it.
-  * 02_trash_location.patch: new patch. When unmounting a volume with a
-    non-empty trash, take into account that with the new location, the
+  * 02_trash_location.patch: new patch. When unmounting a volume with a 
+    non-empty trash, take into account that with the new location, the 
     directory to remove is the parent of the one returned by gnome-vfs.
 
  -- Josselin Mouette <joss@debian.org>  Wed, 28 May 2008 01:47:28 +0200
@@ -1406,8 +1258,8 @@ nautilus (2.18.1-3) unstable; urgency=low
   * Wrap build-deps and deps.
 
   [ Josselin Mouette ]
-  * 12_list-view_expand.patch: set a minimum width for the name column
-    to avoid opening a window with a too small name column. Partially
+  * 12_list-view_expand.patch: set a minimum width for the name column 
+    to avoid opening a window with a too small name column. Partially 
     fixes #422563.
 
  -- Josselin Mouette <joss@debian.org>  Wed, 16 May 2007 00:21:01 +0200
@@ -1417,8 +1269,8 @@ nautilus (2.18.1-2) unstable; urgency=low
   * 10_location_titlebar.patch: include gnome-vfs-utils.h
     (closes: #421027).
   * Refresh other patches.
-  * 12_list-view_expand.patch: make the filename column expandable
-    instead of setting the width by default. Reverts upstream commit
+  * 12_list-view_expand.patch: make the filename column expandable 
+    instead of setting the width by default. Reverts upstream commit 
     12779.
 
  -- Josselin Mouette <joss@debian.org>  Tue, 01 May 2007 16:16:22 +0200
@@ -1453,7 +1305,7 @@ nautilus (2.18.1-1) unstable; urgency=low
     Use copy instead of move when using DND and the destination is owned by
     someone else. See Gnome #339154.
   * 10_location_titlebar.patch: Updated with the latest patch from
-    Gnome #142087.
+    Gnome #142087. 
 
  -- Sebastian Dröge <slomo@debian.org>  Tue, 24 Apr 2007 22:38:54 +0200
 
@@ -1472,7 +1324,7 @@ nautilus (2.16.3-4) experimental; urgency=low
   * 07_desktop_file_activation.patch:
     + Compare numeric uids instead of using strcmp.
     + Fix the context menu of "link" desktop items.
-  * 09_connect_server_iter.patch: patch from Christian Neumair to
+  * 09_connect_server_iter.patch: patch from Christian Neumair to 
     display only supported protocols in the "connect to" window
     (closes: #375180).
 
@@ -1492,7 +1344,7 @@ nautilus (2.16.3-3) experimental; urgency=low
     (closes: #230757, #408896).
   * 07_desktop_file_activation.patch:
     + Don't launch desktop files that aren't at safe places
-      (closes: #408556). This doesn't affect desktop files that are
+      (closes: #408556). This doesn't affect desktop files that are 
       merely links.
     + Don't launch those that don't end with .desktop (closes: #408948).
 
@@ -1505,7 +1357,7 @@ nautilus (2.16.3-2) experimental; urgency=low
   * 04_show_backup_files.patch: patch from Stephen Cook to display
     backup files together with hidden files (closes: #401583).
   * Refresh 11_umount-progress-bar.patch.
-  * 05_places-sidebar_single-click.patch: patch from UHU Linux to use
+  * 05_places-sidebar_single-click.patch: patch from UHU Linux to use 
     single click in the "places" sidebar pane.
 
  -- Josselin Mouette <joss@debian.org>  Wed,  3 Jan 2007 00:31:00 +0100
@@ -1601,7 +1453,7 @@ nautilus (2.14.3-4) unstable; urgency=low
 nautilus (2.14.3-3) unstable; urgency=low
 
   * Is there something like a double brown paper bag?
-  * 02_umask.patch: finally a correct expression, hopefully. Fixes
+  * 02_umask.patch: finally a correct expression, hopefully. Fixes 
     problem with file creation (closes: #390908).
 
  -- Josselin Mouette <joss@debian.org>  Wed,  4 Oct 2006 17:14:14 +0200
@@ -1665,7 +1517,7 @@ nautilus (2.14.1-3) unstable; urgency=low
  -- Josselin Mouette <joss@debian.org>  Thu, 18 May 2006 06:40:47 +0200
 
 nautilus (2.14.1-2) unstable; urgency=low
-
+  
   [ Sebastien Bacher ]
   * Upload
 
@@ -1681,7 +1533,7 @@ nautilus (2.14.1-2) unstable; urgency=low
     correct libnautilus-extension1 shlib dep. (Closes: #365740)
 
  -- Sebastien Bacher <seb128@debian.org>  Sat, 13 May 2006 00:12:20 +0200
-
+  
 nautilus (2.14.1-1) unstable; urgency=low
 
   * New upstream version
@@ -1696,7 +1548,7 @@ nautilus (2.14.0-1) unstable; urgency=low
 
   * New upstream version
   * debian/control.in:
-    - updated the requirements on gnome-vfs, eel
+    - updated the requirements on gnome-vfs, eel 
     - updated cdbs requirement so dh_installmime is used
   * debian/nautilus-data.install:
     - install the "application/x-gnome-saved-search" mimetype definition
@@ -1769,18 +1621,18 @@ nautilus (2.10.1-5) unstable; urgency=high
  -- Loic Minier <lool@dooz.org>  Fri, 14 Oct 2005 11:24:06 +0200
 
 nautilus (2.10.1-4) unstable; urgency=medium
-
+  
   [ Sebastien Bacher <seb128@debian.org> ]
   * debian/control.in:
     - Build-Depends on the current exif (Closes: #321261).
   * debian/rules:
     - don't use "-as-needed", fix the current build issue (Closes: #320138).
-
+  
   [ Josselin Mouette <joss@debian.org> ]
   * Don't recommend gnome-icon-theme, gnome-control-center already depends on
     it.
   * Updated Suggests, using evince | pdf-viewer instead of xpdf, and
-    totem | mp3-decoder instead of xmms (closes: #289252).
+    totem | mp3-decoder instead of xmms (closes: #289252).  
 
  -- Sebastien Bacher <seb128@debian.org>  Fri,  5 Aug 2005 13:12:57 +0200
 
@@ -1845,7 +1697,7 @@ nautilus (2.10.0-1) experimental; urgency=low
 nautilus (2.8.2-2) unstable; urgency=medium
 
   * debian/nautilus.postrm:
-    - test if the directories are here before trying to remove them
+    - test if the directories are here before trying to remove them 
       (Closes: #283450).
 
  -- Sebastien Bacher <seb128@debian.org>  Wed, 24 Nov 2004 16:09:08 +0100
@@ -1896,7 +1748,7 @@ nautilus (2.7.4-1) experimental; urgency=low
     - removed, obsolete.
   * debian/control.in:
     - Build-Depends on cdbs instead of dbs.
-    - updated the Build-Depends on librsvg2 to 2.7
+    - updated the Build-Depends on librsvg2 to 2.7 
   * debian/*.files:
     - replaced by *.install files.
   * debian/rules:
@@ -1920,12 +1772,12 @@ nautilus (2.7.1-1) experimental; urgency=low
   * GNOME Team Upload.
   * New (development) upstream release.
   * debian/patches/01_relibtoolise.patch:
-    - updated.
+    - updated.  
   * debian/patches/02_show-mounts.patch:
     - removed since the changes are in the new version.
   * debian/patches/02_build_exif.patch:
     - patch to fix the build with the new libexif.
-
+  
  -- Sebastien Bacher <seb128@debian.org>  Wed, 23 Jun 2004 18:41:33 +0200
 
 nautilus (2.6.3-2) unstable; urgency=high
@@ -1941,19 +1793,19 @@ nautilus (2.6.3-1) unstable; urgency=low
   * GNOME Team Upload.
   * New upstream release
     - fix zoom and desktop problems (Closes: #253135, #253653).
-    - fix the problem with desktop icons marqued as read-only
+    - fix the problem with desktop icons marqued as read-only 
       (Closes: #249792, #251848).
   * debian/control.in:
     - recommands nautilus-cd-burner (Closes: #249503).
   * debian/patches/01_relibtoolise.patch:
-    + updated.
+    + updated.  
   * debian/patches/02_show-mounts.patch:
     - patch from the CVS to allow to not show volumes on desktop
       (gconf key to use: /apps/nautilus/desktop/volumes_visible).
       (Closes: #253529).
   * debian/patches/03_desktop-launchers.patch:
      - patch from the CVS to allow to edit the launcher on the desktop again.
-
+  
  -- Sebastien Bacher <seb128@debian.org>  Wed, 16 Jun 2004 23:18:15 +0200
 
 nautilus (2.6.2-1) unstable; urgency=low
@@ -1968,7 +1820,7 @@ nautilus (2.6.2-1) unstable; urgency=low
  -- Sebastien Bacher <seb128@debian.org>  Sat,  5 Jun 2004 13:11:31 +0200
 
 nautilus (2.6.1-3) unstable; urgency=low
-
+ 
 
   * debian/control.in:
     + updated Build-Depends (Closes: #251388).
@@ -2011,7 +1863,7 @@ nautilus (2.6.0-1) experimental; urgency=low
     + Adapted for the Gnome Team.
     + libnautilus2-2 conflitcs with nautilus (<< 2.6.0) (Closes: #200433).
     + Depends on shared-mime-info.
-    + Removed gnome-vfs-extra2 Recommends.
+    + Removed gnome-vfs-extra2 Recommends.  
   * debian/nautilus.1:
     + Updated references (Closes: #226677).
   * debian/patches/nautilus-2.4.1-gnu_pathmax.patch:
@@ -2038,14 +1890,14 @@ nautilus (2.4.1-3) unstable; urgency=low
     - Recommends eject (Closes: #171081).
     - Removed nautilus-mozilla from Suggests since the package is not in
       the archive (Closes: #180805).
-    - Updated Build-Depends.
+    - Updated Build-Depends.  
     - Updated descriptions (Closes: #172928, #206509, #210070).
   * debian/nautilus.postrm
     - Removed empty dir in /etc (Closes: #206508).
   * debian/rules :
     - Removed autogen.sh call to fix the -pthread problem.
-    - Removed --disable-mozilla-component option, since nautilus 2.4 doesn't
-      use it.
+    - Removed --disable-mozilla-component option, since nautilus 2.4 doesn't 
+      use it.  
 
  -- Sebastien Bacher <seb128@debian.org>  Sun, 26 Oct 2003 15:22:19 +0100
 
@@ -2488,8 +2340,8 @@ nautilus (1.0-2) unstable; urgency=low
   * Install nautilus-verify-rpm.sh (closes: Bug#90087)
   * Build with -DDEBIAN (closes: Bug#84810)
   * includes libvfs-help.so (closes: Bug#92766)
-
-  * Notice to FTP maintainer,
+  
+  * Notice to FTP maintainer, 
     Please remove nautilus-trilobite, nautilus-mozilla from main archive.
     and move nautilus-suggested to contrib/x11.
 
@@ -2501,11 +2353,11 @@ nautilus (1.0-1) unstable; urgency=low
   * nautilus-extra: depends xpdf | xpdf-i (closes: Bug#84958)
   * libnautilus-extention/nautilus-gnome-extensions.c: applied debian x-terminal-emurator patch (closes: Bug#84810)
   * Fix "Tree view doesn't work in Nautilus" (closes: Bug#89087)
-  * upsteam fixed
+  * upsteam fixed 
       closes: Bug#87069 xmms doesn't accept DND mp3 files from nautilus
       closes: Bug#86422 nautilus: Font handling bug
       closes: Bug#86452 nautilus: Nautilus doesn't choose correct fonts
-  * holefully fixed
+  * holefully fixed 
 	 closes: Bug#89372: Nautilus doesn't show up
 
  -- Takuo KITAME <kitame@northeye.org>  Wed, 14 Mar 2001 13:56:00 +0900
@@ -2570,3 +2422,5 @@ nautilus (0.1.0-1) experimental; urgency=low
   * Initial Release.
 
  -- Takuo KITAME <kitame@northeye.org>  Thu, 17 Aug 2000 12:51:38 +0900
+
+

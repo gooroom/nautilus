@@ -21,7 +21,8 @@
  *
  */
 
-#pragma once
+#ifndef __NAUTILUS_PROGRESS_PERSISTENCE_HANDLER_H__
+#define __NAUTILUS_PROGRESS_PERSISTENCE_HANDLER_H__
 
 #include <glib-object.h>
 
@@ -35,3 +36,5 @@ NautilusProgressPersistenceHandler * nautilus_progress_persistence_handler_new (
 void nautilus_progress_persistence_handler_make_persistent (NautilusProgressPersistenceHandler *self);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_PROGRESS_PERSISTENCE_HANDLER_H__ */

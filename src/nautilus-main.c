@@ -49,12 +49,30 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef HAVE_EXEMPI
+#include <exempi/xmp.h>
+#endif
+
 int
 main (int   argc,
       char *argv[])
 {
     gint retval;
     NautilusApplication *application;
+
+#if defined (HAVE_MALLOPT) && defined(M_MMAP_THRESHOLD)
+    /* Nautilus uses lots and lots of small and medium size allocations,
+     * and then a few large ones for the desktop background. By default
+     * glibc uses a dynamic treshold for how large allocations should
+     * be mmaped. Unfortunately this triggers quickly for nautilus when
+     * it does the desktop background allocations, raising the limit
+     * such that a lot of temporary large allocations end up on the
+     * heap and are thus not returned to the OS. To fix this we set
+     * a hardcoded limit. I don't know what a good value is, but 128K
+     * was the old glibc static limit, lets use that.
+     */
+    mallopt (M_MMAP_THRESHOLD, 128 * 1024);
+#endif
 
     if (g_getenv ("NAUTILUS_DEBUG") != NULL)
     {
@@ -68,6 +86,9 @@ main (int   argc,
 
     g_set_prgname ("nautilus");
 
+#ifdef HAVE_EXEMPI
+    xmp_init ();
+#endif
     nautilus_register_resource ();
     /* Run the nautilus application. */
     application = nautilus_application_new ();

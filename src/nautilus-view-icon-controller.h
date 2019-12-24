@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NAUTILUS_VIEW_ICON_CONTROLLER_H
+#define NAUTILUS_VIEW_ICON_CONTROLLER_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -18,3 +19,6 @@ NautilusViewIconController *nautilus_view_icon_controller_new (NautilusWindowSlo
 NautilusViewModel * nautilus_view_icon_controller_get_model (NautilusViewIconController *self);
 
 G_END_DECLS
+
+#endif /* NAUTILUS_VIEW_ICON_CONTROLLER_H */
+

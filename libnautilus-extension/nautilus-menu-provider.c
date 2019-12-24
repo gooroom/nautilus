@@ -25,74 +25,124 @@
 #include <config.h>
 #include "nautilus-menu-provider.h"
 
-G_DEFINE_INTERFACE (NautilusMenuProvider, nautilus_menu_provider, G_TYPE_OBJECT)
+#include <glib-object.h>
 
-enum
-{
-    ITEMS_UPDATED,
-    LAST_SIGNAL
-};
-
-static guint signals[LAST_SIGNAL];
+/**
+ * SECTION:nautilus-menu-provider
+ * @title: NautilusMenuProvider
+ * @short_description: Interface to provide additional menu items
+ * @include: libnautilus-extension/nautilus-menu-provider.h
+ *
+ * #NautilusMenuProvider allows extension to provide additional menu items
+ * in the file manager menus.
+ */
 
 static void
-nautilus_menu_provider_default_init (NautilusMenuProviderInterface *klass)
+nautilus_menu_provider_base_init (gpointer g_class)
 {
-    /* This signal should be emited each time the extension modify the list of menu items */
-    signals[ITEMS_UPDATED] = g_signal_new ("items-updated",
-                                           NAUTILUS_TYPE_MENU_PROVIDER,
-                                           G_SIGNAL_RUN_LAST,
-                                           0,
-                                           NULL, NULL,
-                                           g_cclosure_marshal_VOID__VOID,
-                                           G_TYPE_NONE, 0);
+    static gboolean initialized = FALSE;
+
+    if (!initialized)
+    {
+        /* This signal should be emited each time the extension modify the list of menu items */
+        g_signal_new ("items-updated",
+                      NAUTILUS_TYPE_MENU_PROVIDER,
+                      G_SIGNAL_RUN_LAST,
+                      0,
+                      NULL, NULL,
+                      g_cclosure_marshal_VOID__VOID,
+                      G_TYPE_NONE, 0);
+        initialized = TRUE;
+    }
 }
 
+GType
+nautilus_menu_provider_get_type (void)
+{
+    static GType type = 0;
+
+    if (!type)
+    {
+        const GTypeInfo info =
+        {
+            sizeof (NautilusMenuProviderIface),
+            nautilus_menu_provider_base_init,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            0,
+            0,
+            NULL
+        };
+
+        type = g_type_register_static (G_TYPE_INTERFACE,
+                                       "NautilusMenuProvider",
+                                       &info, 0);
+        g_type_interface_add_prerequisite (type, G_TYPE_OBJECT);
+    }
+
+    return type;
+}
+
+/**
+ * nautilus_menu_provider_get_file_items:
+ * @provider: a #NautilusMenuProvider
+ * @window: the parent #GtkWidget window
+ * @files: (element-type NautilusFileInfo): a list of #NautilusFileInfo
+ *
+ * Returns: (element-type NautilusMenuItem) (transfer full): the provided list of #NautilusMenuItem
+ */
 GList *
 nautilus_menu_provider_get_file_items (NautilusMenuProvider *provider,
                                        GtkWidget            *window,
                                        GList                *files)
 {
-    NautilusMenuProviderInterface *iface;
-
-    iface = NAUTILUS_MENU_PROVIDER_GET_IFACE (provider);
-
     g_return_val_if_fail (NAUTILUS_IS_MENU_PROVIDER (provider), NULL);
-    g_return_val_if_fail (GTK_IS_WIDGET (window), NULL);
 
-    if (iface->get_file_items != NULL)
+    if (NAUTILUS_MENU_PROVIDER_GET_IFACE (provider)->get_file_items)
     {
-        return iface->get_file_items (provider, window, files);
+        return NAUTILUS_MENU_PROVIDER_GET_IFACE (provider)->get_file_items
+                   (provider, window, files);
     }
-
-    return NULL;
+    else
+    {
+        return NULL;
+    }
 }
 
+/**
+ * nautilus_menu_provider_get_background_items:
+ * @provider: a #NautilusMenuProvider
+ * @window: the parent #GtkWidget window
+ * @current_folder: the folder for which background items are requested
+ *
+ * Returns: (element-type NautilusMenuItem) (transfer full): the provided list of #NautilusMenuItem
+ */
 GList *
 nautilus_menu_provider_get_background_items (NautilusMenuProvider *provider,
                                              GtkWidget            *window,
                                              NautilusFileInfo     *current_folder)
 {
-    NautilusMenuProviderInterface *iface;
-
-    iface = NAUTILUS_MENU_PROVIDER_GET_IFACE (provider);
-
     g_return_val_if_fail (NAUTILUS_IS_MENU_PROVIDER (provider), NULL);
-    g_return_val_if_fail (GTK_IS_WIDGET (window), NULL);
     g_return_val_if_fail (NAUTILUS_IS_FILE_INFO (current_folder), NULL);
 
-    if (iface->get_background_items != NULL)
+    if (NAUTILUS_MENU_PROVIDER_GET_IFACE (provider)->get_background_items)
     {
-        return iface->get_background_items (provider, window, current_folder);
+        return NAUTILUS_MENU_PROVIDER_GET_IFACE (provider)->get_background_items
+                   (provider, window, current_folder);
     }
-
-    return NULL;
+    else
+    {
+        return NULL;
+    }
 }
 
+/* This function emit a signal to inform nautilus that its item list has changed */
 void
 nautilus_menu_provider_emit_items_updated_signal (NautilusMenuProvider *provider)
 {
     g_return_if_fail (NAUTILUS_IS_MENU_PROVIDER (provider));
 
-    g_signal_emit (provider, ITEMS_UPDATED, 0);
+    g_signal_emit_by_name (provider, "items-updated");
 }

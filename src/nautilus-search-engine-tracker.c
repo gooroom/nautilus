@@ -22,7 +22,7 @@
 #include <config.h>
 #include "nautilus-search-engine-tracker.h"
 
-#include "nautilus-search-engine-private.h"
+#include "nautilus-global-preferences.h"
 #include "nautilus-search-hit.h"
 #include "nautilus-search-provider.h"
 #define DEBUG_FLAG NAUTILUS_DEBUG_SEARCH
@@ -295,6 +295,7 @@ nautilus_search_engine_tracker_start (NautilusSearchProvider *provider)
     GString *sparql;
     GList *mimetypes, *l;
     gint mime_count;
+    gboolean recursive;
     GPtrArray *date_range;
 
     tracker = NAUTILUS_SEARCH_ENGINE_TRACKER (provider);
@@ -316,6 +317,10 @@ nautilus_search_engine_tracker_start (NautilusSearchProvider *provider)
         return;
     }
 
+    recursive = g_settings_get_enum (nautilus_preferences, "recursive-search") == NAUTILUS_SPEED_TRADEOFF_LOCAL_ONLY ||
+                g_settings_get_enum (nautilus_preferences, "recursive-search") == NAUTILUS_SPEED_TRADEOFF_ALWAYS;
+    tracker->recursive = recursive;
+
     tracker->fts_enabled = nautilus_query_get_search_content (tracker->query);
 
     query_text = nautilus_query_get_text (tracker->query);
@@ -336,13 +341,12 @@ nautilus_search_engine_tracker_start (NautilusSearchProvider *provider)
         g_string_append (sparql, " fts:snippet(?urn)");
     }
 
-    g_string_append (sparql,
-                     "\nWHERE {"
-                     "  ?urn a nfo:FileDataObject;"
-                     "  nfo:fileLastModified ?mtime;"
-                     "  nfo:fileLastAccessed ?atime;"
-                     "  tracker:available true;"
-                     "  nie:url ?url");
+    g_string_append (sparql, "\nWHERE {"
+                             "  ?urn a nfo:FileDataObject;"
+                             "  nfo:fileLastModified ?mtime;"
+                             "  nfo:fileLastAccessed ?atime;"
+                             "  tracker:available true;"
+                             "  nie:url ?url");
 
     if (*search_text)
     {
@@ -367,7 +371,7 @@ nautilus_search_engine_tracker_start (NautilusSearchProvider *provider)
 
     if (!tracker->fts_enabled)
     {
-        g_string_append_printf (sparql, " && fn:contains(fn:lower-case(nfo:fileName(?urn)), '%s')", search_text);
+            g_string_append_printf (sparql, " && fn:contains(fn:lower-case(nfo:fileName(?urn)), '%s')", search_text);
     }
 
     date_range = nautilus_query_get_date_range (tracker->query);
@@ -464,18 +468,13 @@ static void
 nautilus_search_engine_tracker_set_query (NautilusSearchProvider *provider,
                                           NautilusQuery          *query)
 {
-    g_autoptr(GFile) location = NULL;
     NautilusSearchEngineTracker *tracker;
 
     tracker = NAUTILUS_SEARCH_ENGINE_TRACKER (provider);
-    location = nautilus_query_get_location (query);
 
+    g_object_ref (query);
     g_clear_object (&tracker->query);
-
-    tracker->query = g_object_ref (query);
-    tracker->recursive = is_recursive_search (NAUTILUS_SEARCH_ENGINE_TYPE_INDEXED,
-                                              nautilus_query_get_recursive (query),
-                                              location);
+    tracker->query = query;
 }
 
 static gboolean
@@ -533,6 +532,7 @@ nautilus_search_engine_tracker_class_init (NautilusSearchEngineTrackerClass *cla
      * Whether the search engine is running a search.
      */
     g_object_class_override_property (gobject_class, PROP_RUNNING, "running");
+
 }
 
 static void

@@ -16,7 +16,8 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef EGG_FRAME_SOURCE_H
+#define EGG_FRAME_SOURCE_H
 
 #include <glib.h>
 
@@ -27,3 +28,5 @@ guint egg_frame_source_add (guint       frames_per_sec,
                             gpointer    user_data);
 
 G_END_DECLS
+
+#endif /* EGG_FRAME_SOURCE_H */

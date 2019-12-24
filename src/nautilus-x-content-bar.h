@@ -20,7 +20,8 @@
  *
  */
 
-#pragma once
+#ifndef __NAUTILUS_X_CONTENT_BAR_H
+#define __NAUTILUS_X_CONTENT_BAR_H
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
@@ -35,3 +36,5 @@ GtkWidget *nautilus_x_content_bar_new (GMount             *mount,
                                        const char * const *x_content_types);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_X_CONTENT_BAR_H */

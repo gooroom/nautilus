@@ -20,8 +20,6 @@
    Author: Darin Adler <darin@eazel.com>
 */
 
-#pragma once
-
 #include "eel-self-checks.h"
 
 void eel_run_lib_self_checks (void);

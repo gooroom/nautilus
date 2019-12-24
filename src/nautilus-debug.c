@@ -36,7 +36,6 @@ static gboolean initialized = FALSE;
 static GDebugKey keys[] =
 {
     { "Application", NAUTILUS_DEBUG_APPLICATION },
-    { "AsyncJobs", NAUTILUS_DEBUG_ASYNC_JOBS },
     { "Bookmarks", NAUTILUS_DEBUG_BOOKMARKS },
     { "DBus", NAUTILUS_DEBUG_DBUS },
     { "DirectoryView", NAUTILUS_DEBUG_DIRECTORY_VIEW },
@@ -52,12 +51,11 @@ static GDebugKey keys[] =
     { "Smclient", NAUTILUS_DEBUG_SMCLIENT },
     { "Window", NAUTILUS_DEBUG_WINDOW },
     { "Undo", NAUTILUS_DEBUG_UNDO },
-    { "Thumbnails", NAUTILUS_DEBUG_THUMBNAILS },
     { 0, }
 };
 
 static void
-nautilus_debug_set_flags_from_env (void)
+nautilus_debug_set_flags_from_env ()
 {
     guint nkeys;
     const gchar *flags_string;
@@ -101,7 +99,6 @@ nautilus_debug (DebugFlags   flag,
     va_end (args);
 }
 
-__attribute__((__format__ (__printf__, 2, 0)))
 void
 nautilus_debug_valist (DebugFlags   flag,
                        const gchar *format,
@@ -118,7 +115,6 @@ nautilus_debug_valist (DebugFlags   flag,
     }
 }
 
-__attribute__((__format__ (__printf__, 3, 0)))
 static void
 nautilus_debug_files_valist (DebugFlags   flag,
                              GList       *files,

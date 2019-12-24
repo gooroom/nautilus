@@ -18,13 +18,15 @@
  * License along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef __NAUTILUS_APPLICATION_H__
+#define __NAUTILUS_APPLICATION_H__
 
 #include <gdk/gdk.h>
 #include <gio/gio.h>
 #include <gtk/gtk.h>
 
-#include "nautilus-types.h"
+#include "nautilus-bookmark-list.h"
+#include "nautilus-window.h"
 
 G_BEGIN_DECLS
 #define NAUTILUS_TYPE_APPLICATION (nautilus_application_get_type())
@@ -84,6 +86,9 @@ GtkWidget * nautilus_application_connect_server (NautilusApplication *applicatio
 						 NautilusWindow      *window);
 
 void nautilus_application_search (NautilusApplication *application,
-                                  NautilusQuery       *query);
+                                  const gchar         *uri,
+                                  const gchar         *text);
 void nautilus_application_startup_common (NautilusApplication *application);
 G_END_DECLS
+
+#endif /* __NAUTILUS_APPLICATION_H__ */

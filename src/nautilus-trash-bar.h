@@ -18,7 +18,8 @@
  *
  */
 
-#pragma once
+#ifndef __NAUTILUS_TRASH_BAR_H
+#define __NAUTILUS_TRASH_BAR_H
 
 #include "nautilus-files-view.h"
 
@@ -33,3 +34,5 @@ G_DECLARE_FINAL_TYPE (NautilusTrashBar, nautilus_trash_bar, NAUTILUS, TRASH_BAR,
 GtkWidget *nautilus_trash_bar_new (NautilusFilesView *view);
 
 G_END_DECLS
+
+#endif /* __GS_TRASH_BAR_H */

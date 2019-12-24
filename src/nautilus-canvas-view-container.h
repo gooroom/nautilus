@@ -20,16 +20,45 @@
    Author: Michael Meeks <michael@ximian.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_CANVAS_VIEW_CONTAINER_H
+#define NAUTILUS_CANVAS_VIEW_CONTAINER_H
+
+#include "nautilus-canvas-view.h"
 
 #include "nautilus-canvas-container.h"
 
+typedef struct NautilusCanvasViewContainer NautilusCanvasViewContainer;
+typedef struct NautilusCanvasViewContainerClass NautilusCanvasViewContainerClass;
+
 #define NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER nautilus_canvas_view_container_get_type()
+#define NAUTILUS_CANVAS_VIEW_CONTAINER(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER, NautilusCanvasViewContainer))
+#define NAUTILUS_CANVAS_VIEW_CONTAINER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST ((klass), NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER, NautilusCanvasViewContainerClass))
+#define NAUTILUS_IS_CANVAS_VIEW_CONTAINER(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER))
+#define NAUTILUS_IS_CANVAS_VIEW_CONTAINER_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE ((klass), NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER))
+#define NAUTILUS_CANVAS_VIEW_CONTAINER_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_CANVAS_VIEW_CONTAINER, NautilusCanvasViewContainerClass))
 
-G_DECLARE_FINAL_TYPE (NautilusCanvasViewContainer, nautilus_canvas_view_container,
-                      NAUTILUS, CANVAS_VIEW_CONTAINER,
-                      NautilusCanvasContainer)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(NautilusCanvasViewContainer, g_object_unref)
 
-NautilusCanvasContainer *nautilus_canvas_view_container_construct (NautilusCanvasViewContainer *canvas_container,
-                                                                   NautilusCanvasView      *view);
-NautilusCanvasContainer *nautilus_canvas_view_container_new       (NautilusCanvasView      *view);
+typedef struct NautilusCanvasViewContainerDetails NautilusCanvasViewContainerDetails;
+
+struct NautilusCanvasViewContainer {
+	NautilusCanvasContainer parent;
+
+	NautilusCanvasView *view;
+};
+
+struct NautilusCanvasViewContainerClass {
+	NautilusCanvasContainerClass parent_class;
+};
+
+GType                  nautilus_canvas_view_container_get_type         (void);
+NautilusCanvasContainer *nautilus_canvas_view_container_construct        (NautilusCanvasViewContainer *canvas_container,
+								      NautilusCanvasView      *view);
+NautilusCanvasContainer *nautilus_canvas_view_container_new              (NautilusCanvasView      *view);
+
+#endif /* NAUTILUS_CANVAS_VIEW_CONTAINER_H */

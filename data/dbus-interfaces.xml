@@ -27,26 +27,13 @@
       <arg type='as' name='SourceFilesURIList' direction='in'/>
       <arg type='s' name='DestinationDirectoryURI' direction='in'/>
     </method>
-    <method name='MoveURIs'>
-      <arg type='as' name='SourceFilesURIList' direction='in'/>
-      <arg type='s' name='DestinationDirectoryURI' direction='in'/>
-    </method>
     <method name='EmptyTrash'>
+    </method>"
+    <method name='CopyFile'>
+      <arg type='s' name='SourceFileURI' direction='in'/>
+      <arg type='s' name='SourceDisplayName' direction='in'/>
+      <arg type='s' name='DestinationDirectoryURI' direction='in'/>
+      <arg type='s' name='DestinationDisplayName' direction='in'/>
     </method>
-    <method name='TrashFiles'>
-      <arg type='as' name='URIs' direction='in'/>
-    </method>
-    <method name='CreateFolder'>
-      <arg type='s' name='URI' direction='in'/>
-    </method>
-    <method name='RenameFile'>
-      <arg type='s' name='URI' direction='in'/>
-      <arg type='s' name='NewName' direction='in'/>
-    </method>
-    <method name='Undo'>
-    </method>
-    <method name='Redo'>
-    </method>
-    <property name="UndoStatus" type="i" access="read"/>
   </interface>
 </node>

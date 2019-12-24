@@ -16,7 +16,8 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef EGG_ANIMATION_H
+#define EGG_ANIMATION_H
 
 #include <gdk/gdk.h>
 
@@ -72,3 +73,5 @@ EggAnimation* egg_object_animate_full     (gpointer          object,
                                            ...) G_GNUC_NULL_TERMINATED;
 
 G_END_DECLS
+
+#endif /* EGG_ANIMATION_H */

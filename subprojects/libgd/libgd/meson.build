@@ -11,10 +11,10 @@ private_c_args = [
   '-DG_DISABLE_DEPRECATED',
 ]
 
-if (get_option('with-gtk-hacks') or
-    get_option('with-main-icon-box') or
-    get_option('with-main-view'))
+if get_option('with-gtk-hacks')
   sources += [
+    'gd-entry-focus-hack.c',
+    'gd-entry-focus-hack.h',
     'gd-icon-utils.c',
     'gd-icon-utils.h',
   ]
@@ -39,8 +39,6 @@ if (get_option('with-main-box') or
       'gd-main-icon-box.h',
       'gd-main-icon-box-child.c',
       'gd-main-icon-box-child.h',
-      'gd-main-icon-box-icon.c',
-      'gd-main-icon-box-icon.h',
       'gd-icon-utils.c',
       'gd-icon-utils.h',
     ]
@@ -107,7 +105,13 @@ if get_option('with-margin-container')
 endif
 
 if get_option('with-tagged-entry')
+  gdres = gnome.compile_resources(
+    'gd-tagged-entry-resources',
+    'gd-tagged-entry.gresource.xml'
+  )
+  built_sources += gdres[1]
   sources += [
+    gdres,
     'gd-tagged-entry.c',
     'gd-tagged-entry.h',
   ]

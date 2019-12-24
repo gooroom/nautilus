@@ -1,0 +1,7 @@
+[org.gnome.desktop.background]
+show-desktop-icons=true
+picture-uri='file:///usr/share/backgrounds/gooroom/gooroom_bg_29.jpg'
+picture-options='stretched'
+
+[org.gnome.gnome-flashback]
+desktop-background=false

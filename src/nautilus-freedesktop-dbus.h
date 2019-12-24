@@ -18,7 +18,9 @@
  *          Federico Mena Quintero <federico@gnome.org>
  */
 
-#pragma once
+
+#ifndef __NAUTILUS_FREEDESKTOP_DBUS_H__
+#define __NAUTILUS_FREEDESKTOP_DBUS_H__
 
 #include <glib-object.h>
 
@@ -46,4 +48,4 @@ NautilusFreedesktopDBus * nautilus_freedesktop_dbus_new (void);
 
 void nautilus_freedesktop_dbus_set_open_locations (NautilusFreedesktopDBus *fdb, const gchar **locations);
 
-void nautilus_freedesktop_dbus_set_open_windows_with_locations (NautilusFreedesktopDBus *fdb, GVariant *locations);
+#endif /* __NAUTILUS_FREEDESKTOP_DBUS_H__ */

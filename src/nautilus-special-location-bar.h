@@ -16,7 +16,8 @@
  *
  */
 
-#pragma once
+#ifndef __NAUTILUS_SPECIAL_LOCATION_BAR_H
+#define __NAUTILUS_SPECIAL_LOCATION_BAR_H
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
@@ -34,3 +35,5 @@ typedef enum {
 GtkWidget	*nautilus_special_location_bar_new (NautilusSpecialLocation location);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_SPECIAL_LOCATION_BAR_H */

@@ -20,7 +20,8 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_VFS_DIRECTORY_H
+#define NAUTILUS_VFS_DIRECTORY_H
 
 #include "nautilus-directory.h"
 
@@ -47,3 +48,5 @@ typedef struct {
 } NautilusVFSDirectoryClass;
 
 GType   nautilus_vfs_directory_get_type (void);
+
+#endif /* NAUTILUS_VFS_DIRECTORY_H */

@@ -21,7 +21,8 @@
    Authors: Ramiro Estrugo <ramiro@eazel.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_GLOBAL_PREFERENCES_H
+#define NAUTILUS_GLOBAL_PREFERENCES_H
 
 #include "nautilus-global-preferences.h"
 #include <gio/gio.h>
@@ -64,7 +65,7 @@ typedef enum
 
 /* Which views should be displayed for new windows */
 #define NAUTILUS_WINDOW_STATE_START_WITH_SIDEBAR               "start-with-sidebar"
-#define NAUTILUS_WINDOW_STATE_INITIAL_SIZE			"initial-size"
+#define NAUTILUS_WINDOW_STATE_GEOMETRY				"geometry"
 #define NAUTILUS_WINDOW_STATE_MAXIMIZED				"maximized"
 #define NAUTILUS_WINDOW_STATE_SIDEBAR_WIDTH			"sidebar-width"
 
@@ -95,8 +96,12 @@ typedef enum
 /* Which text attributes appear beneath icon names */
 #define NAUTILUS_PREFERENCES_ICON_VIEW_CAPTIONS				"captions"
 
+/* The default size for thumbnail icons */
+#define NAUTILUS_PREFERENCES_ICON_VIEW_THUMBNAIL_SIZE			"thumbnail-size"
+
 /* ellipsization preferences */
 #define NAUTILUS_PREFERENCES_ICON_VIEW_TEXT_ELLIPSIS_LIMIT		"text-ellipsis-limit"
+#define NAUTILUS_PREFERENCES_DESKTOP_TEXT_ELLIPSIS_LIMIT		"text-ellipsis-limit"
 
 /* List View */
 #define NAUTILUS_PREFERENCES_LIST_VIEW_DEFAULT_ZOOM_LEVEL		"default-zoom-level"
@@ -134,11 +139,30 @@ typedef enum
 	NAUTILUS_SIMPLE_SEARCH_BAR
 } NautilusSearchBarMode;
 
+#define NAUTILUS_PREFERENCES_DESKTOP_FONT		   "font"
+#define NAUTILUS_PREFERENCES_DESKTOP_HOME_VISIBLE          "home-icon-visible"
+#define NAUTILUS_PREFERENCES_DESKTOP_HOME_NAME             "home-icon-name"
+#define NAUTILUS_PREFERENCES_DESKTOP_TRASH_VISIBLE         "trash-icon-visible"
+#define NAUTILUS_PREFERENCES_DESKTOP_TRASH_NAME            "trash-icon-name"
+#define NAUTILUS_PREFERENCES_DESKTOP_VOLUMES_VISIBLE	   "volumes-visible"
+#define NAUTILUS_PREFERENCES_DESKTOP_NETWORK_VISIBLE       "network-icon-visible"
+#define NAUTILUS_PREFERENCES_DESKTOP_NETWORK_NAME          "network-icon-name"
+#define NAUTILUS_PREFERENCES_DESKTOP_BACKGROUND_FADE       "background-fade"
+
+/* bulk rename utility */
+#define NAUTILUS_PREFERENCES_BULK_RENAME_TOOL              "bulk-rename-tool"
+
 /* Lockdown */
 #define NAUTILUS_PREFERENCES_LOCKDOWN_COMMAND_LINE         "disable-command-line"
 
+/* Desktop background */
+#define NAUTILUS_PREFERENCES_SHOW_DESKTOP		   "show-desktop-icons"
+
 /* Recent files */
 #define NAUTILUS_PREFERENCES_RECENT_FILES_ENABLED          "remember-recent-files"
+
+/* Move to trash shorcut changed dialog */
+#define NAUTILUS_PREFERENCES_SHOW_MOVE_TO_TRASH_SHORTCUT_CHANGED_DIALOG "show-move-to-trash-shortcut-changed-dialog"
 
 /* Default view when searching */
 #define NAUTILUS_PREFERENCES_SEARCH_VIEW "search-view"
@@ -150,8 +174,8 @@ typedef enum
 #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
 #define NAUTILUS_PREFERENCES_SHOW_CREATE_LINK "show-create-link"
 
-/* Full Text Search enabled */
-#define NAUTILUS_PREFERENCES_FTS_ENABLED "fts-enabled"
+/* Full Text Search as default */
+#define NAUTILUS_PREFERENCES_FTS_DEFAULT "fts-default"
 
 void nautilus_global_preferences_init                      (void);
 
@@ -159,10 +183,14 @@ extern GSettings *nautilus_preferences;
 extern GSettings *nautilus_compression_preferences;
 extern GSettings *nautilus_icon_view_preferences;
 extern GSettings *nautilus_list_view_preferences;
+extern GSettings *nautilus_desktop_preferences;
 extern GSettings *nautilus_window_state;
 extern GSettings *gtk_filechooser_preferences;
 extern GSettings *gnome_lockdown_preferences;
 extern GSettings *gnome_background_preferences;
 extern GSettings *gnome_interface_preferences;
+extern GSettings *gnome_privacy_preferences;
 
 G_END_DECLS
+
+#endif /* NAUTILUS_GLOBAL_PREFERENCES_H */

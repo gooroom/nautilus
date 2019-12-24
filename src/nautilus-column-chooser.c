@@ -26,8 +26,6 @@
 #include <gtk/gtk.h>
 #include <glib/gi18n.h>
 
-#include <nautilus-extension.h>
-
 #include "nautilus-column-utilities.h"
 
 struct _NautilusColumnChooser
@@ -132,6 +130,7 @@ nautilus_column_chooser_class_init (NautilusColumnChooserClass *chooser_class)
                                                           NAUTILUS_TYPE_FILE,
                                                           G_PARAM_CONSTRUCT_ONLY |
                                                           G_PARAM_WRITABLE));
+
 }
 
 static void

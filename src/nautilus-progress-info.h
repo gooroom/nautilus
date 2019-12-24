@@ -19,7 +19,8 @@
    Author: Alexander Larsson <alexl@redhat.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_PROGRESS_INFO_H
+#define NAUTILUS_PROGRESS_INFO_H
 
 #include <glib-object.h>
 #include <gio/gio.h>
@@ -80,3 +81,7 @@ gdouble       nautilus_progress_info_get_total_elapsed_time (NautilusProgressInf
 void nautilus_progress_info_set_destination (NautilusProgressInfo *info,
                                              GFile                *file);
 GFile *nautilus_progress_info_get_destination (NautilusProgressInfo *info);
+
+
+
+#endif /* NAUTILUS_PROGRESS_INFO_H */

@@ -411,21 +411,9 @@ try_to_expand_path (gpointer callback_data)
  * reason. This is a clone of code from GtkEntry.
  */
 static gboolean
-entry_would_have_inserted_characters (const GdkEvent *event)
+entry_would_have_inserted_characters (const GdkEventKey *event)
 {
-    guint keyval;
-    GdkModifierType state;
-
-    if (G_UNLIKELY (!gdk_event_get_keyval (event, &keyval)))
-    {
-        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
-    }
-    if (G_UNLIKELY (!gdk_event_get_state (event, &state)))
-    {
-        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
-    }
-
-    switch (keyval)
+    switch (event->keyval)
     {
         case GDK_KEY_BackSpace:
         case GDK_KEY_Clear:
@@ -445,21 +433,19 @@ entry_would_have_inserted_characters (const GdkEvent *event)
         }
 
         default:
-            if (keyval >= 0x20 && keyval <= 0xFF)
+            if (event->keyval >= 0x20 && event->keyval <= 0xFF)
             {
-                if ((state & GDK_CONTROL_MASK) != 0)
+                if ((event->state & GDK_CONTROL_MASK) != 0)
                 {
                     return FALSE;
                 }
-                if ((state & GDK_MOD1_MASK) != 0)
+                if ((event->state & GDK_MOD1_MASK) != 0)
                 {
                     return FALSE;
                 }
             }
+            return event->length > 0;
     }
-
-    /* GTK+ 4 TODO: gdk_event_get_string () and check if length > 0. */
-    return ((const GdkEventKey *) event)->length;
 }
 
 static gboolean
@@ -493,6 +479,64 @@ got_completion_data_callback (GFilenameCompleter    *completer,
         priv->idle_id = 0;
     }
     try_to_expand_path (entry);
+}
+
+static void
+editable_event_after_callback (GtkEntry              *entry,
+                               GdkEvent              *event,
+                               NautilusLocationEntry *location_entry)
+{
+    NautilusLocationEntryPrivate *priv;
+    GtkEditable *editable;
+    GdkEventKey *keyevent;
+
+    if (event->type != GDK_KEY_PRESS)
+    {
+        return;
+    }
+
+    priv = nautilus_location_entry_get_instance_private (location_entry);
+    editable = GTK_EDITABLE (entry);
+    keyevent = (GdkEventKey *) event;
+
+    /* After typing the right arrow key we move the selection to
+     * the end, if we have a valid selection - since this is most
+     * likely an auto-completion. We ignore shift / control since
+     * they can validly be used to extend the selection.
+     */
+    if ((keyevent->keyval == GDK_KEY_Right || keyevent->keyval == GDK_KEY_End) &&
+        !(keyevent->state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) &&
+        gtk_editable_get_selection_bounds (editable, NULL, NULL))
+    {
+        set_position_and_selection_to_end (editable);
+    }
+
+    /* Only do expanding when we are typing at the end of the
+     * text. Do the expand at idle time to avoid slowing down
+     * typing when the directory is large. Only trigger the expand
+     * when we type a key that would have inserted characters.
+     */
+    if (position_and_selection_are_at_end (editable))
+    {
+        if (entry_would_have_inserted_characters (keyevent))
+        {
+            if (priv->idle_id == 0)
+            {
+                priv->idle_id = g_idle_add (try_to_expand_path, location_entry);
+            }
+        }
+    }
+    else
+    {
+        /* FIXME: Also might be good to do this when you click
+         * to change the position or selection.
+         */
+        if (priv->idle_id != 0)
+        {
+            g_source_remove (priv->idle_id);
+            priv->idle_id = 0;
+        }
+    }
 }
 
 static void
@@ -532,30 +576,6 @@ destroy (GtkWidget *object)
     priv->current_directory = NULL;
 
     GTK_WIDGET_CLASS (nautilus_location_entry_parent_class)->destroy (object);
-}
-
-static void
-on_has_focus_changed (GObject    *object,
-                      GParamSpec *pspec,
-                      gpointer    user_data)
-{
-    NautilusLocationEntry *entry;
-    NautilusLocationEntryPrivate *priv;
-
-    if (!gtk_widget_has_focus (GTK_WIDGET (object)))
-    {
-        return;
-    }
-
-    entry = NAUTILUS_LOCATION_ENTRY (object);
-    priv = nautilus_location_entry_get_instance_private (entry);
-
-    if (priv->has_special_text)
-    {
-        priv->setting_special_text = TRUE;
-        gtk_entry_set_text (GTK_ENTRY (entry), "");
-        priv->setting_special_text = FALSE;
-    }
 }
 
 static void
@@ -606,42 +626,38 @@ nautilus_location_entry_icon_release (GtkEntry             *gentry,
 }
 
 static gboolean
-nautilus_location_entry_on_event (GtkWidget *widget,
-                                  GdkEvent  *event)
+nautilus_location_entry_focus_in (GtkWidget     *widget,
+                                  GdkEventFocus *event)
 {
-    GtkWidgetClass *parent_widget_class;
-    NautilusLocationEntry *entry;
+    NautilusLocationEntry *entry = NAUTILUS_LOCATION_ENTRY (widget);
     NautilusLocationEntryPrivate *priv;
-    GtkEditable *editable;
-    gboolean selected;
-    guint keyval;
-    GdkModifierType state;
-    gboolean handled;
 
-    parent_widget_class = GTK_WIDGET_CLASS (nautilus_location_entry_parent_class);
+    priv = nautilus_location_entry_get_instance_private (entry);
 
-    if (gdk_event_get_event_type (event) != GDK_KEY_PRESS)
+    if (priv->has_special_text)
     {
-        return parent_widget_class->event (widget, event);
+        priv->setting_special_text = TRUE;
+        gtk_entry_set_text (GTK_ENTRY (entry), "");
+        priv->setting_special_text = FALSE;
     }
 
-    entry = NAUTILUS_LOCATION_ENTRY (widget);
-    priv = nautilus_location_entry_get_instance_private (entry);
+    return GTK_WIDGET_CLASS (nautilus_location_entry_parent_class)->focus_in_event (widget, event);
+}
+
+static gboolean
+nautilus_location_entry_on_key_press (GtkWidget   *widget,
+                                      GdkEventKey *event)
+{
+    GtkEditable *editable;
+    GtkWidgetClass *parent_widget_class;
+    int position;
+    gboolean result;
+
     editable = GTK_EDITABLE (widget);
-    selected = gtk_editable_get_selection_bounds (editable, NULL, NULL);
 
     if (!gtk_editable_get_editable (editable))
     {
         return FALSE;
-    }
-
-    if (G_UNLIKELY (!gdk_event_get_keyval (event, &keyval)))
-    {
-        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
-    }
-    if (G_UNLIKELY (!gdk_event_get_state (event, &state)))
-    {
-        g_return_val_if_reached (GDK_EVENT_PROPAGATE);
     }
 
     /* The location bar entry wants TAB to work kind of
@@ -650,58 +666,19 @@ nautilus_location_entry_on_event (GtkWidget *widget,
      * should position the insertion point at the end of
      * the selection.
      */
-    if (keyval == GDK_KEY_Tab && selected)
+    if (event->keyval == GDK_KEY_Tab &&
+        gtk_editable_get_selection_bounds (editable, NULL, NULL))
     {
-        int position;
-
         position = strlen (gtk_entry_get_text (GTK_ENTRY (editable)));
         gtk_editable_select_region (editable, position, position);
 
-        return GDK_EVENT_STOP;
+        return TRUE;
     }
 
-    if ((keyval == GDK_KEY_Right || keyval == GDK_KEY_End) &&
-        !(state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) && selected)
-    {
-        set_position_and_selection_to_end (editable);
-    }
+    parent_widget_class = GTK_WIDGET_CLASS (nautilus_location_entry_parent_class);
+    result = parent_widget_class->key_press_event (widget, event);
 
-    /* GTK+ 4 TODO: Calling the event vfunc is not enough, we need the entry
-     *              to handle the key press and insert the text first.
-     *
-     * Chaining up here is required either way, since the code below
-     * used to be in the handler for ::event-after, which is no longer a thing.
-     */
-    handled = parent_widget_class->key_press_event (widget, (GdkEventKey *) event);
-
-    /* Only do expanding when we are typing at the end of the
-     * text. Do the expand at idle time to avoid slowing down
-     * typing when the directory is large. Only trigger the expand
-     * when we type a key that would have inserted characters.
-     */
-    if (position_and_selection_are_at_end (editable))
-    {
-        if (entry_would_have_inserted_characters (event))
-        {
-            if (priv->idle_id == 0)
-            {
-                priv->idle_id = g_idle_add (try_to_expand_path, widget);
-            }
-        }
-    }
-    else
-    {
-        /* FIXME: Also might be good to do this when you click
-         * to change the position or selection.
-         */
-        if (priv->idle_id != 0)
-        {
-            g_source_remove (priv->idle_id);
-            priv->idle_id = 0;
-        }
-    }
-
-    return handled;
+    return result;
 }
 
 static void
@@ -753,8 +730,9 @@ nautilus_location_entry_class_init (NautilusLocationEntryClass *class)
     GtkBindingSet *binding_set;
 
     widget_class = GTK_WIDGET_CLASS (class);
+    widget_class->focus_in_event = nautilus_location_entry_focus_in;
     widget_class->destroy = destroy;
-    widget_class->event = nautilus_location_entry_on_event;
+    widget_class->key_press_event = nautilus_location_entry_on_key_press;
 
     gobject_class = G_OBJECT_CLASS (class);
     gobject_class->finalize = finalize;
@@ -864,8 +842,8 @@ nautilus_location_entry_init (NautilusLocationEntry *entry)
     nautilus_location_entry_set_secondary_action (entry,
                                                   NAUTILUS_LOCATION_ENTRY_ACTION_CLEAR);
 
-    g_signal_connect (entry, "notify::has-focus",
-                      G_CALLBACK (on_has_focus_changed), NULL);
+    g_signal_connect (entry, "event-after",
+                      G_CALLBACK (editable_event_after_callback), entry);
 
     g_signal_connect (entry, "notify::text",
                       G_CALLBACK (nautilus_location_entry_text_changed), NULL);

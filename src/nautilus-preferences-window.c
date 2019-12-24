@@ -34,8 +34,6 @@
 
 #include <eel/eel-glib-extensions.h>
 
-#include <nautilus-extension.h>
-
 #include "nautilus-column-chooser.h"
 #include "nautilus-column-utilities.h"
 #include "nautilus-global-preferences.h"
@@ -51,8 +49,6 @@
 /* bool preferences */
 #define NAUTILUS_PREFERENCES_DIALOG_FOLDERS_FIRST_WIDGET                       \
     "sort_folders_first_checkbutton"
-#define NAUTILUS_PREFERENCS_DIALOG_START_WITH_SIDEBAR                          \
-    "show_sidebar_checkbutton"
 #define NAUTILUS_PREFERENCES_DIALOG_DELETE_PERMANENTLY_WIDGET                  \
     "show_delete_permanently_checkbutton"
 #define NAUTILUS_PREFERENCES_DIALOG_CREATE_LINK_WIDGET                         \
@@ -61,8 +57,10 @@
     "use_tree_view_checkbutton"
 #define NAUTILUS_PREFERENCES_DIALOG_TRASH_CONFIRM_WIDGET                       \
     "trash_confirm_checkbutton"
-#define NAUTILUS_PREFERENCES_DIALOG_USE_NEW_VIEWS_WIDGET                       \
+#define NAUTILUS_PREFERENCES_DIALOG_USE_NEW_VIEWS_WIDGET                    \
     "use_new_views_checkbutton"
+#define NAUTILUS_PREFERENCES_FTS_DEFAULT_WIDGET                                \
+    "fts_checkbutton"
 
 /* int enums */
 #define NAUTILUS_PREFERENCES_DIALOG_THUMBNAIL_LIMIT_WIDGET                     \
@@ -180,7 +178,7 @@ static void create_icon_caption_combo_box_items(GtkComboBoxText *combo_box,
                             (GDestroyNotify) free_column_names_array);
 }
 
-static void icon_captions_changed_callback(GtkComboBox *widget,
+static void icon_captions_changed_callback(GtkComboBox *combo_box,
                                            gpointer     user_data)
 {
     GPtrArray *captions;
@@ -356,15 +354,16 @@ nautilus_preferences_window_setup_list_column_page (GtkBuilder *builder)
     gtk_box_pack_start (GTK_BOX (box), chooser, TRUE, TRUE, 0);
 }
 
-static gboolean
-format_spin_button (GtkSpinButton *spin_button,
-                    gpointer       user_data)
+static gboolean format_spin_button(GtkSpinButton *spin_button,
+                                   gpointer user_data)
 {
-    gint value;
+    GtkAdjustment *adjustment;
+    int value;
     gchar *text;
 
-    value = gtk_spin_button_get_value_as_int (spin_button);
-    text = g_strdup_printf (_("%d MB"), value);
+    adjustment = gtk_spin_button_get_adjustment (spin_button);
+    value = (int)gtk_adjustment_get_value (adjustment);
+    text = g_strdup_printf ("%d MB",value);
     gtk_entry_set_text (GTK_ENTRY (spin_button), text);
 
     return TRUE;
@@ -378,6 +377,7 @@ static void nautilus_preferences_window_setup_thumbnail_limit_formatting (GtkBui
 
     g_signal_connect (spin, "output", G_CALLBACK (format_spin_button),
                       spin);
+
 }
 
 static void bind_builder_bool(GtkBuilder *builder,
@@ -393,7 +393,7 @@ static void bind_builder_uint_spin(GtkBuilder *builder,
                                    GSettings  *settings,
                                    const char *widget_name,
                                    const char *prefs)
-{
+{    
     g_settings_bind (settings, prefs, gtk_builder_get_object (builder, widget_name),
                      "value", G_SETTINGS_BIND_DEFAULT);
 }
@@ -462,9 +462,6 @@ static void nautilus_preferences_window_setup(GtkBuilder *builder,
     bind_builder_bool (builder, gtk_filechooser_preferences,
                        NAUTILUS_PREFERENCES_DIALOG_FOLDERS_FIRST_WIDGET,
                        NAUTILUS_PREFERENCES_SORT_DIRECTORIES_FIRST);
-    bind_builder_bool (builder, nautilus_window_state,
-                       NAUTILUS_PREFERENCS_DIALOG_START_WITH_SIDEBAR,
-                       NAUTILUS_WINDOW_STATE_START_WITH_SIDEBAR);
     bind_builder_bool (builder, nautilus_preferences,
                        NAUTILUS_PREFERENCES_DIALOG_TRASH_CONFIRM_WIDGET,
                        NAUTILUS_PREFERENCES_CONFIRM_TRASH);
@@ -477,6 +474,12 @@ static void nautilus_preferences_window_setup(GtkBuilder *builder,
     bind_builder_bool (builder, nautilus_preferences,
                        NAUTILUS_PREFERENCES_DIALOG_DELETE_PERMANENTLY_WIDGET,
                        NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY);
+    bind_builder_bool (builder, nautilus_preferences,
+                       NAUTILUS_PREFERENCES_DIALOG_USE_NEW_VIEWS_WIDGET,
+                       NAUTILUS_PREFERENCES_USE_EXPERIMENTAL_VIEWS);
+    bind_builder_bool (builder, nautilus_preferences,
+                       NAUTILUS_PREFERENCES_FTS_DEFAULT_WIDGET,
+                       NAUTILUS_PREFERENCES_FTS_DEFAULT);
 
     bind_builder_radio (
         builder, nautilus_preferences, (const char **) click_behavior_components,
@@ -510,17 +513,11 @@ static void nautilus_preferences_window_setup(GtkBuilder *builder,
     window = GTK_WIDGET (gtk_builder_get_object (builder, "preferences_window"));
     preferences_window = window;
 
-    gtk_window_set_icon_name (GTK_WINDOW (preferences_window), APPLICATION_ID);
+    gtk_window_set_icon_name (GTK_WINDOW (preferences_window), "org.gnome.Nautilus");
 
     g_object_add_weak_pointer (G_OBJECT (window), (gpointer *) &preferences_window);
 
     gtk_window_set_transient_for (GTK_WINDOW (preferences_window), parent_window);
-
-    /* This statement is necessary because GtkDialog defaults to 2px. Will not
-     * be necessary in GTK+4.
-     */
-    gtk_container_set_border_width (GTK_CONTAINER (gtk_dialog_get_content_area (GTK_DIALOG (preferences_window))),
-                                    0);
 
     gtk_widget_show (preferences_window);
 }

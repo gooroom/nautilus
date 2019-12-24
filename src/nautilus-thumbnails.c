@@ -40,9 +40,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
-#include "gnome-desktop/gnome-desktop-thumbnail.h"
-#define DEBUG_FLAG NAUTILUS_DEBUG_THUMBNAILS
-#include "nautilus-debug.h"
+#include <libgnome-desktop/gnome-desktop-thumbnail.h>
 
 #include "nautilus-file-private.h"
 
@@ -93,6 +91,8 @@ static GHashTable *thumbnails_to_make_hash = NULL;
 /* The currently thumbnailed icon. it also exists in the thumbnails_to_make list
  * to avoid adding it again. Lock thumbnails_mutex when accessing this. */
 static NautilusThumbnailInfo *currently_thumbnailing = NULL;
+
+static GnomeDesktopThumbnailFactory *thumbnail_factory = NULL;
 
 static gboolean
 get_file_mtime (const char *file_uri,
@@ -153,7 +153,13 @@ thumbnail_thread_starter_cb (gpointer data)
 {
     GTask *task;
 
-    DEBUG ("(Main Thread) Creating thumbnails thread\n");
+    /* Don't do this in thread, since g_object_ref is not threadsafe */
+    if (thumbnail_factory == NULL)
+    {
+        thumbnail_factory = get_thumbnail_factory ();
+    }
+
+    g_debug ("(Main Thread) Creating thumbnails thread\n");
 
     /* We set a flag to indicate the thread is running, so we don't create
      *  a new one. We don't need to lock a mutex here, as the thumbnail
@@ -175,7 +181,7 @@ nautilus_thumbnail_remove_from_queue (const char *file_uri)
 {
     GList *node;
 
-    DEBUG ("(Remove from queue) Locking mutex\n");
+    g_debug ("(Remove from queue) Locking mutex\n");
 
     g_mutex_lock (&thumbnails_mutex);
 
@@ -199,7 +205,7 @@ nautilus_thumbnail_remove_from_queue (const char *file_uri)
      * MUTEX UNLOCKED
      *********************************/
 
-    DEBUG ("(Remove from queue) Unlocking mutex\n");
+    g_debug ("(Remove from queue) Unlocking mutex\n");
 
     g_mutex_unlock (&thumbnails_mutex);
 }
@@ -209,7 +215,7 @@ nautilus_thumbnail_prioritize (const char *file_uri)
 {
     GList *node;
 
-    DEBUG ("(Prioritize) Locking mutex\n");
+    g_debug ("(Prioritize) Locking mutex\n");
 
     g_mutex_lock (&thumbnails_mutex);
 
@@ -232,7 +238,7 @@ nautilus_thumbnail_prioritize (const char *file_uri)
      * MUTEX UNLOCKED
      *********************************/
 
-    DEBUG ("(Prioritize) Unlocking mutex\n");
+    g_debug ("(Prioritize) Unlocking mutex\n");
 
     g_mutex_unlock (&thumbnails_mutex);
 }
@@ -254,7 +260,7 @@ thumbnail_thread_notify_file_changed (gpointer image_uri)
 
     file = nautilus_file_get_by_uri ((char *) image_uri);
 
-    DEBUG ("(Thumbnail Thread) Notifying file changed file:%p uri: %s\n", file, (char *) image_uri);
+    g_debug ("(Thumbnail Thread) Notifying file changed file:%p uri: %s\n", file, (char *) image_uri);
 
     if (file != NULL)
     {
@@ -319,6 +325,18 @@ pixbuf_can_load_type (const char *mime_type)
 }
 
 gboolean
+nautilus_can_thumbnail_internally (NautilusFile *file)
+{
+    char *mime_type;
+    gboolean res;
+
+    mime_type = nautilus_file_get_mime_type (file);
+    res = pixbuf_can_load_type (mime_type);
+    g_free (mime_type);
+    return res;
+}
+
+gboolean
 nautilus_thumbnail_is_mimetype_limited_by_size (const char *mime_type)
 {
     return pixbuf_can_load_type (mime_type);
@@ -378,7 +396,7 @@ nautilus_create_thumbnail (NautilusFile *file)
     info->original_file_mtime = file_mtime;
 
 
-    DEBUG ("(Main Thread) Locking mutex\n");
+    g_debug ("(Main Thread) Locking mutex\n");
 
     g_mutex_lock (&thumbnails_mutex);
 
@@ -397,8 +415,8 @@ nautilus_create_thumbnail (NautilusFile *file)
     if (existing == NULL)
     {
         /* Add the thumbnail to the list. */
-        DEBUG ("(Main Thread) Adding thumbnail: %s\n",
-                 info->image_uri);
+        g_debug ("(Main Thread) Adding thumbnail: %s\n",
+                   info->image_uri);
         g_queue_push_tail ((GQueue *) &thumbnails_to_make, info);
         node = g_queue_peek_tail_link ((GQueue *) &thumbnails_to_make);
         g_hash_table_insert (thumbnails_to_make_hash,
@@ -416,8 +434,8 @@ nautilus_create_thumbnail (NautilusFile *file)
     }
     else
     {
-        DEBUG ("(Main Thread) Updating non-current mtime: %s\n",
-                 info->image_uri);
+        g_debug ("(Main Thread) Updating non-current mtime: %s\n",
+                   info->image_uri);
 
         /* The file in the queue might need a new original mtime */
         existing_info = existing->data;
@@ -429,7 +447,7 @@ nautilus_create_thumbnail (NautilusFile *file)
      * MUTEX UNLOCKED
      *********************************/
 
-    DEBUG ("(Main Thread) Unlocking mutex\n");
+    g_debug ("(Main Thread) Unlocking mutex\n");
 
     g_mutex_unlock (&thumbnails_mutex);
 }
@@ -441,20 +459,17 @@ thumbnail_thread_func (GTask        *task,
                        gpointer      task_data,
                        GCancellable *cancellable)
 {
-    GnomeDesktopThumbnailFactory *thumbnail_factory;
     NautilusThumbnailInfo *info = NULL;
     GdkPixbuf *pixbuf;
     time_t current_orig_mtime = 0;
     time_t current_time;
     GList *node;
 
-    thumbnail_factory = get_thumbnail_factory ();
-
     /* We loop until there are no more thumbails to make, at which point
      *  we exit the thread. */
     for (;; )
     {
-        DEBUG ("(Thumbnail Thread) Locking mutex\n");
+        g_debug ("(Thumbnail Thread) Locking mutex\n");
 
         g_mutex_lock (&thumbnails_mutex);
 
@@ -486,7 +501,7 @@ thumbnail_thread_func (GTask        *task,
          *  exit the thread. */
         if (g_queue_is_empty ((GQueue *) &thumbnails_to_make))
         {
-            DEBUG ("(Thumbnail Thread) Exiting\n");
+            g_debug ("(Thumbnail Thread) Exiting\n");
 
             thumbnail_thread_is_running = FALSE;
             g_mutex_unlock (&thumbnails_mutex);
@@ -503,7 +518,7 @@ thumbnail_thread_func (GTask        *task,
          * MUTEX UNLOCKED
          *********************************/
 
-        DEBUG ("(Thumbnail Thread) Unlocking mutex\n");
+        g_debug ("(Thumbnail Thread) Unlocking mutex\n");
 
         g_mutex_unlock (&thumbnails_mutex);
 
@@ -514,8 +529,8 @@ thumbnail_thread_func (GTask        *task,
         if (current_time < current_orig_mtime + THUMBNAIL_CREATION_DELAY_SECS &&
             current_time >= current_orig_mtime)
         {
-            DEBUG ("(Thumbnail Thread) Skipping: %s\n",
-                     info->image_uri);
+            g_debug ("(Thumbnail Thread) Skipping: %s\n",
+                       info->image_uri);
 
             /* Reschedule thumbnailing via a change notification */
             g_timeout_add_seconds (1, thumbnail_thread_notify_file_changed,
@@ -524,8 +539,8 @@ thumbnail_thread_func (GTask        *task,
         }
 
         /* Create the thumbnail. */
-        DEBUG ("(Thumbnail Thread) Creating thumbnail: %s\n",
-                 info->image_uri);
+        g_debug ("(Thumbnail Thread) Creating thumbnail: %s\n",
+                   info->image_uri);
 
         pixbuf = gnome_desktop_thumbnail_factory_generate_thumbnail (thumbnail_factory,
                                                                      info->image_uri,
@@ -533,8 +548,8 @@ thumbnail_thread_func (GTask        *task,
 
         if (pixbuf)
         {
-            DEBUG ("(Thumbnail Thread) Saving thumbnail: %s\n",
-                     info->image_uri);
+            g_debug ("(Thumbnail Thread) Saving thumbnail: %s\n",
+                       info->image_uri);
 
             gnome_desktop_thumbnail_factory_save_thumbnail (thumbnail_factory,
                                                             pixbuf,
@@ -544,8 +559,8 @@ thumbnail_thread_func (GTask        *task,
         }
         else
         {
-            DEBUG ("(Thumbnail Thread) Thumbnail failed: %s\n",
-                     info->image_uri);
+            g_debug ("(Thumbnail Thread) Thumbnail failed: %s\n",
+                       info->image_uri);
 
             gnome_desktop_thumbnail_factory_create_failed_thumbnail (thumbnail_factory,
                                                                      info->image_uri,

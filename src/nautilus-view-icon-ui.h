@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#pragma once
+#ifndef NAUTILUS_VIEW_ICON_UI_H
+#define NAUTILUS_VIEW_ICON_UI_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -36,3 +36,6 @@ void nautilus_view_icon_ui_set_selection (NautilusViewIconUi *self,
                                           GQueue             *selection);
 
 G_END_DECLS
+
+#endif /* NAUTILUS_VIEW_ICON_UI_H */
+

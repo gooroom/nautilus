@@ -1,6 +1,7 @@
+From 54592574c3cb951085c747680046b4787daca7f2 Mon Sep 17 00:00:00 2001
 From: Jeremy Bicha <jbicha@ubuntu.com>
 Date: Tue, 13 Sep 2016 21:33:50 -0400
-Subject: Load extensions from non-multiarch directory too
+Subject: [PATCH] Load extensions from non-multiarch directory too
 
 ---
  src/nautilus-module.c | 1 +
@@ -18,3 +19,6 @@ index bf474bd..bd74cc7 100644
  
          eel_debug_call_at_shutdown (free_module_objects);
      }
+-- 
+2.9.3
+

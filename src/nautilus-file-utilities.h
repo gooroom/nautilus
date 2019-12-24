@@ -20,29 +20,32 @@
    Authors: John Sullivan <sullivan@eazel.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_FILE_UTILITIES_H
+#define NAUTILUS_FILE_UTILITIES_H
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
 
-#include <config.h>
-
-#include "nautilus-query.h"
-
-#define NAUTILUS_DESKTOP_ID APPLICATION_ID ".desktop"
+#define NAUTILUS_DESKTOP_ID "org.gnome.Nautilus.desktop"
 
 /* These functions all return something something that needs to be
  * freed with g_free, is not NULL, and is guaranteed to exist.
  */
 char *   nautilus_get_user_directory                 (void);
+char *   nautilus_get_desktop_directory              (void);
+GFile *  nautilus_get_desktop_location               (void);
+char *   nautilus_get_desktop_directory_uri          (void);
 char *   nautilus_get_home_directory_uri             (void);
+gboolean nautilus_is_desktop_directory_file          (GFile *dir,
+						      const char *filename);
 gboolean nautilus_is_root_directory                  (GFile *dir);
+gboolean nautilus_is_desktop_directory               (GFile *dir);
 gboolean nautilus_is_home_directory                  (GFile *dir);
 gboolean nautilus_is_home_directory_file             (GFile *dir,
 						      const char *filename);
+gboolean nautilus_is_in_system_dir                   (GFile *location);
 gboolean nautilus_is_search_directory                (GFile *dir);
 gboolean nautilus_is_recent_directory                (GFile *dir);
-gboolean nautilus_is_starred_directory              (GFile *dir);
 gboolean nautilus_is_trash_directory                 (GFile *dir);
 gboolean nautilus_is_other_locations_directory       (GFile *dir);
 GMount * nautilus_get_mounted_mount_for_root         (GFile *location);
@@ -115,21 +118,6 @@ char * nautilus_get_common_filename_prefix (GList *file_list,
 char * nautilus_get_common_filename_prefix_from_filenames (GList *filename_list,
                                                            int    min_required_len);
 
-/**
- * nautilus_get_max_child_name_for_location:
- * @location: a #GFile representing a directory
- *
- * Gets the maximum file name length for files inside @location.
- *
- * This call does blocking I/O.
- *
- * Returns: The maximum file name length in bytes (not including the
- *          terminating null of a filename string), -1 if the maximum length
- *          could not be determined or 0 if @location path is too long.
- */
-
-glong nautilus_get_max_child_name_length_for_location (GFile *location);
-
 void nautilus_ensure_extension_points (void);
 void nautilus_ensure_extension_builtins (void);
 
@@ -139,7 +127,4 @@ GList * nautilus_file_list_from_uri_list (GList *uris);
 
 gchar * nautilus_uri_to_native_uri (const gchar *uri);
 
-NautilusQueryRecursive location_settings_search_get_recursive (void);
-NautilusQueryRecursive location_settings_search_get_recursive_for_location (GFile *location);
-
-gboolean nautilus_file_system_is_remote (const char *file_system);
+#endif /* NAUTILUS_FILE_UTILITIES_H */

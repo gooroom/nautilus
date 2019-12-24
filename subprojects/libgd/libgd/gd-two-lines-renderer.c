@@ -87,13 +87,15 @@ apply_subtitle_style_to_layout (GtkStyleContext *context,
                                 GtkStateFlags    flags)
 {
   PangoFontDescription *desc;
+  GdkRGBA rgba = {0.0, 0.0, 0.0, 0.0};
   PangoAttrList *layout_attr;
-  PangoAttribute *attr_alpha;
+  PangoAttribute *attr_color;
 
   gtk_style_context_save (context);
   gtk_style_context_set_state (context, flags);
   gtk_style_context_get (context, gtk_style_context_get_state (context),
                          "font", &desc,
+                         "color", &rgba,
                          NULL);
   gtk_style_context_restore (context);
 
@@ -102,11 +104,16 @@ apply_subtitle_style_to_layout (GtkStyleContext *context,
   pango_layout_set_font_description (layout, desc);
   pango_font_description_free (desc);
 
-  /* Set the font alpha */
-  layout_attr = pango_attr_list_new ();
-  attr_alpha = pango_attr_foreground_alpha_new (SUBTITLE_DIM_PERCENTAGE * 65535);
-  pango_attr_list_insert (layout_attr, attr_alpha);
+  /* Set the color */
+  rgba.red = CLAMP(1.0 - ((1.0 - rgba.red) * SUBTITLE_DIM_PERCENTAGE), 0.0, 1.0);
+  rgba.green = CLAMP(1.0 - ((1.0 - rgba.green) * SUBTITLE_DIM_PERCENTAGE), 0.0, 1.0);
+  rgba.blue = CLAMP(1.0 - ((1.0 - rgba.blue) * SUBTITLE_DIM_PERCENTAGE), 0.0, 1.0);
 
+  layout_attr = pango_attr_list_new ();
+  attr_color = pango_attr_foreground_new (rgba.red * 65535,
+                                          rgba.green * 65535,
+                                          rgba.blue * 65535);
+  pango_attr_list_insert (layout_attr, attr_color);
   pango_layout_set_attributes (layout, layout_attr);
   pango_attr_list_unref (layout_attr);
 }
@@ -305,7 +312,6 @@ gd_two_lines_renderer_render (GtkCellRenderer      *cell,
 
   render_area = area;
   render_area.x += x_offset_1 - layout_rect.x;
-  render_area.y += y_offset;
 
   gtk_render_layout (context, cr,
                      render_area.x,
@@ -329,7 +335,7 @@ gd_two_lines_renderer_render (GtkCellRenderer      *cell,
 
       render_area = area;
       render_area.x += x_offset_2 - layout_rect.x;
-      render_area.y += y_offset + line_one_height;
+      render_area.y += line_one_height;
 
       gtk_render_layout (context, cr,
                          render_area.x,
@@ -475,11 +481,14 @@ gd_two_lines_renderer_get_aligned_area (GtkCellRenderer      *cell,
                                         const GdkRectangle   *cell_area,
                                         GdkRectangle         *aligned_area)
 {
+  GdTwoLinesRenderer *self = GD_TWO_LINES_RENDERER (cell);
   gint x_offset, x_offset_1, x_offset_2, y_offset;
+  PangoLayout *layout_one, *layout_two;
 
   /* fetch common information */
+  gd_two_lines_renderer_prepare_layouts (self, cell_area, widget, &layout_one, &layout_two);
   gd_two_lines_renderer_get_size (cell, widget,
-                                  NULL, NULL,
+                                  layout_one, layout_two,
                                   &aligned_area->width, &aligned_area->height,
                                   cell_area,
                                   &x_offset_1, &x_offset_2, &y_offset);
@@ -487,7 +496,10 @@ gd_two_lines_renderer_get_aligned_area (GtkCellRenderer      *cell,
   x_offset = MIN (x_offset_1, x_offset_2);
 
   aligned_area->x = cell_area->x + x_offset;
-  aligned_area->y = cell_area->y + y_offset;
+  aligned_area->y = cell_area->y;
+
+  g_clear_object (&layout_one);
+  g_clear_object (&layout_two);
 }
 
 static void

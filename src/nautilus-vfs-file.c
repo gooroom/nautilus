@@ -35,23 +35,17 @@ vfs_file_monitor_add (NautilusFile           *file,
                       gconstpointer           client,
                       NautilusFileAttributes  attributes)
 {
-    NautilusDirectory *directory;
-
-    directory = nautilus_file_get_directory (file);
-
-    nautilus_directory_monitor_add_internal (directory, file, client, TRUE,
-                                             attributes, NULL, NULL);
+    nautilus_directory_monitor_add_internal
+        (file->details->directory, file,
+        client, TRUE, attributes, NULL, NULL);
 }
 
 static void
 vfs_file_monitor_remove (NautilusFile  *file,
                          gconstpointer  client)
 {
-    NautilusDirectory *directory;
-
-    directory = nautilus_file_get_directory (file);
-
-    nautilus_directory_monitor_remove_internal (directory, file, client);
+    nautilus_directory_monitor_remove_internal
+        (file->details->directory, file, client);
 }
 
 static void
@@ -60,12 +54,9 @@ vfs_file_call_when_ready (NautilusFile           *file,
                           NautilusFileCallback    callback,
                           gpointer                callback_data)
 {
-    NautilusDirectory *directory;
-
-    directory = nautilus_file_get_directory (file);
-
-    nautilus_directory_call_when_ready_internal (directory, file, file_attributes,
-                                                 FALSE, NULL, callback, callback_data);
+    nautilus_directory_call_when_ready_internal
+        (file->details->directory, file,
+        file_attributes, FALSE, NULL, callback, callback_data);
 }
 
 static void
@@ -73,24 +64,18 @@ vfs_file_cancel_call_when_ready (NautilusFile         *file,
                                  NautilusFileCallback  callback,
                                  gpointer              callback_data)
 {
-    NautilusDirectory *directory;
-
-    directory = nautilus_file_get_directory (file);
-
-    nautilus_directory_cancel_callback_internal (directory, file, NULL,
-                                                 callback, callback_data);
+    nautilus_directory_cancel_callback_internal
+        (file->details->directory, file,
+        NULL, callback, callback_data);
 }
 
 static gboolean
 vfs_file_check_if_ready (NautilusFile           *file,
                          NautilusFileAttributes  file_attributes)
 {
-    NautilusDirectory *directory;
-
-    directory = nautilus_file_get_directory (file);
-
-    return nautilus_directory_check_if_ready_internal (directory, file,
-                                                       file_attributes);
+    return nautilus_directory_check_if_ready_internal
+               (file->details->directory, file,
+               file_attributes);
 }
 
 static void
@@ -219,32 +204,110 @@ vfs_file_set_metadata_as_list (NautilusFile  *file,
 }
 
 static gboolean
+vfs_file_get_item_count (NautilusFile *file,
+                         guint        *count,
+                         gboolean     *count_unreadable)
+{
+    if (count_unreadable != NULL)
+    {
+        *count_unreadable = file->details->directory_count_failed;
+    }
+    if (!file->details->got_directory_count)
+    {
+        if (count != NULL)
+        {
+            *count = 0;
+        }
+        return FALSE;
+    }
+    if (count != NULL)
+    {
+        *count = file->details->directory_count;
+    }
+    return TRUE;
+}
+
+static NautilusRequestStatus
+vfs_file_get_deep_counts (NautilusFile *file,
+                          guint        *directory_count,
+                          guint        *file_count,
+                          guint        *unreadable_directory_count,
+                          goffset      *total_size)
+{
+    GFileType type;
+
+    if (directory_count != NULL)
+    {
+        *directory_count = 0;
+    }
+    if (file_count != NULL)
+    {
+        *file_count = 0;
+    }
+    if (unreadable_directory_count != NULL)
+    {
+        *unreadable_directory_count = 0;
+    }
+    if (total_size != NULL)
+    {
+        *total_size = 0;
+    }
+
+    if (!nautilus_file_is_directory (file))
+    {
+        return NAUTILUS_REQUEST_DONE;
+    }
+
+    if (file->details->deep_counts_status != NAUTILUS_REQUEST_NOT_STARTED)
+    {
+        if (directory_count != NULL)
+        {
+            *directory_count = file->details->deep_directory_count;
+        }
+        if (file_count != NULL)
+        {
+            *file_count = file->details->deep_file_count;
+        }
+        if (unreadable_directory_count != NULL)
+        {
+            *unreadable_directory_count = file->details->deep_unreadable_count;
+        }
+        if (total_size != NULL)
+        {
+            *total_size = file->details->deep_size;
+        }
+        return file->details->deep_counts_status;
+    }
+
+    /* For directories, or before we know the type, we haven't started. */
+    type = nautilus_file_get_file_type (file);
+    if (type == G_FILE_TYPE_UNKNOWN
+        || type == G_FILE_TYPE_DIRECTORY)
+    {
+        return NAUTILUS_REQUEST_NOT_STARTED;
+    }
+
+    /* For other types, we are done, and the zeros are permanent. */
+    return NAUTILUS_REQUEST_DONE;
+}
+
+static gboolean
 vfs_file_get_date (NautilusFile     *file,
                    NautilusDateType  date_type,
                    time_t           *date)
 {
-    time_t atime;
-    time_t mtime;
-    time_t recency;
-    time_t trash_time;
-
-    atime = nautilus_file_get_atime (file);
-    mtime = nautilus_file_get_mtime (file);
-    recency = nautilus_file_get_recency (file);
-    trash_time = nautilus_file_get_trash_time (file);
-
     switch (date_type)
     {
         case NAUTILUS_DATE_TYPE_ACCESSED:
         {
             /* Before we have info on a file, the date is unknown. */
-            if (atime == 0)
+            if (file->details->atime == 0)
             {
                 return FALSE;
             }
             if (date != NULL)
             {
-                *date = atime;
+                *date = file->details->atime;
             }
             return TRUE;
         }
@@ -252,40 +315,38 @@ vfs_file_get_date (NautilusFile     *file,
         case NAUTILUS_DATE_TYPE_MODIFIED:
         {
             /* Before we have info on a file, the date is unknown. */
-            if (mtime == 0)
+            if (file->details->mtime == 0)
             {
                 return FALSE;
             }
             if (date != NULL)
             {
-                *date = mtime;
+                *date = file->details->mtime;
             }
             return TRUE;
         }
 
         case NAUTILUS_DATE_TYPE_TRASHED:
-        {
             /* Before we have info on a file, the date is unknown. */
-            if (trash_time == 0)
+            if (file->details->trash_time == 0)
             {
                 return FALSE;
             }
             if (date != NULL)
             {
-                *date = trash_time;
+                *date = file->details->trash_time;
             }
             return TRUE;
-        }
 
         case NAUTILUS_DATE_TYPE_RECENCY:
             /* Before we have info on a file, the date is unknown. */
-            if (recency == 0)
+            if (file->details->recency == 0)
             {
                 return FALSE;
             }
             if (date != NULL)
             {
-                *date = recency;
+                *date = file->details->recency;
             }
             return TRUE;
     }
@@ -349,13 +410,11 @@ vfs_file_mount (NautilusFile                  *file,
                 NautilusFileOperationCallback  callback,
                 gpointer                       callback_data)
 {
-    GFileType type;
     NautilusFileOperation *op;
     GError *error;
     GFile *location;
 
-    type = nautilus_file_get_file_type (file);
-    if (type != G_FILE_TYPE_MOUNTABLE)
+    if (file->details->type != G_FILE_TYPE_MOUNTABLE)
     {
         if (callback)
         {
@@ -540,13 +599,11 @@ vfs_file_start (NautilusFile                  *file,
                 NautilusFileOperationCallback  callback,
                 gpointer                       callback_data)
 {
-    GFileType type;
     NautilusFileOperation *op;
     GError *error;
     GFile *location;
 
-    type = nautilus_file_get_file_type (file);
-    if (type != G_FILE_TYPE_MOUNTABLE)
+    if (file->details->type != G_FILE_TYPE_MOUNTABLE)
     {
         if (callback)
         {
@@ -696,6 +753,8 @@ nautilus_vfs_file_class_init (NautilusVFSFileClass *klass)
     file_class->call_when_ready = vfs_file_call_when_ready;
     file_class->cancel_call_when_ready = vfs_file_cancel_call_when_ready;
     file_class->check_if_ready = vfs_file_check_if_ready;
+    file_class->get_item_count = vfs_file_get_item_count;
+    file_class->get_deep_counts = vfs_file_get_deep_counts;
     file_class->get_date = vfs_file_get_date;
     file_class->get_where_string = vfs_file_get_where_string;
     file_class->set_metadata = vfs_file_set_metadata;

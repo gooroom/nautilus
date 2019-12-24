@@ -23,7 +23,8 @@
  * 	    Ettore Perazzoli <ettore@gnu.org>
  */
 
-#pragma once
+#ifndef __NAUTILUS_WINDOW_SLOT_DND_H__
+#define __NAUTILUS_WINDOW_SLOT_DND_H__
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
@@ -35,3 +36,5 @@
 void nautilus_drag_slot_proxy_init (GtkWidget *widget,
                                     NautilusFile *target_file,
                                     NautilusWindowSlot *target_slot);
+
+#endif /* __NAUTILUS_WINDOW_SLOT_DND_H__ */

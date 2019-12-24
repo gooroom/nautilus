@@ -22,7 +22,8 @@
  *
  */
 
-#pragma once
+#ifndef NAUTILUS_NOTEBOOK_H
+#define NAUTILUS_NOTEBOOK_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -54,8 +55,7 @@ void            nautilus_notebook_next_page (NautilusNotebook *notebook);
 gboolean        nautilus_notebook_contains_slot (NautilusNotebook   *notebook,
                                                  NautilusWindowSlot *slot);
 
-gboolean        nautilus_notebook_content_area_hit (NautilusNotebook *notebook,
-                                                    gint              x,
-                                                    gint              y);
-
 G_END_DECLS
+
+#endif /* NAUTILUS_NOTEBOOK_H */
+

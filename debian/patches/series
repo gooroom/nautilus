@@ -1,7 +1,1 @@
 multiarch_fallback.patch
-Update-gnome-desktop-code.patch
-Define-symbol-needed-for-gnome-desktop.patch
-gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
-gooroom-remove-permission-setting-tab-from-property-window.patch
-gooroom-move-header-button-to-bottom-in-file-conflict-dialo.patch
-gooroom-fixed-flawfinder-high-priority.patch

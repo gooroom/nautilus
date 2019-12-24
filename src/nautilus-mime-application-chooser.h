@@ -21,7 +21,8 @@
    Authors: Dave Camp <dave@novell.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_MIME_APPLICATION_CHOOSER_H
+#define NAUTILUS_MIME_APPLICATION_CHOOSER_H
 
 #include <gtk/gtk.h>
 
@@ -35,3 +36,5 @@ GtkWidget * nautilus_mime_application_chooser_new (GList *files,
 						   const char *mime_type);
 
 G_END_DECLS
+
+#endif /* NAUTILUS_MIME_APPLICATION_CHOOSER_H */

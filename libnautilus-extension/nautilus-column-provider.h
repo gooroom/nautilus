@@ -27,58 +27,41 @@
  * returned column refers to a string attribute which can be filled in
  * by NautilusInfoProvider */
 
-#pragma once
-
-#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
-#warning "Only <nautilus-extension.h> should be included directly."
-#endif
+#ifndef NAUTILUS_COLUMN_PROVIDER_H
+#define NAUTILUS_COLUMN_PROVIDER_H
 
 #include <glib-object.h>
-/* These should be removed at some point. */
 #include "nautilus-extension-types.h"
 #include "nautilus-column.h"
 
 G_BEGIN_DECLS
 
-#define NAUTILUS_TYPE_COLUMN_PROVIDER (nautilus_column_provider_get_type ())
+#define NAUTILUS_TYPE_COLUMN_PROVIDER           (nautilus_column_provider_get_type ())
+#define NAUTILUS_COLUMN_PROVIDER(obj)           (G_TYPE_CHECK_INSTANCE_CAST ((obj), NAUTILUS_TYPE_COLUMN_PROVIDER, NautilusColumnProvider))
+#define NAUTILUS_IS_COLUMN_PROVIDER(obj)        (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NAUTILUS_TYPE_COLUMN_PROVIDER))
+#define NAUTILUS_COLUMN_PROVIDER_GET_IFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), NAUTILUS_TYPE_COLUMN_PROVIDER, NautilusColumnProviderIface))
 
-G_DECLARE_INTERFACE (NautilusColumnProvider, nautilus_column_provider,
-                     NAUTILUS, COLUMN_PROVIDER,
-                     GObject)
-
-/* For compatibility reasons, remove this once you start introducing breaking changes. */
-typedef NautilusColumnProviderInterface NautilusColumnProviderIface;
-
-/**
- * SECTION:nautilus-column-provider
- * @title: NautilusColumnProvider
- * @short_description: Interface to provide additional list view columns
- *
- * #NautilusColumnProvider allows extension to provide additional columns
- * in the file manager list view.
- */
+typedef struct _NautilusColumnProvider       NautilusColumnProvider;
+typedef struct _NautilusColumnProviderIface  NautilusColumnProviderIface;
 
 /**
- * NautilusColumnProviderInterface:
+ * NautilusColumnProviderIface:
  * @g_iface: The parent interface.
  * @get_columns: Returns a #GList of #NautilusColumn.
- *               See nautilus_column_provider_get_columns() for details.
+ *   See nautilus_column_provider_get_columns() for details.
  *
  * Interface for extensions to provide additional list view columns.
  */
-struct _NautilusColumnProviderInterface
-{
-    GTypeInterface g_iface;
+struct _NautilusColumnProviderIface {
+	GTypeInterface g_iface;
 
-    GList *(*get_columns) (NautilusColumnProvider *provider);
+	GList *(*get_columns) (NautilusColumnProvider *provider);
 };
 
-/**
- * nautilus_column_provider_get_columns:
- * @provider: a #NautilusColumnProvider
- *
- * Returns: (element-type NautilusColumn) (transfer full): the provided #NautilusColumn objects
- */
-GList *nautilus_column_provider_get_columns (NautilusColumnProvider *provider);
+/* Interface Functions */
+GType                   nautilus_column_provider_get_type       (void);
+GList                  *nautilus_column_provider_get_columns    (NautilusColumnProvider *provider);
 
 G_END_DECLS
+
+#endif

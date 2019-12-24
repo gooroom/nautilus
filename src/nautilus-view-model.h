@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NAUTILUS_VIEW_MODEL_H
+#define NAUTILUS_VIEW_MODEL_H
 
 #include <glib.h>
 #include "nautilus-file.h"
@@ -36,5 +37,9 @@ void nautilus_view_model_add_item (NautilusViewModel     *self,
                                    NautilusViewItemModel *item);
 void nautilus_view_model_add_items (NautilusViewModel *self,
                                     GQueue            *items);
-
+void nautilus_view_model_set_items (NautilusViewModel *self,
+                                    GQueue            *items);
 G_END_DECLS
+
+#endif /* NAUTILUS_VIEW_MODEL_H */
+

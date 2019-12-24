@@ -37,6 +37,8 @@ EXTRA_DIST += $(catalog_sources)
 
 if LIBGD_GTK_HACKS
 gtk_hacks_sources =                             \
+        libgd/gd-entry-focus-hack.c             \
+        libgd/gd-entry-focus-hack.h             \
         libgd/gd-icon-utils.c		        \
         libgd/gd-icon-utils.h			\
         $(NULL)
@@ -150,31 +152,35 @@ EXTRA_DIST += $(notification_sources)
 endif
 
 if LIBGD_TAGGED_ENTRY
+tagged_entry_resource_files = $(shell glib-compile-resources --sourcedir=$(srcdir)/libgd --generate-dependencies $(srcdir)/libgd/gd-tagged-entry.gresource.xml)
+libgd/gd-tagged-entry-resources.c: libgd/gd-tagged-entry.gresource.xml $(tagged_entry_resource_files) libgd/gd-tagged-entry-resources.h
+	glib-compile-resources --target=$@ --sourcedir=$(srcdir)/libgd --generate-source --c-name gd_tagged_entry $(srcdir)/libgd/gd-tagged-entry.gresource.xml
+libgd/gd-tagged-entry-resources.h: libgd/gd-tagged-entry.gresource.xml $(tagged_entry_resource_files)
+	glib-compile-resources --target=$@ --sourcedir=$(srcdir)/libgd --generate-header --c-name gd_tagged_entry $(srcdir)/libgd/gd-tagged-entry.gresource.xml
+
 tagged_entry_sources =				\
+	libgd/gd-tagged-entry-resources.c	\
+	libgd/gd-tagged-entry-resources.h	\
 	libgd/gd-tagged-entry.c			\
 	libgd/gd-tagged-entry.h			\
 	$(NULL)
 
 nodist_libgd_la_SOURCES += $(tagged_entry_sources)
-EXTRA_DIST += $(tagged_entry_sources)
+EXTRA_DIST += \
+	$(tagged_entry_sources) \
+	libgd/gd-tagged-entry.gresource.xml \
+	libgd/gd-tagged-entry-default.css \
+	$(NULL)
+CLEANFILES += \
+	libgd/gd-tagged-entry-resources.c \
+	libgd/gd-tagged-entry-resources.h \
+	$(NULL)
 
-noinst_PROGRAMS +=				\
-	test-tagged-entry			\
-	test-tagged-entry-2			\
-	$(null)
-
+noinst_PROGRAMS += test-tagged-entry
 test_tagged_entry_SOURCES =				\
 	test-tagged-entry.c				\
 	$(NULL)
 test_tagged_entry_LDADD =				\
-	$(LIBGD_LIBS)				\
-	libgd.la				\
-	$(NULL)
-
-test_tagged_entry_2_SOURCES =			\
-	test-tagged-entry-2.c			\
-	$(NULL)
-test_tagged_entry_2_LDADD =			\
 	$(LIBGD_LIBS)				\
 	libgd.la				\
 	$(NULL)

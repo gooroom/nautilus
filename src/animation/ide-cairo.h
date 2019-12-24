@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef IDE_CAIRO_H
+#define IDE_CAIRO_H
 
 #include <gtk/gtk.h>
 
@@ -63,3 +64,5 @@ _ide_cairo_rectangle_contains_rectangle (const cairo_rectangle_int_t *a,
 }
 
 G_END_DECLS
+
+#endif /* IDE_CAIRO_H */

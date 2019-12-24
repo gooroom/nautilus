@@ -1,74 +1,26 @@
-##############
-# Extensions #
-##############
-option(
-  'docs',
-  type: 'boolean',
-  value: false,
-  description: 'Build documentation for extension library',
-)
-option(
-  'extensions',
-  type: 'boolean',
-  value: true,
-  description: 'Build stock extensions',
-)
-option(
-  'introspection',
-  type: 'boolean',
-  value: true,
-  description: 'Build GObject introspection data for extension library',
-)
-##################
-# End extensions #
-##################
-
-############
-# Features #
-############
-option(
-  'packagekit',
-  type: 'boolean',
-  value: true,
-  description: 'Enable finding file type handlers using PackageKit',
-)
-option(
-  'selinux',
-  type: 'boolean',
-  value: false,
-  description: 'Enable SELinux context support in file properties dialog',
-)
-################
-# End features #
-################
-
-###########
-# Testing #
-###########
-option(
-  'profiling',
-  type: 'boolean',
-  value: false,
-  description: 'Enable performance profiling',
-)
-option(
-  'tests',
-  type: 'combo',
-  choices: [
-    'none',
-    'headless',
-    'all'
-  ],
-  value: 'headless',
-  description: 'Build selected tests',
-)
-###############
-# End testing #
-###############
-
-option(
-  'profile',
-  type: 'string',
-  value: '',
-  description: 'Build with specified application ID',
-)
+option ('enable-profiling',
+        type: 'boolean',
+        value: false)
+option ('enable-nst-extension',
+        type: 'boolean',
+        value: true)
+option ('enable-exif',
+        type: 'boolean',
+        value: false,
+        description: 'enable EXIF support')
+option ('enable-xmp',
+        type: 'boolean',
+        value: false,
+        description: 'enable XMP support')
+option ('enable-selinux',
+        type: 'boolean',
+        value: true)
+option ('enable-desktop',
+        type: 'boolean',
+        value: true)
+option ('enable-packagekit',
+        type: 'boolean',
+        value: true)
+option ('enable-gtk-doc',
+        type: 'boolean',
+        value: false)

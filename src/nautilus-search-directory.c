@@ -17,23 +17,23 @@
  *  Author: Anders Carlsson <andersca@imendio.com>
  */
 
+#include <config.h>
 #include "nautilus-search-directory.h"
-
-#include <eel/eel-glib-extensions.h>
-#include <gio/gio.h>
-#include <gtk/gtk.h>
-#include <string.h>
-#include <sys/time.h>
+#include "nautilus-search-directory-file.h"
 
 #include "nautilus-directory-private.h"
+#include "nautilus-file.h"
 #include "nautilus-file-private.h"
 #include "nautilus-file-utilities.h"
-#include "nautilus-file.h"
-#include "nautilus-query.h"
-#include "nautilus-search-directory-file.h"
-#include "nautilus-search-engine-model.h"
-#include "nautilus-search-engine.h"
 #include "nautilus-search-provider.h"
+#include "nautilus-search-engine.h"
+#include "nautilus-search-engine-model.h"
+
+#include <eel/eel-glib-extensions.h>
+#include <gtk/gtk.h>
+#include <gio/gio.h>
+#include <string.h>
+#include <sys/time.h>
 
 struct _NautilusSearchDirectory
 {
@@ -103,12 +103,6 @@ enum
 
 G_DEFINE_TYPE_WITH_CODE (NautilusSearchDirectory, nautilus_search_directory, NAUTILUS_TYPE_DIRECTORY,
                          nautilus_ensure_extension_points ();
-                         /* It looks like you’re implementing an extension point.
-                          * Did you modify nautilus_ensure_extension_builtins() accordingly?
-                          *
-                          * • Yes
-                          * • Doing it right now
-                          */
                          g_io_extension_point_implement (NAUTILUS_DIRECTORY_PROVIDER_EXTENSION_POINT_NAME,
                                                          g_define_type_id,
                                                          NAUTILUS_SEARCH_DIRECTORY_PROVIDER_NAME,
@@ -182,6 +176,8 @@ static void
 start_search (NautilusSearchDirectory *self)
 {
     NautilusSearchEngineModel *model_provider;
+    NautilusSearchEngineSimple *simple_provider;
+    gboolean recursive;
 
     if (!self->query)
     {
@@ -208,6 +204,10 @@ start_search (NautilusSearchDirectory *self)
 
     model_provider = nautilus_search_engine_get_model_provider (self->engine);
     nautilus_search_engine_model_set_model (model_provider, self->base_model);
+
+    simple_provider = nautilus_search_engine_get_simple_provider (self->engine);
+    recursive = nautilus_query_get_recursive (self->query);
+    g_object_set (simple_provider, "recursive", recursive, NULL);
 
     reset_file_list (self);
 
@@ -588,7 +588,7 @@ search_directory_add_pending_files_callbacks (NautilusSearchDirectory *self)
     g_list_foreach (self->pending_callback_list,
                     (GFunc) search_callback_add_pending_file_callbacks, NULL);
     self->callback_list = g_list_concat (self->callback_list,
-                                         self->pending_callback_list);
+                                                    self->pending_callback_list);
 
     g_list_free (self->pending_callback_list);
     self->pending_callback_list = NULL;
@@ -1051,8 +1051,8 @@ nautilus_search_directory_set_query (NautilusSearchDirectory *self,
         if (query)
         {
             self->binding = g_object_bind_property (self->engine, "running",
-                                                    query, "searching",
-                                                    G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+                                                               query, "searching",
+                                                               G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
         }
 
         g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_QUERY]);

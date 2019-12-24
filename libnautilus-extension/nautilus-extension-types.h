@@ -1,5 +1,6 @@
-/* nautilus-info-provider.h - Type definitions for Nautilus extensions
- *
+/*
+ *  nautilus-info-provider.h - Type definitions for Nautilus extensions
+ * 
  *  Copyright (C) 2003 Novell, Inc.
  *
  *  This library is free software; you can redistribute it and/or
@@ -16,7 +17,7 @@
  *  License along with this library; if not, see <http://www.gnu.org/licenses/>.
  *
  *  Author: Dave Camp <dave@ximian.com>
- *
+ * 
  */
 
 /* This interface is implemented by Nautilus extensions that want to 
@@ -24,10 +25,67 @@
  * needs information about a file.  They are passed a NautilusFileInfo 
  * object which should be filled with relevant information */
 
-#pragma once
+#ifndef NAUTILUS_EXTENSION_TYPES_H
+#define NAUTILUS_EXTENSION_TYPES_H
 
-#if !defined (NAUTILUS_EXTENSION_H) && !defined (NAUTILUS_COMPILATION)
-#warning "This header is deprecated, include <nautilus-extension.h> instead."
+#include <glib-object.h>
+
+G_BEGIN_DECLS
+
+#define NAUTILUS_TYPE_OPERATION_RESULT (nautilus_operation_result_get_type ())
+
+/**
+ * NautilusOperationHandle:
+ *
+ * Handle for asynchronous interfaces. These are opaque handles that must
+ * be unique within an extension object. These are returned by operations
+ * that return #NAUTILUS_OPERATION_IN_PROGRESS.
+ */
+typedef struct _NautilusOperationHandle NautilusOperationHandle;
+
+/**
+ * NautilusOperationResult:
+ * @NAUTILUS_OPERATION_COMPLETE: the operation succeeded, and the extension
+ *  is done with the request.
+ * @NAUTILUS_OPERATION_FAILED: the operation failed.
+ * @NAUTILUS_OPERATION_IN_PROGRESS: the extension has begin an async operation.
+ *  When this value is returned, the extension must set the handle parameter
+ *  and call the callback closure when the operation is complete.
+ *
+ * Return values for asynchronous operations performed by the extension.
+ * See nautilus_info_provider_update_file_info().
+ */
+typedef enum {
+	/* Returned if the call succeeded, and the extension is done 
+	 * with the request */
+	NAUTILUS_OPERATION_COMPLETE,
+
+	/* Returned if the call failed */
+	NAUTILUS_OPERATION_FAILED,
+
+	/* Returned if the extension has begun an async operation. 
+	 * If this is returned, the extension must set the handle 
+	 * parameter and call the callback closure when the 
+	 * operation is complete. */
+	NAUTILUS_OPERATION_IN_PROGRESS
+} NautilusOperationResult;
+
+GType nautilus_operation_result_get_type (void);
+
+/**
+ * SECTION:nautilus-extension-types
+ * @title: NautilusModule
+ * @short_description: Initialize an extension
+ * @include: libnautilus-extension/nautilus-extension-types.h
+ *
+ * Methods that each extension implements.
+ */
+
+void nautilus_module_initialize (GTypeModule  *module);
+void nautilus_module_shutdown   (void);
+void nautilus_module_list_types (const GType **types,
+				 int          *num_types);
+
+G_END_DECLS
+
 #endif
-
-#include <nautilus-extension.h>

@@ -1,12 +1,13 @@
 #!/usr/bin/make -f
+-include /usr/share/gnome-pkg-tools/1/rules/gnome-get-source.mk
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
-export DEB_LDFLAGS_MAINT_APPEND = -Wl,-O1 -Wl,-z,defs -Wl,--as-needed
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,-z,defs -Wl,--as-needed
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-ENABLE_SELINUX := -Dselinux=true
+ENABLE_SELINUX := -Denable-selinux=true
 else
-ENABLE_SELINUX := -Dselinux=false
+ENABLE_SELINUX := -Denable-selinux=false
 endif
 
 %:
@@ -17,28 +18,30 @@ override_dh_autoreconf:
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		-Ddocs=true \
-		-Dextension=true \
-		-Dpackagekit=true \
-		-Dtests=all \
-		$(ENABLE_SELINUX)
+		-Denable-packagekit=true \
+		-Denable-desktop=true \
+		-Denable-exif=true \
+		-Denable-gtk-doc=true \
+		-Denable-packagekit=true \
+		-Denable-nst-extension=true \
+		-Denable-unity=true \
+		-Denable-xmp=true \
+		$(ENABLE_SELINUX) \
+		$(ENABLE_TRACKER)
 
 override_dh_strip:
 	dh_strip --dbgsym-migration='nautilus-dbg (<< 3.20.0-1~)'
 
 override_dh_auto_test:
-ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	mkdir -p -m0700 $(CURDIR)/debian/tmp-home/run
-	touch $(CURDIR)/debian/tmp-home/.gtk-bookmarks
-	env \
-		HOME=$(CURDIR)/debian/tmp-home \
-		XDG_RUNTIME_DIR=$(CURDIR)/debian/tmp-home/run \
-		dbus-run-session -- xvfb-run dh_auto_test
-	rm -fr debian/tmp-home
-endif
+# We (will eventually) run autopkgtest instead
 
 override_dh_makeshlibs:
 	dh_makeshlibs -- -c4
 
 override_dh_missing:
 	dh_missing --fail-missing
+
+# Needed by Ubuntu
+override_dh_translations:
+	ninja -C obj-$(DEB_HOST_GNU_TYPE) nautilus-pot
+	dh_translations

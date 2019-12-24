@@ -17,7 +17,8 @@
  *
  */
 
-#pragma once
+#ifndef NAUTILUS_FILE_NAME_WIDGET_CONTROLLER_H
+#define NAUTILUS_FILE_NAME_WIDGET_CONTROLLER_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -46,7 +47,5 @@ struct _NautilusFileNameWidgetControllerClass
 
 gchar * nautilus_file_name_widget_controller_get_new_name (NautilusFileNameWidgetController *controller);
 
-void    nautilus_file_name_widget_controller_set_containing_directory (NautilusFileNameWidgetController *controller,
-                                                                       NautilusDirectory                *directory);
-gboolean nautilus_file_name_widget_controller_is_name_too_long (NautilusFileNameWidgetController  *self,
-                                                                gchar                             *name);
+
+#endif /* NAUTILUS_FILE_NAME_WIDGET_CONTROLLER_H */

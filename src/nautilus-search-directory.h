@@ -19,11 +19,11 @@
    License along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef NAUTILUS_SEARCH_DIRECTORY_H
+#define NAUTILUS_SEARCH_DIRECTORY_H
 
 #include "nautilus-directory.h"
-
-#include "nautilus-types.h"
+#include "nautilus-query.h"
 
 #define NAUTILUS_SEARCH_DIRECTORY_PROVIDER_NAME "search-directory-provider"
 #define NAUTILUS_TYPE_SEARCH_DIRECTORY (nautilus_search_directory_get_type ())
@@ -41,3 +41,5 @@ NautilusDirectory *
                nautilus_search_directory_get_base_model (NautilusSearchDirectory  *self);
 void           nautilus_search_directory_set_base_model (NautilusSearchDirectory  *self,
 							 NautilusDirectory        *base_model);
+
+#endif /* NAUTILUS_SEARCH_DIRECTORY_H */

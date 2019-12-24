@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#ifndef NAUTILUS_BATCH_RENAME_UTILITIES_H
+#define NAUTILUS_BATCH_RENAME_UTILITIES_H
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
@@ -68,3 +69,5 @@ void batch_rename_sort_lists_for_rename (GList    **selection,
                                          GList    **new_files,
                                          GList    **old_files,
                                          gboolean   is_undo_redo);
+
+#endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

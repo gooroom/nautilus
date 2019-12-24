@@ -19,7 +19,8 @@
    Authors: Andy Hertzfeld <andy@eazel.com>
  */
 
-#pragma once
+#ifndef EEL_GRAPHIC_EFFECTS_H
+#define EEL_GRAPHIC_EFFECTS_H
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk/gdk.h>
@@ -29,4 +30,6 @@ GdkPixbuf *eel_create_spotlight_pixbuf (GdkPixbuf *source_pixbuf);
 
 /* return a pixbuf colorized with the color specified by the parameters */
 GdkPixbuf* eel_create_colorized_pixbuf (GdkPixbuf *source_pixbuf,
-                                        GdkPixbuf *dest);
+					GdkRGBA *color);
+
+#endif /* EEL_GRAPHIC_EFFECTS_H */

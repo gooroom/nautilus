@@ -386,7 +386,7 @@ gd_main_icon_box_button_release_event (GtkWidget *widget, GdkEventButton *event)
     }
 
   if (!priv->selection_mode &&
-      ((event->button == GDK_BUTTON_PRIMARY && (event->state & GDK_CONTROL_MASK) != 0) ||
+      (event->button == GDK_BUTTON_PRIMARY && (event->state & GDK_CONTROL_MASK) != 0 ||
        event->button == GDK_BUTTON_SECONDARY))
     {
       g_signal_emit_by_name (self, "selection-mode-request");
@@ -595,6 +595,7 @@ gd_main_icon_box_drag_data_get (GtkWidget *widget,
   GdMainIconBox *self = GD_MAIN_ICON_BOX (widget);
   GdMainIconBoxPrivate *priv;
   GPtrArray *uri_array = NULL;
+  gchar **uris = NULL;
 
   priv = gd_main_icon_box_get_instance_private (self);
 

@@ -21,7 +21,8 @@
  *          Cosimo Cecchi <cosimoc@redhat.com>
  */
 
-#pragma once
+#ifndef __NAUTILUS_SELECTION_CANVAS_ITEM_H__
+#define __NAUTILUS_SELECTION_CANVAS_ITEM_H__
 
 #include <eel/eel-canvas.h>
 
@@ -60,3 +61,5 @@ void nautilus_selection_canvas_item_fade_out (NautilusSelectionCanvasItem *self,
 					      guint transition_time);
 
 G_END_DECLS
+
+#endif /* __NAUTILUS_SELECTION_CANVAS_ITEM_H__ */

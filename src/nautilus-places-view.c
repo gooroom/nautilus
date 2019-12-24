@@ -18,14 +18,10 @@
 
 #include "nautilus-mime-actions.h"
 #include "nautilus-places-view.h"
-
-#include "gtk/nautilusgtkplacesviewprivate.h"
-
-#include "nautilus-application.h"
-#include "nautilus-file.h"
-#include "nautilus-toolbar-menu-sections.h"
-#include "nautilus-view.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-application.h"
+#include "nautilus-toolbar-menu-sections.h"
+#include "gtk/nautilusgtkplacesviewprivate.h"
 
 typedef struct
 {
@@ -52,11 +48,8 @@ enum
     PROP_0,
     PROP_LOCATION,
     PROP_SEARCH_QUERY,
-    PROP_LOADING,
-    PROP_SEARCHING,
-    PROP_SELECTION,
-    PROP_EXTENSIONS_BACKGROUND_MENU,
-    PROP_TEMPLATES_MENU,
+    PROP_IS_LOADING,
+    PROP_IS_SEARCHING,
     LAST_PROP
 };
 
@@ -115,7 +108,7 @@ open_location_cb (NautilusPlacesView *view,
 static void
 loading_cb (NautilusView *view)
 {
-    g_object_notify (G_OBJECT (view), "loading");
+    g_object_notify (G_OBJECT (view), "is-loading");
 }
 
 static void
@@ -174,17 +167,6 @@ nautilus_places_view_get_property (GObject    *object,
         case PROP_SEARCH_QUERY:
         {
             g_value_set_object (value, nautilus_view_get_search_query (view));
-        }
-        break;
-
-        /* Collect all unused properties and do nothing. Ideally, this wouldn’t
-         * have to be done in the first place.
-         */
-        case PROP_SEARCHING:
-        case PROP_SELECTION:
-        case PROP_EXTENSIONS_BACKGROUND_MENU:
-        case PROP_TEMPLATES_MENU:
-        {
         }
         break;
 
@@ -363,17 +345,10 @@ nautilus_places_view_class_init (NautilusPlacesViewClass *klass)
     object_class->get_property = nautilus_places_view_get_property;
     object_class->set_property = nautilus_places_view_set_property;
 
-    g_object_class_override_property (object_class, PROP_LOADING, "loading");
-    g_object_class_override_property (object_class, PROP_SEARCHING, "searching");
+    g_object_class_override_property (object_class, PROP_IS_LOADING, "is-loading");
+    g_object_class_override_property (object_class, PROP_IS_SEARCHING, "is-searching");
     g_object_class_override_property (object_class, PROP_LOCATION, "location");
-    g_object_class_override_property (object_class, PROP_SELECTION, "selection");
     g_object_class_override_property (object_class, PROP_SEARCH_QUERY, "search-query");
-    g_object_class_override_property (object_class,
-                                      PROP_EXTENSIONS_BACKGROUND_MENU,
-                                      "extensions-background-menu");
-    g_object_class_override_property (object_class,
-                                      PROP_TEMPLATES_MENU,
-                                      "templates-menu");
 }
 
 static void

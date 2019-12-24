@@ -20,7 +20,8 @@
  * 
  */
 
-#pragma once
+#ifndef NAUTILUS_MODULE_H
+#define NAUTILUS_MODULE_H
 
 #include <glib-object.h>
 
@@ -36,3 +37,5 @@ void   nautilus_module_extension_list_free     (GList *list);
 void   nautilus_module_add_type                (GType  type);
 
 G_END_DECLS
+
+#endif

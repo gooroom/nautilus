@@ -19,12 +19,12 @@
    Author: Darin Adler <darin@bentspoon.com>
 */
 
-#pragma once
+#ifndef NAUTILUS_DIRECTORY_H
+#define NAUTILUS_DIRECTORY_H
 
 #include <gtk/gtk.h>
 #include <gio/gio.h>
-
-#include "nautilus-enums.h"
+#include "nautilus-file-attributes.h"
 
 /* NautilusDirectory is a class that manages the model for a directory,
    real or virtual, for Nautilus, mainly the file-manager component. The directory is
@@ -58,14 +58,13 @@
 typedef struct NautilusFile NautilusFile;
 #endif
 
-typedef struct _NautilusDirectory        NautilusDirectory;
-typedef struct  NautilusDirectoryDetails NautilusDirectoryDetails;
+typedef struct NautilusDirectoryDetails NautilusDirectoryDetails;
 
-struct _NautilusDirectory
+typedef struct
 {
 	GObject object;
 	NautilusDirectoryDetails *details;
-};
+} NautilusDirectory;
 
 typedef void (*NautilusDirectoryCallback) (NautilusDirectory *directory,
 					   GList             *files,
@@ -228,7 +227,6 @@ gboolean           nautilus_directory_is_local_or_fuse         (NautilusDirector
 
 gboolean           nautilus_directory_is_in_trash              (NautilusDirectory         *directory);
 gboolean           nautilus_directory_is_in_recent             (NautilusDirectory         *directory);
-gboolean           nautilus_directory_is_in_starred            (NautilusDirectory         *directory);
 gboolean           nautilus_directory_is_in_admin              (NautilusDirectory         *directory);
 
 /* Return false if directory contains anything besides a Nautilus metafile.
@@ -252,3 +250,5 @@ void               nautilus_directory_dump                     (NautilusDirector
 NautilusFile *     nautilus_directory_new_file_from_filename   (NautilusDirectory *directory,
                                                                 const char        *filename,
                                                                 gboolean           self_owned);
+
+#endif /* NAUTILUS_DIRECTORY_H */

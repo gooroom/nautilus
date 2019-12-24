@@ -24,7 +24,8 @@
  *                                 contain a hierarchy of files
  */
 
-#pragma once
+#ifndef NAUTILUS_TREE_VIEW_DRAG_DEST_H
+#define NAUTILUS_TREE_VIEW_DRAG_DEST_H
 
 #include <gtk/gtk.h>
 
@@ -94,3 +95,5 @@ GType                     nautilus_tree_view_drag_dest_get_type (void);
 NautilusTreeViewDragDest *nautilus_tree_view_drag_dest_new      (GtkTreeView *tree_view);
 
 G_END_DECLS
+
+#endif

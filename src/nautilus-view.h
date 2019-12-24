@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+
+#ifndef NAUTILUS_VIEW_H
+#define NAUTILUS_VIEW_H
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -28,6 +30,7 @@ enum
 {
     NAUTILUS_VIEW_GRID_ID,
     NAUTILUS_VIEW_LIST_ID,
+    NAUTILUS_VIEW_DESKTOP_ID,
     NAUTILUS_VIEW_EMPTY_ID,
     NAUTILUS_VIEW_OTHER_LOCATIONS_ID,
     NAUTILUS_VIEW_INVALID_ID,
@@ -50,20 +53,6 @@ struct _NautilusViewInterface
          */
         NautilusToolbarMenuSections *   (*get_toolbar_menu_sections) (NautilusView         *view);
 
-        /*
-         * Returns the menu for the background click of extensions.
-         */
-        GMenu *   (*get_extensions_background_menu) (NautilusView         *view);
-
-        void     (*set_extensions_background_menu) (NautilusView *view,
-                                                    GMenu        *menu);
-        /*
-         * Returns the menu for templates.
-         */
-        GMenu *   (*get_templates_menu) (NautilusView         *view);
-
-        void     (*set_templates_menu) (NautilusView *view,
-                                        GMenu        *menu);
         /* Current location of the view */
         GFile*                          (*get_location)              (NautilusView         *view);
         void                            (*set_location)              (NautilusView         *view,
@@ -111,11 +100,6 @@ gboolean                       nautilus_view_is_loading                (Nautilus
 
 gboolean                       nautilus_view_is_searching              (NautilusView         *view);
 
-void                           nautilus_view_set_templates_menu        (NautilusView *view,
-                                                                        GMenu        *menu);
-GMenu*                         nautilus_view_get_templates_menu        (NautilusView *view);
-void                           nautilus_view_set_extensions_background_menu (NautilusView *view,
-                                                                             GMenu        *menu);
-GMenu*                         nautilus_view_get_extensions_background_menu (NautilusView *view);
-
 G_END_DECLS
+
+#endif /* NAUTILUS_VIEW_H */

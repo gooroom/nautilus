@@ -17,7 +17,8 @@
    Author: Maciej Stachowiak <mjs@noisehavoc.org>
 */
 
-#pragma once
+#ifndef NAUTILUS_FILE_QUEUE_H
+#define NAUTILUS_FILE_QUEUE_H
 
 #include "nautilus-file.h"
 
@@ -44,3 +45,5 @@ void               nautilus_file_queue_remove   (NautilusFileQueue *queue,
 NautilusFile *     nautilus_file_queue_head     (NautilusFileQueue *queue);
 
 gboolean           nautilus_file_queue_is_empty (NautilusFileQueue *queue);
+
+#endif /* NAUTILUS_FILE_CHANGES_QUEUE_H */
