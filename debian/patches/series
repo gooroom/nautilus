@@ -7,3 +7,4 @@ gooroom-move-header-button-to-bottom-in-file-conflict-dialo.patch
 gooroom-fixed-flawfinder-high-priority.patch
 gooroom-change-file-extraction-method-in-context-menu.patch
 gooroom-modify-access-time-format.patch
+gooroom-add-execute-permission-check-of-execute-file.patch
