@@ -1,3 +1,14 @@
+nautilus (3.30.5-2+grm2u2) unstable; urgency=medium
+
+  [ donghun ]
+  * [6378531a] Added patch for change file extraction method in context menu
+  * [b521aa60] Added patch to modify access time format
+  * [660d63b1] [Bug:1849] Added the execute permission check of execute file and the modify Korean translation
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 11 Feb 2020 11:41:27 +0900
+
 nautilus (3.30.5-2+grm2u1) unstable; urgency=medium
 
   [ cjheo ]
