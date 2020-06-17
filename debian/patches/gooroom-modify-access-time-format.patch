@@ -1,26 +1,27 @@
-From 1418718e9ec9e64893dbebeb6a705c90233538c8 Mon Sep 17 00:00:00 2001
+From d82e44af6e1c9f5780cb6cdcc698cb3a9703979a Mon Sep 17 00:00:00 2001
 From: donghun <donghun@gooroom.kr>
-Date: Thu, 12 Dec 2019 11:09:44 +0900
+Date: Wed, 17 Jun 2020 19:39:08 +0900
 Subject: [PATCH] Modify access time format
 
-Change-Id: Ic610e79718731be55de0748a4a434dd4e2402b34
+Change-Id: I16472a9168769445c022ff93dc903e1adeb27f21
 ---
- src/nautilus-file.c | 29 +++++++++++++++++++++--------
- 1 file changed, 21 insertions(+), 8 deletions(-)
+ src/nautilus-file.c | 41 +++++++++++++++++++++++++++++++++--------
+ 1 file changed, 33 insertions(+), 8 deletions(-)
 
 diff --git a/src/nautilus-file.c b/src/nautilus-file.c
-index ad95a2d..a91f24b 100644
+index ad95a2d..adcf50b 100644
 --- a/src/nautilus-file.c
 +++ b/src/nautilus-file.c
-@@ -112,6 +112,7 @@ typedef enum
+@@ -112,6 +112,8 @@ typedef enum
      NAUTILUS_DATE_FORMAT_REGULAR = 0,
      NAUTILUS_DATE_FORMAT_REGULAR_WITH_TIME = 1,
      NAUTILUS_DATE_FORMAT_FULL = 2,
 +    NAUTILUS_DATE_FORMAT_SIMPLE = 3,
++    NAUTILUS_DATE_FORMAT_SIMPLE_WITH_TIME = 4,
  } NautilusDateFormat;
  
  typedef void (*ModifyListFunction) (GList       **list,
-@@ -5437,6 +5438,18 @@ nautilus_file_get_date_as_string (NautilusFile       *file,
+@@ -5437,6 +5439,29 @@ nautilus_file_get_date_as_string (NautilusFile       *file,
      }
  
      file_date_time = g_date_time_new_from_unix_local (file_time_raw);
@@ -36,10 +37,21 @@ index ad95a2d..a91f24b 100644
 +        return result_with_ratio;
 +    }
 +
++    if (date_format == NAUTILUS_DATE_FORMAT_SIMPLE_WITH_TIME)
++	{
++        result = g_date_time_format (file_date_time, "%F %k:%M");
++        g_date_time_unref (file_date_time);
++
++        result_with_ratio = eel_str_replace_substring (result, ":", "∶");
++        g_free (result);
++
++        return result_with_ratio;
++    }
++
      if (date_format != NAUTILUS_DATE_FORMAT_FULL)
      {
          GDateTime *file_date;
-@@ -7184,49 +7197,49 @@ nautilus_file_get_string_attribute_q (NautilusFile *file,
+@@ -7184,49 +7209,49 @@ nautilus_file_get_string_attribute_q (NautilusFile *file,
      {
          return nautilus_file_get_date_as_string (file,
                                                   NAUTILUS_DATE_TYPE_MODIFIED,
@@ -58,7 +70,7 @@ index ad95a2d..a91f24b 100644
          return nautilus_file_get_date_as_string (file,
                                                   NAUTILUS_DATE_TYPE_MODIFIED,
 -                                                 NAUTILUS_DATE_FORMAT_REGULAR_WITH_TIME);
-+                                                 NAUTILUS_DATE_FORMAT_SIMPLE);
++                                                 NAUTILUS_DATE_FORMAT_SIMPLE_WITH_TIME);
      }
      if (attribute_q == attribute_date_accessed_q)
      {
