@@ -9,3 +9,4 @@ gooroom-change-file-extraction-method-in-context-menu.patch
 gooroom-modify-access-time-format.patch
 gooroom-add-execute-permission-check-of-execute-file.patch
 gooroom-remove-starred-in-icon-view-style.patch
+gooroom-fixed-context-menu-error.patch

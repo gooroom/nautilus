@@ -1,0 +1,58 @@
+From 7296174632e0a597e3940bd51af62404a6bbfcb2 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Wed, 17 Jun 2020 15:31:09 +0900
+Subject: [PATCH] Fixed context menu error in list view header
+
+Change-Id: Id6d6052aa3dd1bd5b2d422ac50fe44b9149de493
+---
+ src/nautilus-list-view.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/nautilus-list-view.c b/src/nautilus-list-view.c
+index b118c78..1941871 100644
+--- a/src/nautilus-list-view.c
++++ b/src/nautilus-list-view.c
+@@ -2475,8 +2475,6 @@ get_visible_columns (NautilusListView *list_view)
+     GPtrArray *res;
+     GList *l;
+     g_autofree gchar *uri = NULL;
+-    gboolean in_xdg_dirs;
+-    gboolean is_starred;
+ 
+     file = nautilus_files_view_get_directory_as_file (NAUTILUS_FILES_VIEW (list_view));
+     uri = nautilus_file_get_uri (file);
+@@ -2484,10 +2482,15 @@ get_visible_columns (NautilusListView *list_view)
+     /* FIXME: We are assuming tracker indexes XDG folders and ignore the search
+      * setting. This should be fixed in a better way for Nautilus 3.30.
+      * See https://gitlab.gnome.org/GNOME/nautilus/issues/243
++     * FIXED : Added a package dependency du to starred error (tracker-extract, tracker-miner-fs)
++     * See http://172.16.195.105/c/nautilus/+/2745
+      */
++#if 0
++    gboolean in_xdg_dirs;
++    gboolean is_starred;
+     in_xdg_dirs = eel_uri_is_in_xdg_dirs (uri);
+     is_starred = eel_uri_is_starred (uri);
+-
++#endif
+     visible_columns = nautilus_file_get_metadata_list (file,
+                                                        NAUTILUS_METADATA_KEY_LIST_VIEW_VISIBLE_COLUMNS);
+     if (visible_columns == NULL)
+@@ -2498,11 +2501,14 @@ get_visible_columns (NautilusListView *list_view)
+     res = g_ptr_array_new ();
+     for (l = visible_columns; l != NULL; l = l->next)
+     {
++        g_ptr_array_add (res, l->data);
++#if 0
+         if (g_strcmp0 (l->data, "starred") != 0 ||
+             (g_strcmp0 (l->data, "starred") == 0 && (in_xdg_dirs || is_starred)))
+         {
+             g_ptr_array_add (res, l->data);
+         }
++#endif
+     }
+ 
+     g_ptr_array_add (res, NULL);
+-- 
+2.20.1
+
