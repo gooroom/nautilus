@@ -10,3 +10,4 @@ gooroom-add-execute-permission-check-of-execute-file.patch
 gooroom-remove-starred-in-icon-view-style.patch
 gooroom-fixed-context-menu-error.patch
 gooroom-modify-access-time-format.patch
+gooroom-update-translation-for-ko.patch
