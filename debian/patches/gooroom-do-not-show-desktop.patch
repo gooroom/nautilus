@@ -1,0 +1,12 @@
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index 545f68e..1cdba47 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -1341,6 +1341,7 @@ nautilus_window_set_up_sidebar (NautilusWindow *window)
+                       G_CALLBACK (side_pane_size_allocate_callback),
+                       window);
+ 
++    gtk_places_sidebar_set_show_desktop (GTK_PLACES_SIDEBAR (window->places_sidebar), FALSE);
+     gtk_places_sidebar_set_open_flags (GTK_PLACES_SIDEBAR (window->places_sidebar),
+                                        (GTK_PLACES_OPEN_NORMAL
+                                         | GTK_PLACES_OPEN_NEW_TAB
