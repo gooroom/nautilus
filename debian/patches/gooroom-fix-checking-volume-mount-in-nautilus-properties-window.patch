@@ -1,0 +1,60 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index 6d3e83e..e238213 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2744,6 +2744,31 @@ should_show_free_space (NautilusPropertiesWindow *window)
+     return FALSE;
+ }
+ 
++static gboolean
++get_is_mounted (NautilusFile *file)
++{
++    GFile *location;
++    GFileInfo *info;
++    gboolean is_mounted = FALSE;
++
++    location = nautilus_file_get_location (file);
++    info = g_file_query_info (location,
++                              G_FILE_ATTRIBUTE_UNIX_IS_MOUNTPOINT,
++                              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
++                              NULL, NULL);
++    if (info)
++    {
++        if (g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_UNIX_IS_MOUNTPOINT))
++        {
++            is_mounted = g_file_info_get_attribute_boolean (info, G_FILE_ATTRIBUTE_UNIX_IS_MOUNTPOINT);
++        }
++        g_object_unref (info);
++    }
++    g_object_unref (location);
++
++    return is_mounted;
++}
++
+ static gboolean
+ should_show_volume_info (NautilusPropertiesWindow *window)
+ {
+@@ -2761,6 +2786,11 @@ should_show_volume_info (NautilusPropertiesWindow *window)
+         return FALSE;
+     }
+ 
++    if (get_is_mounted (file))
++    {
++        return TRUE;
++    }
++
+     if (nautilus_file_can_unmount (file))
+     {
+         return TRUE;
+@@ -2787,6 +2817,11 @@ should_show_volume_usage (NautilusPropertiesWindow *window)
+         return FALSE;
+     }
+ 
++    if (get_is_mounted (file))
++    {
++        return TRUE;
++    }
++
+     if (nautilus_file_can_unmount (file))
+     {
+         return TRUE;
