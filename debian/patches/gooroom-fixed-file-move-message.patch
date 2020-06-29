@@ -1,0 +1,40 @@
+From 61c61b6506a64974ee814fd693de6fee86320f2c Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Fri, 26 Jun 2020 11:19:48 +0900
+Subject: [PATCH] Fixed file move message
+
+Change-Id: I72b7ff0fa20a180f6b7493f8c3a53c4e07abec6e
+---
+ src/nautilus-file-operations.c | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/nautilus-file-operations.c b/src/nautilus-file-operations.c
+index d5379c7..2486951 100644
+--- a/src/nautilus-file-operations.c
++++ b/src/nautilus-file-operations.c
+@@ -5521,10 +5521,19 @@ retry:
+             goto out;
+         }
+         basename = get_basename (src);
+-        primary = g_strdup_printf (_("Error while copying “%s”."), basename);
+         filename = get_truncated_parse_name (dest_dir);
+-        secondary = g_strdup_printf (_("There was an error copying the file into %s."),
+-                                     filename);
++        if (copy_job->is_move)
++        {
++            primary = g_strdup_printf (_("Error while moving “%s”."), basename);
++            secondary = g_strdup_printf (_("There was an error moving the file into %s."),
++                                        filename);
++        }
++        else
++        {
++            primary = g_strdup_printf (_("Error while copying “%s”."), basename);
++            secondary = g_strdup_printf (_("There was an error copying the file into %s."),
++                                        filename);
++        }
+         details = error->message;
+ 
+         response = run_cancel_or_skip_warning (job,
+-- 
+2.20.1
+
