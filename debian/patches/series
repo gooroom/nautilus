@@ -14,3 +14,4 @@ gooroom-update-translation-for-ko.patch
 gooroom-do-not-show-desktop.patch
 gooroom-ensure-to-check-gnome-disks.patch
 gooroom-fix-checking-volume-mount-in-nautilus-properties-window.patch
+gooroom-fixed-mime-type-error.patch

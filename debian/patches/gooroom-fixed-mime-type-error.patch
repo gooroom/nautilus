@@ -1,0 +1,158 @@
+From 46a7179fa15abc1992b61de4154c5b2662118e32 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Fri, 26 Jun 2020 13:03:37 +0900
+Subject: [PATCH] Updated mime type
+
+Change-Id: I4c2251dabae98977db58e10c5b2e9a8ad5298975
+---
+ src/nautilus-mime-actions.c | 97 +++++++++++++++++++++++++++++++++++--
+ 1 file changed, 92 insertions(+), 5 deletions(-)
+
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index 32b28d6..d4da5c8 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -236,6 +236,9 @@ struct
+  */
+ #define MAX_URI_IN_DIALOG_LENGTH 60
+ 
++#define MAX_XDG_MIME_CMD_LENGTH     256
++#define XDG_DATA_DIRS               "XDG_DATA_DIRS"
++
+ static void cancel_activate_callback (gpointer callback_data);
+ static void activate_activation_uris_ready_callback (GList   *files,
+                                                      gpointer callback_data);
+@@ -1099,6 +1102,91 @@ choose_program (GtkDialog *message_dialog,
+     nautilus_file_unref (file);
+ }
+ 
++static gboolean
++check_no_execute_permission(const char *exec_name)
++{
++    gboolean result = FALSE;
++    int path_count;
++    char *path_extern = getenv("PATH");
++    gchar **path_split = g_strsplit(path_extern, ":", -1);
++    path_count = g_strv_length(path_split);
++
++    for (int i = 0; i < path_count; ++i) {
++        struct stat st;
++        gchar *filepath = g_strconcat(path_split[i], "/", exec_name, NULL);
++        if (stat(filepath, &st)) {
++            mode_t perm = st.st_mode;
++            if(!(perm & S_IXUSR) && !(perm & S_IXGRP) && !(perm & S_IXOTH)) {
++                result = TRUE;
++                g_free(filepath);
++                break;
++            }
++        }
++        g_free(filepath);
++    }
++
++    g_strfreev(path_split);
++
++    return result;
++}
++
++static int
++check_no_execute_permission_for_launcher_app(char *mime_type)
++{
++    gchar *exec_name = NULL;
++    int dir_count;
++    char command[MAX_XDG_MIME_CMD_LENGTH] = { 0, };
++    int outlen;
++    gchar *desktop_file_name;
++    char *dirs_extern;
++    gchar **split_dirs;
++    int ret = -1;
++
++    snprintf(command, MAX_XDG_MIME_CMD_LENGTH, "xdg-mime query default %s", mime_type);
++
++    if (g_spawn_command_line_sync(command, &desktop_file_name, NULL, NULL, NULL) == FALSE) {
++        return -1;
++    }
++
++    outlen = strlen(desktop_file_name);
++    desktop_file_name[outlen - 1] = 0;
++
++    dirs_extern = getenv(XDG_DATA_DIRS);
++    split_dirs = g_strsplit(dirs_extern, ":", -1);
++    dir_count = g_strv_length(split_dirs);
++
++    for (int i = 0; i < dir_count; ++i) {
++        gchar *key_file_path = g_strconcat(split_dirs[i], "/applications/", desktop_file_name, NULL);
++        GKeyFile *keyfile = g_key_file_new();
++        if (g_key_file_load_from_file(keyfile, key_file_path, G_KEY_FILE_NONE, NULL)) {
++            gchar *exec_val = g_key_file_get_string(keyfile, "Desktop Entry", "Exec", NULL);
++            if (exec_val != NULL) {
++                gchar **exec_val_split;
++                exec_val_split = g_strsplit(exec_val, " ", -1);
++                exec_name = g_strdup(exec_val_split[0]);
++                g_strfreev(exec_val_split);
++                g_free(exec_val);
++            }
++        }
++
++        g_key_file_free(keyfile);
++        g_free(key_file_path);
++
++        if (exec_name != NULL)
++            break;
++    }
++
++    if (exec_name != NULL) {
++        ret = check_no_execute_permission(exec_name) ? 0 : -1;
++    }
++
++    g_free(exec_name);
++    g_strfreev(split_dirs);
++    g_free(desktop_file_name);
++
++    return ret;
++}
++
+ static void
+ show_unhandled_type_error (ActivateParametersInstall *parameters)
+ {
+@@ -1120,11 +1208,9 @@ show_unhandled_type_error (ActivateParametersInstall *parameters)
+     {
+         char *text;
+         const char *uri;
+-        const char *location;
+         uri = nautilus_file_get_activation_uri (parameters->file);
+-        location = g_filename_from_uri (uri, NULL, NULL);
+         //Check file for execute permission
+-        if (!g_file_test (location, G_FILE_TEST_IS_EXECUTABLE))
++        if (check_no_execute_permission_for_launcher_app(mime_type) == 0)
+         {
+             const char *file_name;
+             file_name = nautilus_file_get_display_name (parameters->file);
+@@ -1287,7 +1373,7 @@ pk_proxy_appeared_cb (GObject      *source,
+     proxy = g_dbus_proxy_new_for_bus_finish (res, &error);
+     name_owner = g_dbus_proxy_get_name_owner (proxy);
+ 
+-    if (error != NULL || name_owner == NULL)
++//    if (error != NULL || name_owner == NULL)
+     {
+         g_warning ("Couldn't call Modify on the PackageKit interface: %s",
+                    error != NULL ? error->message : "no owner for PackageKit");
+@@ -1298,7 +1384,7 @@ pk_proxy_appeared_cb (GObject      *source,
+ 
+         return;
+     }
+-
++#if 0
+     g_free (name_owner);
+ 
+     mime_type = nautilus_file_get_mime_type (parameters_install->file);
+@@ -1323,6 +1409,7 @@ pk_proxy_appeared_cb (GObject      *source,
+                       parameters_install);
+     gtk_widget_show_all (dialog);
+     g_free (mime_type);
++#endif
+ }
+ 
+ static void
+-- 
+2.20.1
+
