@@ -1,3 +1,23 @@
+nautilus (3.30.5-2+grm2u3) unstable; urgency=medium
+
+  [ donghun ]
+  * [757dbffa] [Bug:2024] Removed the starred in icon view style
+  * [6ca4e630] [Bug:2083] Fixed context menu error in list view header
+  * [26d640e7] [Bug:2057] Updated the patch to modify access time format
+  * [c7bf18d1] [Bug:1991] Update translation for Korean
+  * [8888eae5] [Bug:2395] Fixed MIME type error
+  * [f290fab0] [Bug:1419] Fixed file move message
+
+  [ cjheo ]
+  * [b6eb8d23] [Bug:1988] Disabled ShowDesktop option from the sidebar
+  * [464f8b08] Controls the display of the'Open in Disks' button in the properties window
+  * [525ad876] [Bug: 2090] Fix function to check volume mount in properties window
+  * [66fe3010] Delete gooroom-do-not-show-desktop.patch
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 07 Jul 2020 15:56:51 +0900
+
 nautilus (3.30.5-2+grm2u2) unstable; urgency=medium
 
   [ donghun ]
