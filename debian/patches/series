@@ -16,3 +16,4 @@ gooroom-fix-checking-volume-mount-in-nautilus-properties-window.patch
 gooroom-fixed-mime-type-error.patch
 gooroom-fixed-file-move-message.patch
 gooroom-nautilus-pathbar-recent-and-trash-translation.patch
+gooroom-disable-custom-icon-setting-in-properties-window.patch

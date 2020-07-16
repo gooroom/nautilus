@@ -1,0 +1,41 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index e238213..19b0789 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2522,7 +2522,7 @@ create_page_with_box (GtkNotebook    *notebook,
+     gtk_notebook_append_page (notebook, box, gtk_label_new (title));
+     gtk_container_child_set (GTK_CONTAINER (notebook),
+                              box,
+-                             "tab-expand", TRUE,
++                             "tab-expand", FALSE,
+                              NULL);
+     g_object_set_data_full (G_OBJECT (box), "help-uri", g_strdup (help_uri), g_free);
+ 
+@@ -3206,7 +3206,8 @@ create_basic_page (NautilusPropertiesWindow *window)
+     /* Icon pixmap */
+ 
+     icon_pixmap_widget = create_image_widget (
+-        window, should_show_custom_icon_buttons (window));
++        window, FALSE);
++//        window, should_show_custom_icon_buttons (window));
+     gtk_widget_set_valign (icon_pixmap_widget, GTK_ALIGN_START);
+     gtk_widget_show (icon_pixmap_widget);
+ 
+@@ -4856,7 +4857,7 @@ append_extension_pages (NautilusPropertiesWindow *window)
+                                       page_widget, label);
+             gtk_container_child_set (GTK_CONTAINER (window->notebook),
+                                      page_widget,
+-                                     "tab-expand", TRUE,
++                                     "tab-expand", FALSE,
+                                      NULL);
+ 
+             g_object_set_data (G_OBJECT (page_widget),
+@@ -5083,7 +5084,7 @@ create_open_with_page (NautilusPropertiesWindow *window)
+                               vbox, gtk_label_new (_("Open With")));
+     gtk_container_child_set (GTK_CONTAINER (window->notebook),
+                              vbox,
+-                             "tab-expand", TRUE,
++                             "tab-expand", FALSE,
+                              NULL);
+ }
+ 
