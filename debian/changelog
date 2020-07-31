@@ -1,3 +1,13 @@
+nautilus (3.30.5-2+grm2u4) unstable; urgency=medium
+
+  [ cjheo ]
+  * [e74cd47d] Added patch for translation of Trash and Recent folder in nautilus-pathbar
+  * [308320bf] Disabled custom icon setting function in properties window
+
+  [ Gooroom Autobuilder ]
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Fri, 31 Jul 2020 11:35:14 +0900
+
 nautilus (3.30.5-2+grm2u3) unstable; urgency=medium
 
   [ donghun ]
