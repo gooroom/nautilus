@@ -1,0 +1,43 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniof@gnome.org>
+Date: Sat, 19 Dec 2020 18:02:07 +0000
+Subject: toolbar: Don't leak menu models
+
+g_object_get() returns a ref to the property object. We must unref it.
+
+(cherry picked from commit 9b62be1e1e814a0ea48a50f0ec3902927672e428)
+
+Origin: upstream, 3.38.3, commit:f29e5887caa5d2ab6bbff14f74e3f406c47be905
+---
+ src/nautilus-toolbar.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/nautilus-toolbar.c b/src/nautilus-toolbar.c
+index eb86054..a64518d 100644
+--- a/src/nautilus-toolbar.c
++++ b/src/nautilus-toolbar.c
+@@ -1297,8 +1297,11 @@ slot_on_extensions_background_menu_changed (NautilusToolbar    *self,
+                                             GParamSpec         *param,
+                                             NautilusWindowSlot *slot)
+ {
++    g_autoptr (GMenuModel) menu = NULL;
++
++    menu = nautilus_window_slot_get_extensions_background_menu (slot);
+     nautilus_path_bar_set_extensions_background_menu (NAUTILUS_PATH_BAR (self->path_bar),
+-                                                      nautilus_window_slot_get_extensions_background_menu (slot));
++                                                      menu);
+ }
+ 
+ static void
+@@ -1306,8 +1309,11 @@ slot_on_templates_menu_changed (NautilusToolbar    *self,
+                                 GParamSpec         *param,
+                                 NautilusWindowSlot *slot)
+ {
++    g_autoptr (GMenuModel) menu = NULL;
++
++    menu = nautilus_window_slot_get_templates_menu (slot);
+     nautilus_path_bar_set_templates_menu (NAUTILUS_PATH_BAR (self->path_bar),
+-                                          nautilus_window_slot_get_templates_menu (slot));
++                                          menu);
+ }
+ 
+ static void

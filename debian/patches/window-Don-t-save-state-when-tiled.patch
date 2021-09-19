@@ -1,0 +1,49 @@
+From: Elias Projahn <johrpan@gmail.com>
+Date: Thu, 17 Dec 2020 21:45:20 +0000
+Subject: window: Don't save state when tiled
+
+The saved window state (whether the window is maximized and its initial
+size) should be the state, that the user would most likely want the next
+opened window to start with. As the tiled state doesn't make sense
+without other windows and because it's not really possible to properly
+restore it, it will not be saved anymore.
+
+Fixes https://gitlab.gnome.org/GNOME/nautilus/-/issues/1685
+
+(cherry picked from commit 31a01278be04e19b03a29cf6636cedeb42f8a6e4)
+
+Origin: upstream, 3.38.3, commit:2fab98fc8ff47b8ccd3a5dc230432fa02f74de4d
+---
+ src/nautilus-window.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index c81d150..494e20e 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -2401,12 +2401,23 @@ nautilus_window_save_geometry (NautilusWindow *window)
+         gint width;
+         gint height;
+         GVariant *initial_size;
++        GdkWindowState window_state;
+ 
+         gtk_window_get_size (GTK_WINDOW (window), &width, &height);
+ 
+         initial_size = g_variant_new_parsed ("(%i, %i)", width, height);
+-        is_maximized = gdk_window_get_state (gtk_widget_get_window (GTK_WIDGET (window)))
+-                       & GDK_WINDOW_STATE_MAXIMIZED;
++
++        window_state = gdk_window_get_state (gtk_widget_get_window (GTK_WIDGET (window)));
++
++        /* Don't save the window state for tiled windows. This is a special case,
++         * where the geometry only makes sense in combination with other tiled
++         * windows, that we can't possibly restore. */
++        if (window_state & GDK_WINDOW_STATE_TILED)
++        {
++            return;
++        }
++
++        is_maximized = window_state & GDK_WINDOW_STATE_MAXIMIZED;
+ 
+         if (!is_maximized)
+         {

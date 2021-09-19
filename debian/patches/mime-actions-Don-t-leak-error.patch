@@ -1,0 +1,22 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniof@gnome.org>
+Date: Wed, 30 Dec 2020 17:44:59 +0000
+Subject: mime-actions: Don't leak error
+
+Origin: upstream, 40.rc, commit:82da3192d71dd152ea27f0f8a2aa8b89befaf63d
+---
+ src/nautilus-mime-actions.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index 3ef3ae8..ae5b805 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1511,7 +1511,7 @@ launch_default_for_uris_callback (GObject      *source_object,
+     ApplicationLaunchAsyncParameters *params;
+     ActivateParameters *activation_params;
+     char *uri;
+-    GError *error = NULL;
++    g_autoptr (GError) error = NULL;
+ 
+     params = user_data;
+     activation_params = params->activation_params;

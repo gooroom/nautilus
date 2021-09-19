@@ -1,0 +1,31 @@
+From: =?utf-8?q?Emin_Tufan_=C3=87etin?= <etcetin@gmail.com>
+Date: Sun, 7 Mar 2021 19:47:58 +0000
+Subject: Update Turkish translation
+
+Origin: upstream, 3.38.3, commit:e9c18241960b94b36708784c95cd0a44d9d39632
+---
+ po/tr.po | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/po/tr.po b/po/tr.po
+index 01cd1d2..e82eb98 100644
+--- a/po/tr.po
++++ b/po/tr.po
+@@ -24,7 +24,7 @@ msgstr ""
+ "Project-Id-Version: nautilus\n"
+ "Report-Msgid-Bugs-To: https://gitlab.gnome.org/GNOME/nautilus/issues\n"
+ "POT-Creation-Date: 2021-01-08 13:26+0000\n"
+-"PO-Revision-Date: 2021-03-07 22:45+0300\n"
++"PO-Revision-Date: 2021-03-07 22:47+0300\n"
+ "Last-Translator: Emin Tufan Çetin <etcetin@gmail.com>\n"
+ "Language-Team: Turkish <gnome-turk@gnome.org>\n"
+ "Language: tr\n"
+@@ -5177,7 +5177,7 @@ msgstr "Örneklendirmeler"
+ 
+ #: src/resources/ui/nautilus-preferences-window.ui:991
+ msgid "Show thumbnails:"
+-msgstr "Örneklendirmeleri göster"
++msgstr "Örneklendirmeleri göster:"
+ 
+ #: src/resources/ui/nautilus-preferences-window.ui:1005
+ msgid "_Files on this computer only"

@@ -1,0 +1,24 @@
+From: Jordi Mas <jmas@softcatala.org>
+Date: Tue, 29 Dec 2020 23:06:31 +0100
+Subject: Update Catalan translation
+
+Origin: upstream, 3.38.3, commit:cda0d493bf245f10e1fbcc815582dc0879568647
+---
+ po/ca.po | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/po/ca.po b/po/ca.po
+index e899137..7174e7b 100644
+--- a/po/ca.po
++++ b/po/ca.po
+@@ -4075,8 +4075,8 @@ msgstr "El fitxer que heu deixat anar no és una imatge."
+ #: src/resources/ui/nautilus-properties-window.ui:82
+ msgid "_Name"
+ msgid_plural "_Names"
+-msgstr[0] "_Nom:"
+-msgstr[1] "_Noms:"
++msgstr[0] "_Nom"
++msgstr[1] "_Noms"
+ 
+ #: src/nautilus-properties-window.c:904
+ #, c-format

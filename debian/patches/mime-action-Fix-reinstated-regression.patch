@@ -1,0 +1,27 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniof@gnome.org>
+Date: Fri, 12 Mar 2021 16:44:24 +0000
+Subject: mime-action: Fix reinstated regression
+
+Commit [1] has reinstated a regression from the earlier commit [2].
+
+[1] 080f83385ff79a8be54ee31e7a45422138226f1f
+[2] 02ba130f3d61fae414459cb308adf270edb01e6e
+
+Origin: upstream, 40.rc, commit:953ca87b490d05368483c5c651d6a545da7c6c4d
+---
+ src/nautilus-mime-actions.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index ae5b805..6f839a1 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1776,7 +1776,7 @@ activate_files (ActivateParameters *parameters)
+     num_files = g_queue_get_length (open_in_app_uris);
+     open_files = TRUE;
+ 
+-    if (g_queue_is_empty (open_in_app_uris) &&
++    if (!g_queue_is_empty (open_in_app_uris) &&
+         (!parameters->user_confirmation ||
+          num_files + num_unhandled > SILENT_OPEN_LIMIT) &&
+         num_apps > 1)

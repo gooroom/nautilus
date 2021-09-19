@@ -1,0 +1,27 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniojpfernandes@gmail.com>
+Date: Fri, 12 Mar 2021 22:06:02 +0000
+Subject: mime-actions: Revert unintended string freeze break
+
+Reuse existing strings with approximate meaning.
+
+Origin: upstream, 40.rc, commit:5aec6573ce7fafcc6bc25854fa7f29a2bc6a4676
+---
+ src/nautilus-mime-actions.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index 6f839a1..3ee775b 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1789,8 +1789,9 @@ activate_files (ActivateParameters *parameters)
+         pause_activation_timed_cancel (parameters);
+ 
+         prompt = _("Are you sure you want to open all files?");
+-        detail = g_strdup_printf (ngettext ("This will open %d separate application.",
+-                                            "This will open %d separate applications.", num_apps), num_apps);
++        /* TODO: Replace 'window' with 'application' after string freeze. */
++        detail = g_strdup_printf (ngettext ("This will open %d separate window.",
++                                            "This will open %d separate windows.", num_apps), num_apps);
+         dialog = eel_show_yes_no_dialog (prompt, detail,
+                                          _("_OK"), _("_Cancel"),
+                                          parameters->parent_window);

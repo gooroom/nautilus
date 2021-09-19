@@ -1,0 +1,41 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniof@gnome.org>
+Date: Wed, 30 Dec 2020 17:39:12 +0000
+Subject: mime-actions: Add all portal-opened files to recents
+
+While sandboxed, we add the first file in the queue to recents.
+
+This has two problems:
+
+* The file is added to recents even if we fail to launch.
+* If opening multiple files, we forget to add the others to recents
+
+Instead, add each file to recents for each successful launch.
+
+Origin: upstream, 40.rc, commit:cea4910608a1bf3b6c3603e08f30d5e8b2a96425
+---
+ src/nautilus-mime-actions.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index c499111..3ef3ae8 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1518,6 +1518,10 @@ launch_default_for_uris_callback (GObject      *source_object,
+     uri = g_queue_pop_head (params->uris);
+ 
+     nautilus_launch_default_for_uri_finish (res, &error);
++    if (error == NULL)
++    {
++        gtk_recent_manager_add_item (gtk_recent_manager_get_default (), uri);
++    }
+ 
+     if (!g_queue_is_empty (params->uris))
+     {
+@@ -1753,7 +1757,6 @@ activate_files (ActivateParameters *parameters)
+         async_params->activation_params = parameters;
+         async_params->uris = g_steal_pointer (&open_in_app_uris);
+ 
+-        gtk_recent_manager_add_item (gtk_recent_manager_get_default (), uri);
+         nautilus_launch_default_for_uri_async (uri,
+                                                parameters->parent_window,
+                                                parameters->cancellable,

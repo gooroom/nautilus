@@ -1,0 +1,31 @@
+From: =?utf-8?q?Ant=C3=B3nio_Fernandes?= <antoniof@gnome.org>
+Date: Sat, 19 Dec 2020 21:45:57 +0000
+Subject: window-slot: Don't leak menus on destruction
+
+We hold a ref since commit 6b16de613dc87b9f84d87a46ac5987b6d7087a5c
+
+But we never release it on slot destruction, so it leaks.
+
+Release it on destruction.
+
+(cherry picked from commit 342207ef66e3763dee08b6f208959bcfce9929b2)
+
+Origin: upstream, 3.38.3, commit:e6bedf879da171ba9eae3d9e3a232fcdf86f2a9c
+---
+ src/nautilus-window-slot.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/nautilus-window-slot.c b/src/nautilus-window-slot.c
+index b5ff000..8eeb781 100644
+--- a/src/nautilus-window-slot.c
++++ b/src/nautilus-window-slot.c
+@@ -3118,6 +3118,9 @@ nautilus_window_slot_dispose (GObject *object)
+     g_clear_pointer (&priv->extensions_background_menu_binding, g_binding_unbind);
+     g_clear_pointer (&priv->templates_menu_binding, g_binding_unbind);
+ 
++    g_clear_object (&priv->templates_menu);
++    g_clear_object (&priv->extensions_background_menu);
++
+     if (priv->content_view)
+     {
+         gtk_widget_destroy (GTK_WIDGET (priv->content_view));
