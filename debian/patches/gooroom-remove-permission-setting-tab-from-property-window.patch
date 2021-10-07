@@ -1,0 +1,34 @@
+From 8a5107f8963f726957c677b79ec417c96b63ae24 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Tue, 1 Oct 2019 16:44:28 +0900
+Subject: [PATCH] Removed permission setting tab from property window
+
+Change-Id: Idb39cf339b56adf3148de680a22c8a191bb45151
+---
+ src/nautilus-properties-window.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index c83ef30..6c437c1 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -4357,6 +4357,7 @@ append_extension_pages (NautilusPropertiesWindow *window)
+ static gboolean
+ should_show_permissions (NautilusPropertiesWindow *window)
+ {
++#if 0
+     GList *l;
+ 
+     /* Don't show permissions for Trash and Computer since they're not
+@@ -4372,6 +4373,8 @@ should_show_permissions (NautilusPropertiesWindow *window)
+     }
+ 
+     return TRUE;
++#endif
++    return FALSE;
+ }
+ 
+ static char *
+-- 
+2.20.1
+

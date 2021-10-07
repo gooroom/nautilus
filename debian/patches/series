@@ -18,3 +18,4 @@ mime-actions-Revert-unintended-string-freeze-break.patch
 multiarch_fallback.patch
 revert_tracker_update.patch
 gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
+gooroom-remove-permission-setting-tab-from-property-window.patch
