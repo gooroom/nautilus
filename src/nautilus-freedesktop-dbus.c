@@ -47,11 +47,6 @@ struct _NautilusFreedesktopDBus
     gboolean name_lost;
 };
 
-struct _NautilusFreedesktopDBusClass
-{
-    GObjectClass parent_class;
-};
-
 G_DEFINE_TYPE (NautilusFreedesktopDBus, nautilus_freedesktop_dbus, G_TYPE_OBJECT);
 
 static gboolean
@@ -68,8 +63,8 @@ skeleton_handle_show_items_cb (NautilusFreedesktopFileManager1 *object,
 
     for (i = 0; uris[i] != NULL; i++)
     {
-        GFile *file;
-        GFile *parent;
+        g_autoptr (GFile) file = NULL;
+        g_autoptr (GFile) parent = NULL;
 
         file = g_file_new_for_uri (uris[i]);
         parent = g_file_get_parent (file);
@@ -77,14 +72,11 @@ skeleton_handle_show_items_cb (NautilusFreedesktopFileManager1 *object,
         if (parent != NULL)
         {
             nautilus_application_open_location (application, parent, file, startup_id);
-            g_object_unref (parent);
         }
         else
         {
             nautilus_application_open_location (application, file, NULL, startup_id);
         }
-
-        g_object_unref (file);
     }
 
     nautilus_freedesktop_file_manager1_complete_show_items (object, invocation);
@@ -105,13 +97,11 @@ skeleton_handle_show_folders_cb (NautilusFreedesktopFileManager1 *object,
 
     for (i = 0; uris[i] != NULL; i++)
     {
-        GFile *file;
+        g_autoptr (GFile) file = NULL;
 
         file = g_file_new_for_uri (uris[i]);
 
         nautilus_application_open_location (application, file, NULL, startup_id);
-
-        g_object_unref (file);
     }
 
     nautilus_freedesktop_file_manager1_complete_show_folders (object, invocation);
@@ -333,6 +323,5 @@ nautilus_freedesktop_dbus_set_open_windows_with_locations (NautilusFreedesktopDB
 NautilusFreedesktopDBus *
 nautilus_freedesktop_dbus_new (void)
 {
-    return g_object_new (nautilus_freedesktop_dbus_get_type (),
-                         NULL);
+    return g_object_new (NAUTILUS_TYPE_FREEDESKTOP_DBUS, NULL);
 }

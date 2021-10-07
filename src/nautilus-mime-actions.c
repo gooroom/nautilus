@@ -23,7 +23,6 @@
 
 #include <eel/eel-stock-dialogs.h>
 #include <eel/eel-string.h>
-#include <gdk/gdkx.h>
 #include <glib.h>
 #include <glib/gi18n.h>
 #include <glib/gstdio.h>
@@ -515,6 +514,7 @@ trash_or_delete_files (GtkWindow   *parent_window,
 
     nautilus_file_operations_trash_or_delete_async (locations,
                                                     parent_window,
+                                                    NULL,
                                                     NULL, NULL);
     g_list_free_full (locations, g_object_unref);
 }
@@ -1011,7 +1011,7 @@ get_application_no_mime_type_handler_message (NautilusFile *file,
      * white space then the text-wrapping code is too stupid to wrap it.
      */
     uri_for_display = eel_str_middle_truncate (name, MAX_URI_IN_DIALOG_LENGTH);
-    error_message = g_strdup_printf (_("Could not display “%s”."), uri_for_display);
+    error_message = g_strdup_printf (_("Could Not Display “%s”"), uri_for_display);
     g_free (uri_for_display);
     g_free (name);
 
@@ -1191,14 +1191,6 @@ search_for_application_dbus_call_notify_cb (GDBusProxy   *proxy,
 
     g_variant_unref (variant);
 
-    /* activate the file again */
-    nautilus_mime_activate_files (parameters_install->parent_window,
-                                  parameters_install->slot,
-                                  parameters_install->files,
-                                  parameters_install->activation_directory,
-                                  parameters_install->flags,
-                                  parameters_install->user_confirmation);
-
     activate_parameters_install_free (parameters_install);
 }
 
@@ -1206,28 +1198,20 @@ static void
 search_for_application_mime_type (ActivateParametersInstall *parameters_install,
                                   const gchar               *mime_type)
 {
-    GdkWindow *window;
-    guint xid = 0;
-    const char *mime_types[2];
+    gchar *desktop_startup_id;
 
     g_assert (parameters_install->proxy != NULL);
 
-    /* get XID from parent window */
-    window = gtk_widget_get_window (GTK_WIDGET (parameters_install->parent_window));
-    if (window != NULL)
-    {
-        xid = GDK_WINDOW_XID (window);
-    }
-
-    mime_types[0] = mime_type;
-    mime_types[1] = NULL;
+    desktop_startup_id = g_strdup_printf ("_TIME%i", gtk_get_current_event_time ());
 
     g_dbus_proxy_call (parameters_install->proxy,
                        "InstallMimeTypes",
-                       g_variant_new ("(u^ass)",
-                                      xid,
-                                      mime_types,
-                                      "hide-confirm-search"),
+                       g_variant_new_parsed ("([%s], %s, %s, [{%s, %v}])",
+                                             mime_type,
+                                             "hide-confirm-search",
+                                             APPLICATION_ID,
+                                             "desktop-startup-id",
+                                             g_variant_new_take_string (desktop_startup_id)),
                        G_DBUS_CALL_FLAGS_NONE,
                        G_MAXINT /* no timeout */,
                        NULL /* cancellable */,
@@ -1293,15 +1277,21 @@ pk_proxy_appeared_cb (GObject      *source,
     error_message = get_application_no_mime_type_handler_message (parameters_install->file,
                                                                   parameters_install->uri);
     /* use a custom dialog to prompt the user to install new software */
-    dialog = gtk_message_dialog_new (parameters_install->parent_window, 0,
+    dialog = gtk_message_dialog_new (parameters_install->parent_window,
+                                     GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
                                      GTK_MESSAGE_ERROR,
-                                     GTK_BUTTONS_YES_NO,
+                                     GTK_BUTTONS_NONE,
                                      "%s", error_message);
     gtk_message_dialog_format_secondary_text (GTK_MESSAGE_DIALOG (dialog),
-                                              _("There is no application installed for “%s” files.\n"
+                                              _("There is no application installed for “%s” files. "
                                                 "Do you want to search for an application to open this file?"),
                                               g_content_type_get_description (mime_type));
     gtk_window_set_resizable (GTK_WINDOW (dialog), FALSE);
+
+    gtk_dialog_add_button (GTK_DIALOG (dialog), _("_Cancel"), GTK_RESPONSE_CANCEL);
+    gtk_dialog_add_button (GTK_DIALOG (dialog), _("_Search in Software"), GTK_RESPONSE_YES);
+
+    gtk_dialog_set_default_response (GTK_DIALOG (dialog), GTK_RESPONSE_YES);
 
     parameters_install->dialog = dialog;
     parameters_install->proxy = proxy;
@@ -1367,7 +1357,7 @@ application_unhandled_uri (ActivateParameters *parameters,
                               NULL,
                               "org.freedesktop.PackageKit",
                               "/org/freedesktop/PackageKit",
-                              "org.freedesktop.PackageKit.Modify",
+                              "org.freedesktop.PackageKit.Modify2",
                               NULL,
                               pk_proxy_appeared_cb,
                               parameters_install);
@@ -1411,23 +1401,9 @@ on_launch_default_for_uri (GObject      *source_object,
     }
     else
     {
-        gboolean should_close;
-        NautilusWindow *window;
-
-        should_close = activation_params->flags &
-                       NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND;
-        window = nautilus_window_slot_get_window (activation_params->slot);
-
-        if (should_close && window != NULL)
+        while ((uri = g_queue_pop_head (params->unhandled_uris)) != NULL)
         {
-            nautilus_window_close (window);
-        }
-        else
-        {
-            while ((uri = g_queue_pop_head (params->unhandled_uris)) != NULL)
-            {
-                application_unhandled_uri (activation_params, uri);
-            }
+            application_unhandled_uri (activation_params, uri);
         }
 
         application_launch_parameters_free (params);
@@ -1438,12 +1414,10 @@ static void
 activate_files (ActivateParameters *parameters)
 {
     NautilusFile *file;
-    NautilusWindow *window;
     NautilusWindowOpenFlags flags;
     int count;
     g_autofree char *old_working_dir = NULL;
     GdkScreen *screen;
-    gboolean closed_window;
     g_autoptr (GQueue) launch_files = NULL;
     g_autoptr (GQueue) launch_in_terminal_files = NULL;
     g_autoptr (GQueue) open_in_app_uris = NULL;
@@ -1580,28 +1554,9 @@ activate_files (ActivateParameters *parameters)
     {
         if ((parameters->flags & NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW) == 0)
         {
-            /* if CLOSE_BEHIND is set and we have a directory to be activated, we
-             * will first have to open a new window and after that we can open the
-             * rest of files in tabs */
-            if ((parameters->flags & NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND) != 0)
-            {
-                flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW;
-            }
-            else
-            {
-                flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_TAB;
-            }
+            flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_TAB;
         }
         else
-        {
-            flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW;
-        }
-    }
-    else
-    {
-        /* if we want to close the window and activate a single directory, then we will need
-         * the NEW_WINDOW flag set */
-        if ((parameters->flags & NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND) != 0)
         {
             flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW;
         }
@@ -1623,8 +1578,6 @@ activate_files (ActivateParameters *parameters)
              */
             g_queue_reverse (open_in_view_files);
         }
-
-        closed_window = FALSE;
 
         for (l = g_queue_peek_head_link (open_in_view_files); l != NULL; l = l->next)
         {
@@ -1656,39 +1609,11 @@ activate_files (ActivateParameters *parameters)
              * to make splicit the window we want to use for activating the files */
             nautilus_application_open_location_full (NAUTILUS_APPLICATION (g_application_get_default ()),
                                                      location_with_permissions, flags, NULL, NULL, parameters->slot);
-
-            /* close only the window from which the action was launched and then open
-             * tabs/windows (depending on parameters->flags) */
-            if (!closed_window && (flags & NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND) != 0)
-            {
-                flags &= (~NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND);
-
-                /* if NEW_WINDOW is set, we want all files in new windows, not in tabs */
-                if ((parameters->flags & NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW) == 0)
-                {
-                    flags &= (~NAUTILUS_WINDOW_OPEN_FLAG_NEW_WINDOW);
-                    flags |= NAUTILUS_WINDOW_OPEN_FLAG_NEW_TAB;
-                }
-
-                closed_window = TRUE;
-            }
         }
     }
 
     if (g_queue_is_empty (open_in_app_uris))
     {
-        window = NULL;
-        if (parameters->slot != NULL)
-        {
-            window = nautilus_window_slot_get_window (parameters->slot);
-        }
-
-        if ((parameters->flags & NAUTILUS_WINDOW_OPEN_FLAG_CLOSE_BEHIND) != 0 &&
-            window != NULL)
-        {
-            nautilus_window_close (window);
-        }
-
         activation_parameters_free (parameters);
     }
     else
@@ -1791,8 +1716,9 @@ activation_mount_not_mounted (ActivateParameters *parameters)
         return;
     }
 
-    /*  once the mount is finished, refresh all attributes        */
-    /*  - fixes new windows not appearing after successful mount  */
+    /*  once the mount is finished, refresh all attributes
+     *  - fixes new windows not appearing after successful mount
+     */
     for (l = parameters->locations; l != NULL; l = next)
     {
         loc = l->data;
@@ -2298,20 +2224,21 @@ nautilus_mime_types_group_get_name (gint group_index)
     return gettext (mimetype_groups[group_index].name);
 }
 
-GList *
+GPtrArray *
 nautilus_mime_types_group_get_mimetypes (gint group_index)
 {
-    GList *mimetypes;
-    gint i;
+    GStrv group;
+    GPtrArray *mimetypes;
 
     g_return_val_if_fail (group_index < G_N_ELEMENTS (mimetype_groups), NULL);
 
-    mimetypes = NULL;
+    group = mimetype_groups[group_index].mimetypes;
+    mimetypes = g_ptr_array_new_full (g_strv_length (group), g_free);
 
     /* Setup the new mimetypes set */
-    for (i = 0; mimetype_groups[group_index].mimetypes[i]; i++)
+    for (gint i = 0; group[i] != NULL; i++)
     {
-        mimetypes = g_list_append (mimetypes, mimetype_groups[group_index].mimetypes[i]);
+        g_ptr_array_add (mimetypes, g_strdup (group[i]));
     }
 
     return mimetypes;

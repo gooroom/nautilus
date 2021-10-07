@@ -47,7 +47,7 @@ typedef struct
     NautilusSearchEngineSimple *engine;
     GCancellable *cancellable;
 
-    GList *mime_types;
+    GPtrArray *mime_types;
     GList *found_list;
 
     GQueue *directories;     /* GFiles */
@@ -58,6 +58,14 @@ typedef struct
     GList *hits;
 
     NautilusQuery *query;
+
+    gint processing_id;
+    GMutex idle_mutex;
+    /* The following data can be accessed from different threads
+     * and needs to lock the mutex
+     */
+    GQueue *idle_queue;
+    gboolean finished;
 } SearchThreadData;
 
 
@@ -107,29 +115,40 @@ search_thread_data_new (NautilusSearchEngineSimple *engine,
 
     data->cancellable = g_cancellable_new ();
 
+    g_mutex_init (&data->idle_mutex);
+    data->idle_queue = g_queue_new ();
+
     return data;
 }
 
 static void
 search_thread_data_free (SearchThreadData *data)
 {
+    GList *hits;
+
     g_queue_foreach (data->directories,
                      (GFunc) g_object_unref, NULL);
     g_queue_free (data->directories);
     g_hash_table_destroy (data->visited);
     g_object_unref (data->cancellable);
     g_object_unref (data->query);
-    g_list_free_full (data->mime_types, g_free);
+    g_clear_pointer (&data->mime_types, g_ptr_array_unref);
     g_list_free_full (data->hits, g_object_unref);
     g_object_unref (data->engine);
+    g_mutex_clear (&data->idle_mutex);
+
+    while ((hits = g_queue_pop_head (data->idle_queue)))
+    {
+        g_list_free_full (hits, g_object_unref);
+    }
+    g_queue_free (data->idle_queue);
 
     g_free (data);
 }
 
 static gboolean
-search_thread_done_idle (gpointer user_data)
+search_thread_done (SearchThreadData *data)
 {
-    SearchThreadData *data = user_data;
     NautilusSearchEngineSimple *engine = data->engine;
 
     if (g_cancellable_is_cancelled (data->cancellable))
@@ -148,47 +167,104 @@ search_thread_done_idle (gpointer user_data)
 
     search_thread_data_free (data);
 
-    return FALSE;
-}
-
-typedef struct
-{
-    GList *hits;
-    SearchThreadData *thread_data;
-} SearchHitsData;
-
-
-static gboolean
-search_thread_add_hits_idle (gpointer user_data)
-{
-    SearchHitsData *data = user_data;
-
-    if (!g_cancellable_is_cancelled (data->thread_data->cancellable))
-    {
-        DEBUG ("Simple engine add hits");
-        nautilus_search_provider_hits_added (NAUTILUS_SEARCH_PROVIDER (data->thread_data->engine),
-                                             data->hits);
-    }
-
-    g_list_free_full (data->hits, g_object_unref);
-    g_free (data);
-
-    return FALSE;
+    return G_SOURCE_REMOVE;
 }
 
 static void
-send_batch (SearchThreadData *thread_data)
+search_thread_process_hits_idle (SearchThreadData *data,
+                                 GList            *hits)
 {
-    SearchHitsData *data;
+    if (!g_cancellable_is_cancelled (data->cancellable))
+    {
+        DEBUG ("Simple engine add hits");
+        nautilus_search_provider_hits_added (NAUTILUS_SEARCH_PROVIDER (data->engine),
+                                             hits);
+    }
+}
 
+static gboolean
+search_thread_process_idle (gpointer user_data)
+{
+    SearchThreadData *thread_data;
+    GList *hits;
+
+    thread_data = user_data;
+
+    g_mutex_lock (&thread_data->idle_mutex);
+    hits = g_queue_pop_head (thread_data->idle_queue);
+    /* Even if the cancellable is cancelled, we need to make sure the search
+     * thread has aknowledge it, and therefore not using the thread data after
+     * freeing it. The search thread will mark as finished whenever the search
+     * is finished or cancelled.
+     * Nonetheless, we should stop yielding results if the search was cancelled
+     */
+    if (thread_data->finished)
+    {
+        if (hits == NULL || g_cancellable_is_cancelled (thread_data->cancellable))
+        {
+            g_mutex_unlock (&thread_data->idle_mutex);
+
+            if (hits)
+            {
+                g_list_free_full (hits, g_object_unref);
+            }
+            search_thread_done (thread_data);
+
+            return G_SOURCE_REMOVE;
+        }
+    }
+
+    g_mutex_unlock (&thread_data->idle_mutex);
+
+    if (hits)
+    {
+        search_thread_process_hits_idle (thread_data, hits);
+        g_list_free_full (hits, g_object_unref);
+    }
+
+    return G_SOURCE_CONTINUE;
+}
+
+static void
+finish_search_thread (SearchThreadData *thread_data)
+{
+    g_mutex_lock (&thread_data->idle_mutex);
+    thread_data->finished = TRUE;
+    g_mutex_unlock (&thread_data->idle_mutex);
+
+    /* If no results were processed, direclty finish the search, in the main
+     * thread.
+     */
+    if (thread_data->processing_id == 0)
+    {
+        g_idle_add (G_SOURCE_FUNC (search_thread_done), thread_data);
+    }
+}
+
+static void
+process_batch_in_idle (SearchThreadData *thread_data,
+                       GList            *hits)
+{
+    g_return_if_fail (hits != NULL);
+
+    g_mutex_lock (&thread_data->idle_mutex);
+    g_queue_push_tail (thread_data->idle_queue, hits);
+    g_mutex_unlock (&thread_data->idle_mutex);
+
+    if (thread_data->processing_id == 0)
+    {
+        thread_data->processing_id = g_idle_add (search_thread_process_idle, thread_data);
+    }
+}
+
+static void
+send_batch_in_idle (SearchThreadData *thread_data)
+{
     thread_data->n_processed_files = 0;
 
     if (thread_data->hits)
     {
-        data = g_new (SearchHitsData, 1);
-        data->hits = thread_data->hits;
-        data->thread_data = thread_data;
-        g_idle_add (search_thread_add_hits_idle, data);
+        process_batch_in_idle (thread_data, thread_data->hits);
     }
     thread_data->hits = NULL;
 }
@@ -216,7 +292,6 @@ visit_directory (GFile            *dir,
     const char *mime_type, *display_name;
     gdouble match;
     gboolean is_hidden, found;
-    GList *l;
     const char *id;
     gboolean visited;
     guint64 atime;
@@ -226,7 +301,7 @@ visit_directory (GFile            *dir,
     gchar *uri;
 
     enumerator = g_file_enumerate_children (dir,
-                                            data->mime_types != NULL ?
+                                            data->mime_types->len > 0 ?
                                             STD_ATTRIBUTES ","
                                             G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE
                                             :
@@ -262,14 +337,14 @@ visit_directory (GFile            *dir,
         match = nautilus_query_matches_string (data->query, display_name);
         found = (match > -1);
 
-        if (found && data->mime_types)
+        if (found && data->mime_types->len > 0)
         {
             mime_type = g_file_info_get_content_type (info);
             found = FALSE;
 
-            for (l = data->mime_types; mime_type != NULL && l != NULL; l = l->next)
+            for (gint i = 0; i < data->mime_types->len; i++)
             {
-                if (g_content_type_is_a (mime_type, l->data))
+                if (g_content_type_is_a (mime_type, g_ptr_array_index (data->mime_types, i)))
                 {
                     found = TRUE;
                     break;
@@ -319,7 +394,7 @@ visit_directory (GFile            *dir,
         data->n_processed_files++;
         if (data->n_processed_files > BATCH_SIZE)
         {
-            send_batch (data);
+            send_batch_in_idle (data);
         }
 
         if (recursive != NAUTILUS_QUERY_RECURSIVE_NEVER &&
@@ -389,10 +464,10 @@ search_thread_func (gpointer user_data)
 
     if (!g_cancellable_is_cancelled (data->cancellable))
     {
-        send_batch (data);
+        send_batch_in_idle (data);
     }
 
-    g_idle_add (search_thread_done_idle, data);
+    finish_search_thread (data);
 
     return NULL;
 }

@@ -53,6 +53,7 @@ static GDebugKey keys[] =
     { "Window", NAUTILUS_DEBUG_WINDOW },
     { "Undo", NAUTILUS_DEBUG_UNDO },
     { "Thumbnails", NAUTILUS_DEBUG_THUMBNAILS },
+    { "TagManager", NAUTILUS_DEBUG_TAG_MANAGER },
     { 0, }
 };
 
@@ -64,7 +65,6 @@ nautilus_debug_set_flags_from_env (void)
 
     for (nkeys = 0; keys[nkeys].value; nkeys++)
     {
-        ;
     }
 
     flags_string = g_getenv ("NAUTILUS_DEBUG");

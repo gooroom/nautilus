@@ -818,9 +818,10 @@ ensure_dirs_task_ready_cb (GObject      *_source,
         files = g_hash_table_lookup (data->original_dirs_hash, original_dir);
         locations = locations_from_file_list (files);
 
-        nautilus_file_operations_move_sync
-            (locations,
-            original_dir_location);
+        nautilus_file_operations_move_async (locations,
+                                             original_dir_location,
+                                             data->parent_window,
+                                             NULL, NULL, NULL);
 
         g_list_free_full (locations, g_object_unref);
         g_object_unref (original_dir_location);
@@ -1043,7 +1044,11 @@ get_message_for_content_type (const char *content_type)
     }
     else if (strcmp (content_type, "x-content/unix-software") == 0)
     {
-        message = g_strdup (_("Contains software"));
+        message = g_strdup (_("Contains software to run"));
+    }
+    else if (strcmp (content_type, "x-content/ostree-repository") == 0)
+    {
+        message = g_strdup (_("Contains software to install"));
     }
     else
     {
@@ -1452,16 +1457,16 @@ location_settings_search_get_recursive (void)
             return NAUTILUS_QUERY_RECURSIVE_ALWAYS;
         }
         break;
-        
+
         case NAUTILUS_SPEED_TRADEOFF_LOCAL_ONLY:
         {
             return NAUTILUS_QUERY_RECURSIVE_LOCAL_ONLY;
         }
         break;
-        
+
         case NAUTILUS_SPEED_TRADEOFF_NEVER:
         {
-             return NAUTILUS_QUERY_RECURSIVE_NEVER;
+            return NAUTILUS_QUERY_RECURSIVE_NEVER;
         }
         break;
     }

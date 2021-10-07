@@ -56,7 +56,7 @@ struct _NautilusFileUndoManager
 
 G_DEFINE_TYPE (NautilusFileUndoManager, nautilus_file_undo_manager, G_TYPE_OBJECT)
 
-static NautilusFileUndoManager * undo_singleton = NULL;
+static NautilusFileUndoManager *undo_singleton = NULL;
 
 NautilusFileUndoManager *
 nautilus_file_undo_manager_new (void)
@@ -109,12 +109,7 @@ nautilus_file_undo_manager_finalize (GObject *object)
 {
     NautilusFileUndoManager *self = NAUTILUS_FILE_UNDO_MANAGER (object);
 
-    if (self->trash_signal_id != 0)
-    {
-        g_signal_handler_disconnect (nautilus_trash_monitor_get (),
-                                     self->trash_signal_id);
-        self->trash_signal_id = 0;
-    }
+    g_clear_signal_handler (&self->trash_signal_id, nautilus_trash_monitor_get ());
 
     file_undo_manager_clear (self);
 
@@ -186,8 +181,9 @@ undo_info_apply_ready (GObject      *source,
 }
 
 static void
-do_undo_redo (NautilusFileUndoManager *self,
-              GtkWindow               *parent_window)
+do_undo_redo (NautilusFileUndoManager        *self,
+              GtkWindow                      *parent_window,
+              NautilusFileOperationsDBusData *dbus_data)
 {
     gboolean undo = self->state == NAUTILUS_FILE_UNDO_MANAGER_STATE_UNDO;
 
@@ -195,6 +191,7 @@ do_undo_redo (NautilusFileUndoManager *self,
 
     self->is_operating = TRUE;
     nautilus_file_undo_info_apply_async (self->info, undo, parent_window,
+                                         dbus_data,
                                          undo_info_apply_ready, self);
 
     /* clear actions while undoing */
@@ -203,7 +200,8 @@ do_undo_redo (NautilusFileUndoManager *self,
 }
 
 void
-nautilus_file_undo_manager_redo (GtkWindow *parent_window)
+nautilus_file_undo_manager_redo (GtkWindow                      *parent_window,
+                                 NautilusFileOperationsDBusData *dbus_data)
 {
     if (undo_singleton->state != NAUTILUS_FILE_UNDO_MANAGER_STATE_REDO)
     {
@@ -212,11 +210,12 @@ nautilus_file_undo_manager_redo (GtkWindow *parent_window)
         return;
     }
 
-    do_undo_redo (undo_singleton, parent_window);
+    do_undo_redo (undo_singleton, parent_window, dbus_data);
 }
 
 void
-nautilus_file_undo_manager_undo (GtkWindow *parent_window)
+nautilus_file_undo_manager_undo (GtkWindow                      *parent_window,
+                                 NautilusFileOperationsDBusData *dbus_data)
 {
     if (undo_singleton->state != NAUTILUS_FILE_UNDO_MANAGER_STATE_UNDO)
     {
@@ -225,7 +224,7 @@ nautilus_file_undo_manager_undo (GtkWindow *parent_window)
         return;
     }
 
-    do_undo_redo (undo_singleton, parent_window);
+    do_undo_redo (undo_singleton, parent_window, dbus_data);
 }
 
 void

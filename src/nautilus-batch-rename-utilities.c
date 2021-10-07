@@ -19,6 +19,7 @@
 #include "nautilus-batch-rename-dialog.h"
 #include "nautilus-batch-rename-utilities.h"
 #include "nautilus-file.h"
+#include "nautilus-tracker-utilities.h"
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -1056,26 +1057,26 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
 
     query = g_string_new ("SELECT "
                           "nfo:fileName(?file) "
-                          "nie:contentCreated(?file) "
-                          "year(nie:contentCreated(?file)) "
-                          "month(nie:contentCreated(?file)) "
-                          "day(nie:contentCreated(?file)) "
-                          "hours(nie:contentCreated(?file)) "
-                          "minutes(nie:contentCreated(?file)) "
-                          "seconds(nie:contentCreated(?file)) "
-                          "nfo:model(nfo:equipment(?file)) "
-                          "nmm:season(?file) "
-                          "nmm:episodeNumber(?file) "
-                          "nmm:trackNumber(?file) "
-                          "nmm:artistName(nmm:performer(?file)) "
-                          "nie:title(?file) "
-                          "nmm:albumTitle(nmm:musicAlbum(?file)) "
-                          "WHERE { ?file a nfo:FileDataObject. ?file nie:url ?url. ");
+                          "nie:contentCreated(?content) "
+                          "year(nie:contentCreated(?content)) "
+                          "month(nie:contentCreated(?content)) "
+                          "day(nie:contentCreated(?content)) "
+                          "hours(nie:contentCreated(?content)) "
+                          "minutes(nie:contentCreated(?content)) "
+                          "seconds(nie:contentCreated(?content)) "
+                          "nfo:model(nfo:equipment(?content)) "
+                          "nmm:seasonNumber(?content) "
+                          "nmm:episodeNumber(?content) "
+                          "nmm:trackNumber(?content) "
+                          "nmm:artistName(nmm:performer(?content)) "
+                          "nie:title(?content) "
+                          "nie:title(nmm:musicAlbum(?content)) "
+                          "WHERE { ?file a nfo:FileDataObject. ?file nie:url ?url. ?content nie:isStoredAs ?file. ");
 
     parent_uri = nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data));
 
     g_string_append_printf (query,
-                            "FILTER(tracker:uri-is-parent(<%s>, ?url)) ",
+                            "FILTER(tracker:uri-is-parent(\"%s\", ?url)) ",
                             parent_uri);
 
     for (l = selection; l != NULL; l = l->next)
@@ -1115,9 +1116,9 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
 
     selection_metadata = g_list_reverse (selection_metadata);
 
-    g_string_append (query, "} ORDER BY ASC(nie:contentCreated(?file))");
+    g_string_append (query, "} ORDER BY ASC(nie:contentCreated(?content))");
 
-    connection = tracker_sparql_connection_get (NULL, &error);
+    connection = nautilus_tracker_get_miner_fs_connection (&error);
     if (!connection)
     {
         if (error)
@@ -1149,7 +1150,6 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
                                            batch_rename_dialog_query_callback,
                                            query_data);
 
-    g_object_unref (connection);
     g_string_free (query, TRUE);
 }
 

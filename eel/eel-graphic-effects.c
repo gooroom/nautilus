@@ -49,11 +49,13 @@ create_new_pixbuf (GdkPixbuf *src)
 
 /* utility routine to bump the level of a color component with pinning */
 
+const int HOVER_COMPONENT_ADDITION = 15;
+
 static guchar
 lighten_component (guchar cur_value)
 {
     int new_value = cur_value;
-    new_value += 24 + (new_value >> 3);
+    new_value = cur_value + HOVER_COMPONENT_ADDITION;
     if (new_value > 255)
     {
         new_value = 255;
@@ -147,11 +149,11 @@ eel_create_colorized_pixbuf (GdkPixbuf *src,
         pixsrc = original_pixels + i * src_row_stride;
         for (j = 0; j < width; j++)
         {
-            *pixdest = (*pixsrc++ * *pixdest) >> 8;
+            *pixdest = ((*pixsrc++) * (*pixdest)) >> 8;
             pixdest++;
-            *pixdest = (*pixsrc++ * *pixdest) >> 8;
+            *pixdest = ((*pixsrc++) * (*pixdest)) >> 8;
             pixdest++;
-            *pixdest = (*pixsrc++ * *pixdest) >> 8;
+            *pixdest = ((*pixsrc++) * (*pixdest)) >> 8;
             pixdest++;
             if (has_alpha)
             {

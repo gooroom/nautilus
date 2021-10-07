@@ -1,7 +1,12 @@
 project('nautilus', 'c',
   default_options: ['c_std=c11'],
-  version: '3.30.5',
-  meson_version: '>= 0.47.0',
+
+  # Do not forget when releasing:
+  #  * Update version in data/org.gnome.Nautilus.appdata.xml.in.in
+  #  * Update GTK-based codes over src/gtk/gtk-code-generator.sh
+  version: '3.38.2',
+
+  meson_version: '>= 0.49.0',
   license: 'GPL3+'
 )
 
@@ -34,6 +39,13 @@ cc = meson.get_compiler('c')
 # End compilers #
 #################
 
+add_global_arguments(
+  cc.get_supported_arguments([
+    '-DGLIB_DISABLE_DEPRECATION_WARNINGS',
+  ]),
+  language: 'c',
+)
+
 add_project_arguments(
   cc.get_supported_arguments([
     '-Wall',
@@ -54,33 +66,17 @@ add_project_arguments(
     '-Werror=strict-prototypes',
     '-Werror=undef',
     '-Werror=uninitialized',
+    # Context: https://gitlab.com/freedesktop-sdk/freedesktop-sdk/commit/ce54a2527555e51e4ebf4cce9cbb6259cafa89a4
+    # -O2 and -fexceptions unmask some cases of -Wmaybe-uninitialized, which
+    # become errors for some reason (I’m guessing because of the
+    # -Werror=uninitialized above, but no idea why that implies this).
+    # This being an error is nice and all, but not when its appearance is
+    # dependent on optimization level and other flags.
+    '-Wno-error=maybe-uninitialized',
   ]),
   '-D_GNU_SOURCE',
   language: 'c'
 )
-
-######################
-# Host system checks #
-######################
-
-host_system = host_machine.system()
-host_cpu = host_machine.cpu()
-unsupported_cpus = [
-  'alpha',
-  'ia64',
-  'm68k',
-  'parisc',
-  'parisc64',
-  'sh4',
-  'sparc64',
-]
-system_supports_seccomp = host_system == 'linux'
-cpu_supports_seccomp = not unsupported_cpus.contains(host_cpu)
-seccomp_required = system_supports_seccomp and cpu_supports_seccomp
-
-##########################
-# End host system checks #
-##########################
 
 ##################
 # Module imports #
@@ -97,7 +93,7 @@ pkgconfig = import('pkgconfig')
 ################
 # Dependencies #
 ################
-glib_ver = '>= 2.55.1'
+glib_ver = '>= 2.62.0'
 
 libgd = subproject(
   'libgd',
@@ -114,27 +110,21 @@ libm = cc.find_library('m')
 
 if get_option('extensions')
   gexiv = dependency('gexiv2', version: '>= 0.10.0')
+  gst_tag_dep = dependency('gstreamer-tag-1.0')
+  gst_pbutils_dep = dependency('gstreamer-pbutils-1.0')
 endif
 gio = dependency('gio-2.0', version: glib_ver)
 gio_unix = dependency('gio-unix-2.0', version: glib_ver)
 glib = dependency('glib-2.0', version: glib_ver)
 gmodule = dependency('gmodule-no-export-2.0', version: glib_ver)
 gnome_autoar = dependency('gnome-autoar-0', version: '>= 0.2.1')
-gsettings_desktop_schemas = dependency('gsettings-desktop-schemas')
+gnome_desktop = dependency('gnome-desktop-3.0', version: '>= 3.0.0')
 gtk = dependency('gtk+-3.0', version: '>= 3.22.27')
-if seccomp_required
-  message('seccomp required on this platform, make sure bubblewrap is available at runtime as well.')
-  seccomp = dependency('libseccomp')
-else
-  warning('The host does not support seccomp, thumbnailer sandboxing will be disabled. Such setups are not recommended, use at your own risk!')
-  seccomp = dependency('', required: false)
-endif
 selinux = []
 if get_option('selinux')
   selinux = dependency('libselinux', version: '>= 2.0')
 endif
-tracker_sparql = dependency('tracker-sparql-2.0')
-x11 = dependency('x11')
+tracker_sparql = dependency('tracker-sparql-3.0')
 xml = dependency('libxml-2.0', version: '>= 2.7.8')
 
 ####################
@@ -146,36 +136,24 @@ xml = dependency('libxml-2.0', version: '>= 2.7.8')
 #################
 conf = configuration_data()
 
-if get_option('profile') == 'development'
-  profile = 'Devel'
+profile = get_option('profile')
+name_suffix = ''
+
+if get_option('profile') == 'Devel'
   name_suffix = ' (Development Snapshot)'
-elif get_option('profile') != ''
-  profile = get_option('profile')
-  name_suffix = get_option('profile')
-else
-  profile = ''
-  name_suffix = ''
 endif
 
 application_id = 'org.gnome.Nautilus' + profile
 
 conf.set_quoted('APPLICATION_ID', application_id)
 conf.set_quoted('GETTEXT_PACKAGE', 'nautilus')
-conf.set_quoted('INSTALL_PREFIX', prefix)
 conf.set_quoted('LOCALEDIR', join_paths(prefix, localedir))
 conf.set_quoted('NAME_SUFFIX', name_suffix)
-conf.set_quoted('NAUTILUS_DATADIR', join_paths(datadir, 'nautilus'))
+conf.set_quoted('NAUTILUS_DATADIR', join_paths(prefix, datadir, 'nautilus'))
 conf.set_quoted('NAUTILUS_EXTENSIONDIR', join_paths(prefix, extensiondir))
 conf.set_quoted('PACKAGE_VERSION', meson.project_version())
 conf.set_quoted('PROFILE', profile)
 conf.set_quoted('VERSION', '@0@-@VCS_TAG@'.format(meson.project_version()))
-
-###################################################
-# gnome-desktop macros for thumbnailer sandboxing #
-###################################################
-
-conf.set('ENABLE_SECCOMP', seccomp.found())
-conf.set('HAVE_BWRAP', seccomp.found())
 
 conf.set('ENABLE_PACKAGEKIT', get_option('packagekit'))
 conf.set('ENABLE_PROFILING', get_option('profiling'))
@@ -188,7 +166,7 @@ conf.set('HAVE_SELINUX', get_option('selinux'))
 config_h = declare_dependency(
   sources: vcs_tag(
     command: ['git', 'rev-parse', '--short', 'HEAD'],
-    fallback: get_option('profile') != ''? 'devel' : 'stable',
+    fallback: profile != ''? 'devel' : 'stable',
     input: configure_file(
       output: 'config.h.in',
       configuration: conf

@@ -49,6 +49,14 @@ void                nautilus_tag_manager_unstar_files       (NautilusTagManager 
 
 
 gboolean            nautilus_tag_manager_file_is_starred   (NautilusTagManager *self,
-                                                             const gchar        *file_name);
+                                                            const gchar        *file_uri);
+
+gboolean            nautilus_tag_manager_can_star_contents (NautilusTagManager *self,
+                                                            GFile              *directory);
+void                nautilus_tag_manager_update_moved_uris  (NautilusTagManager *tag_manager,
+                                                             GFile              *src,
+                                                             GFile              *dest);
+
+void                nautilus_tag_manager_maybe_migrate_tracker2_data (NautilusTagManager *self);
 
 G_END_DECLS

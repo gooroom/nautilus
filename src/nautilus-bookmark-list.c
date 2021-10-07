@@ -31,6 +31,7 @@
 
 #include <gio/gio.h>
 #include <string.h>
+#include <errno.h>
 
 #define MAX_BOOKMARK_LENGTH 80
 #define LOAD_JOB 1
@@ -54,14 +55,23 @@ enum
 static guint signals[LAST_SIGNAL];
 
 /* forward declarations */
+#define NAUTILUS_BOOKMARK_LIST_ERROR (nautilus_bookmark_list_error_quark ())
+static GQuark      nautilus_bookmark_list_error_quark (void);
 
 static void        nautilus_bookmark_list_load_file (NautilusBookmarkList *bookmarks);
 static void        nautilus_bookmark_list_save_file (NautilusBookmarkList *bookmarks);
 
 G_DEFINE_TYPE (NautilusBookmarkList, nautilus_bookmark_list, G_TYPE_OBJECT)
 
+static GQuark
+nautilus_bookmark_list_error_quark (void)
+{
+    return g_quark_from_static_string ("nautilus-bookmark-list-error-quark");
+}
+
 static NautilusBookmark *
-new_bookmark_from_uri (const char *uri, const char *label)
+new_bookmark_from_uri (const char *uri,
+                       const char *label)
 {
     NautilusBookmark *new_bookmark = NULL;
     g_autoptr (GFile) location = NULL;
@@ -153,15 +163,17 @@ clear (NautilusBookmarkList *bookmarks)
 static void
 do_finalize (GObject *object)
 {
-    if (NAUTILUS_BOOKMARK_LIST (object)->monitor != NULL)
+    NautilusBookmarkList *self = NAUTILUS_BOOKMARK_LIST (object);
+
+    if (self->monitor != NULL)
     {
-        g_file_monitor_cancel (NAUTILUS_BOOKMARK_LIST (object)->monitor);
-        NAUTILUS_BOOKMARK_LIST (object)->monitor = NULL;
+        g_file_monitor_cancel (self->monitor);
+        g_clear_object (&self->monitor);
     }
 
-    g_queue_free (NAUTILUS_BOOKMARK_LIST (object)->pending_ops);
+    g_queue_free (self->pending_ops);
 
-    clear (NAUTILUS_BOOKMARK_LIST (object));
+    clear (self);
 
     G_OBJECT_CLASS (nautilus_bookmark_list_parent_class)->finalize (object);
 }
@@ -208,7 +220,7 @@ nautilus_bookmark_list_init (NautilusBookmarkList *bookmarks)
     nautilus_bookmark_list_load_file (bookmarks);
 
     file = nautilus_bookmark_list_get_file ();
-    bookmarks->monitor = g_file_monitor_file (file, 0, NULL, NULL);
+    bookmarks->monitor = g_file_monitor_file (file, G_FILE_MONITOR_NONE, NULL, NULL);
     g_file_monitor_set_rate_limit (bookmarks->monitor, 1000);
 
     g_signal_connect (bookmarks->monitor, "changed",
@@ -340,8 +352,9 @@ load_callback (GObject      *source_object,
         /* Ignore empty or invalid lines that cannot be parsed properly */
         if (lines[i][0] != '\0' && lines[i][0] != ' ')
         {
-            /* gtk 2.7/2.8 might have labels appended to bookmarks which are separated by a space */
-            /* we must seperate the bookmark uri and the potential label */
+            /* gtk 2.7/2.8 might have labels appended to bookmarks which are separated by a space
+             * we must seperate the bookmark uri and the potential label
+             */
             char *space;
             g_autofree char *label = NULL;
 
@@ -458,7 +471,16 @@ save_io_thread (GTask        *task,
     parent = g_file_get_parent (file);
     path = g_file_get_path (parent);
 
-    g_mkdir_with_parents (path, 0700);
+    if (g_mkdir_with_parents (path, 0700) == -1)
+    {
+        int saved_errno = errno;
+
+        g_set_error (&error, NAUTILUS_BOOKMARK_LIST_ERROR, 0,
+                     "Failed to create bookmarks folder %s: %s",
+                     path, g_strerror (saved_errno));
+        g_task_return_error (task, error);
+        return;
+    }
 
     contents = (gchar *) g_task_get_task_data (task);
 
@@ -491,7 +513,7 @@ save_file_async (NautilusBookmarkList *self)
     if (self->monitor != NULL)
     {
         g_file_monitor_cancel (self->monitor);
-        self->monitor = NULL;
+        g_clear_object (&self->monitor);
     }
 
     for (l = self->list; l; l = l->next)

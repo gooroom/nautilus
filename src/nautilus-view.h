@@ -53,17 +53,17 @@ struct _NautilusViewInterface
         /*
          * Returns the menu for the background click of extensions.
          */
-        GMenu *   (*get_extensions_background_menu) (NautilusView         *view);
+        GMenuModel *   (*get_extensions_background_menu) (NautilusView         *view);
 
         void     (*set_extensions_background_menu) (NautilusView *view,
-                                                    GMenu        *menu);
+                                                    GMenuModel   *menu);
         /*
          * Returns the menu for templates.
          */
-        GMenu *   (*get_templates_menu) (NautilusView         *view);
+        GMenuModel *   (*get_templates_menu) (NautilusView         *view);
 
         void     (*set_templates_menu) (NautilusView *view,
-                                        GMenu        *menu);
+                                        GMenuModel   *menu);
         /* Current location of the view */
         GFile*                          (*get_location)              (NautilusView         *view);
         void                            (*set_location)              (NautilusView         *view,
@@ -87,6 +87,8 @@ struct _NautilusViewInterface
 };
 
 GIcon *                        nautilus_view_get_icon                  (guint                 view_id);
+
+const gchar *                        nautilus_view_get_tooltip               (guint                 view_id);
 
 guint                          nautilus_view_get_view_id               (NautilusView         *view);
 
@@ -112,10 +114,10 @@ gboolean                       nautilus_view_is_loading                (Nautilus
 gboolean                       nautilus_view_is_searching              (NautilusView         *view);
 
 void                           nautilus_view_set_templates_menu        (NautilusView *view,
-                                                                        GMenu        *menu);
-GMenu*                         nautilus_view_get_templates_menu        (NautilusView *view);
+                                                                        GMenuModel   *menu);
+GMenuModel *                   nautilus_view_get_templates_menu        (NautilusView *view);
 void                           nautilus_view_set_extensions_background_menu (NautilusView *view,
-                                                                             GMenu        *menu);
-GMenu*                         nautilus_view_get_extensions_background_menu (NautilusView *view);
+                                                                             GMenuModel   *menu);
+GMenuModel *                   nautilus_view_get_extensions_background_menu (NautilusView *view);
 
 G_END_DECLS

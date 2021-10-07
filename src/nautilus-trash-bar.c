@@ -109,11 +109,7 @@ nautilus_trash_bar_dispose (GObject *obj)
 {
     NautilusTrashBar *bar = NAUTILUS_TRASH_BAR (obj);
 
-    if (bar->selection_handler_id)
-    {
-        g_signal_handler_disconnect (bar->view, bar->selection_handler_id);
-        bar->selection_handler_id = 0;
-    }
+    g_clear_signal_handler (&bar->selection_handler_id, bar->view);
 
     G_OBJECT_CLASS (nautilus_trash_bar_parent_class)->dispose (obj);
 }
@@ -160,7 +156,7 @@ trash_bar_response_cb (GtkInfoBar *infobar,
 {
     NautilusTrashBar *bar;
     GtkWidget *window;
-    
+
     bar = NAUTILUS_TRASH_BAR (infobar);
     window = gtk_widget_get_toplevel (GTK_WIDGET (bar));
 
@@ -168,7 +164,7 @@ trash_bar_response_cb (GtkInfoBar *infobar,
     {
         case TRASH_BAR_RESPONSE_EMPTY:
         {
-            nautilus_file_operations_empty_trash (window);
+            nautilus_file_operations_empty_trash (window, TRUE, NULL);
         }
         break;
 

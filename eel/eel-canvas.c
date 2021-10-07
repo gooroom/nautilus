@@ -698,7 +698,7 @@ eel_canvas_item_lower (EelCanvasItem *item,
     g_return_if_fail (EEL_IS_CANVAS_ITEM (item));
     g_return_if_fail (positions >= 1);
 
-    if (!item->parent || positions == 0)
+    if (!item->parent)
     {
         return;
     }
@@ -2248,11 +2248,7 @@ eel_canvas_destroy (GtkWidget *object)
 
     canvas = EEL_CANVAS (object);
 
-    if (canvas->root_destroy_id)
-    {
-        g_signal_handler_disconnect (G_OBJECT (canvas->root), canvas->root_destroy_id);
-        canvas->root_destroy_id = 0;
-    }
+    g_clear_signal_handler (&canvas->root_destroy_id, G_OBJECT (canvas->root));
     if (canvas->root)
     {
         EelCanvasItem *root = canvas->root;
@@ -2484,9 +2480,10 @@ scroll_to (EelCanvas *canvas,
 
     if ((canvas->zoom_xofs != old_zoom_xofs) || (canvas->zoom_yofs != old_zoom_yofs))
     {
-        /* This can only occur, if either canvas size or widget size changes */
-        /* So I think we can request full redraw here */
-        /* More stuff - we have to mark root as needing fresh affine (Lauris) */
+        /* This can only occur, if either canvas size or widget size changes
+         * So I think we can request full redraw here
+         * More stuff - we have to mark root as needing fresh affine (Lauris)
+         */
         if (!(canvas->root->flags & EEL_CANVAS_ITEM_NEED_DEEP_UPDATE))
         {
             canvas->root->flags |= EEL_CANVAS_ITEM_NEED_DEEP_UPDATE;

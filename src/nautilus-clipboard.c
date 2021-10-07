@@ -211,7 +211,7 @@ nautilus_clipboard_clear_if_colliding_uris (GtkWidget   *widget,
 
     for (l = (GList *) item_uris; l; l = l->next)
     {
-        if (g_list_find_custom ((GList *) item_uris, l->data,
+        if (g_list_find_custom ((GList *) clipboard_item_uris, l->data,
                                 (GCompareFunc) g_strcmp0))
         {
             collision = TRUE;
@@ -327,4 +327,3 @@ nautilus_clipboard_prepare_for_files (GtkClipboard *clipboard,
                                  clipboard_info);
     gtk_target_table_free (targets, n_targets);
 }
-

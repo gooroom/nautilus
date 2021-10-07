@@ -3,7 +3,6 @@
   <gresource prefix="/org/gnome/nautilus">
     <file compressed="true">ui/nautilus-preferences-window.ui</file>
     <file compressed="true">ui/nautilus-search-popover.ui</file>
-    <file>gtk/menus.ui</file>
     <file>ui/nautilus-pathbar-context-menu.ui</file>
     <file>ui/nautilus-toolbar.ui</file>
     <file>ui/nautilus-toolbar-switcher.ui</file>
@@ -20,6 +19,9 @@
     <file>ui/nautilus-starred-is-empty.ui</file>
     <file>gtk/help-overlay.ui</file>
     <file>ui/nautilus-batch-rename-dialog.ui</file>
+    <file>ui/nautilus-batch-rename-dialog-menu.ui</file>
+    <file>ui/nautilus-properties-window.ui</file>
+    <file>ui/nautilus-file-properties-change-permissions.ui</file>
     <file alias="gtk/ui/nautilusgtkplacesview.ui">../gtk/nautilusgtkplacesview.ui</file>
     <file alias="gtk/ui/nautilusgtkplacesviewrow.ui">../gtk/nautilusgtkplacesviewrow.ui</file>
     <file alias="icons/thumbnail_frame.png">../../icons/thumbnail_frame.png</file>

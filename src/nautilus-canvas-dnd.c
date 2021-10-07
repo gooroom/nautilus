@@ -45,7 +45,7 @@
 #include <eel/eel-string.h>
 #include <eel/eel-vfs-extensions.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
+#include <gdk/gdk.h>
 #include <gtk/gtk.h>
 #include <glib/gi18n.h>
 
@@ -593,8 +593,10 @@ drag_end_callback (GtkWidget      *widget,
 
     stop_cache_selection_list (&dnd_info->drag_info);
     nautilus_drag_destroy_selection_list (dnd_info->drag_info.selection_list);
+    nautilus_drag_destroy_selection_list (dnd_info->drag_info.selection_cache);
     nautilus_drag_destroy_selection_list (container->details->dnd_source_info->selection_cache);
     dnd_info->drag_info.selection_list = NULL;
+    dnd_info->drag_info.selection_cache = NULL;
     container->details->dnd_source_info->selection_cache = NULL;
 
     nautilus_window_end_dnd (window, context);
@@ -1290,6 +1292,7 @@ drag_begin_callback (GtkWidget      *widget,
     int x_offset, y_offset;
     int start_x, start_y;
     GList *dragged_files;
+    double sx, sy;
 
     container = NAUTILUS_CANVAS_CONTAINER (widget);
     window = NAUTILUS_WINDOW (gtk_widget_get_toplevel (GTK_WIDGET (container)));
@@ -1310,7 +1313,10 @@ drag_begin_callback (GtkWidget      *widget,
     x_offset = start_x - winx;
     y_offset = start_y - winy;
 
-    cairo_surface_set_device_offset (surface, -x_offset, -y_offset);
+    cairo_surface_get_device_scale (surface, &sx, &sy);
+    cairo_surface_set_device_offset (surface,
+                                     -x_offset * sx,
+                                     -y_offset * sy);
     gtk_drag_set_icon_surface (context, surface);
     cairo_surface_destroy (surface);
 

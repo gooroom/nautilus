@@ -41,6 +41,7 @@
 
 #include <eel/eel-glib-extensions.h>
 #include <eel/eel-vfs-extensions.h>
+#include <eel/eel-string.h>
 
 #include <glib/gi18n.h>
 #include <glib/gstdio.h>
@@ -60,12 +61,21 @@
 #include "nautilus-file-undo-manager.h"
 #include "nautilus-ui-utilities.h"
 
+#ifdef GDK_WINDOWING_X11
+#include <gdk/gdkx.h>
+#endif
+
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
+
 /* TODO: TESTING!!! */
 
 typedef struct
 {
     GTimer *time;
     GtkWindow *parent_window;
+    NautilusFileOperationsDBusData *dbus_data;
     guint inhibit_cookie;
     NautilusProgressInfo *progress;
     GCancellable *cancellable;
@@ -226,6 +236,7 @@ typedef struct
 #define MERGE _("_Merge")
 #define MERGE_ALL _("Merge _All")
 #define COPY_FORCE _("Copy _Anyway")
+#define EMPTY_TRASH _("Empty _Trash")
 
 static gboolean
 is_all_button_text (const char *button_text)
@@ -255,11 +266,6 @@ static void empty_trash_task_done (GObject      *source_object,
 
 static char *query_fs_type (GFile        *file,
                             GCancellable *cancellable);
-static CopyMoveJob *copy_job_setup (GList *files,
-                                    GFile *target_dir,
-                                    GtkWindow *parent_window,
-                                    NautilusCopyCallback done_callback,
-                                    gpointer done_callback_data);
 
 static void nautilus_file_operations_copy (GTask        *task,
                                            gpointer      source_object,
@@ -1026,11 +1032,12 @@ get_truncated_parse_name (GFile *file)
     return eel_str_middle_truncate (parse_name, MAXIMUM_DISPLAYED_FILE_NAME_LENGTH);
 }
 
-#define op_job_new(__type, parent_window) ((__type *) (init_common (sizeof (__type), parent_window)))
+#define op_job_new(__type, parent_window, dbus_data) ((__type *) (init_common (sizeof (__type), parent_window, dbus_data)))
 
 static gpointer
-init_common (gsize      job_size,
-             GtkWindow *parent_window)
+init_common (gsize                           job_size,
+             GtkWindow                      *parent_window,
+             NautilusFileOperationsDBusData *dbus_data)
 {
     CommonJob *common;
 
@@ -1042,6 +1049,12 @@ init_common (gsize      job_size,
         g_object_add_weak_pointer (G_OBJECT (common->parent_window),
                                    (gpointer *) &common->parent_window);
     }
+
+    if (dbus_data)
+    {
+        common->dbus_data = nautilus_file_operations_dbus_data_ref (dbus_data);
+    }
+
     common->progress = nautilus_progress_info_new ();
     common->cancellable = nautilus_progress_info_get_cancellable (common->progress);
     common->time = g_timer_new ();
@@ -1068,6 +1081,11 @@ finalize_common (CommonJob *common)
     {
         g_object_remove_weak_pointer (G_OBJECT (common->parent_window),
                                       (gpointer *) &common->parent_window);
+    }
+
+    if (common->dbus_data)
+    {
+        nautilus_file_operations_dbus_data_unref (common->dbus_data);
     }
 
     if (common->skip_files)
@@ -1175,6 +1193,7 @@ can_delete_files_without_confirm (GList *files)
 typedef struct
 {
     GtkWindow **parent_window;
+    NautilusFileOperationsDBusData *dbus_data;
     gboolean ignore_close_box;
     GtkMessageType message_type;
     const char *primary_text;
@@ -1190,6 +1209,65 @@ typedef struct
     GMutex mutex;
     GCond cond;
 } RunSimpleDialogData;
+
+static void
+set_transient_for (GdkWindow  *child_window,
+                   const char *parent_handle)
+{
+    GdkDisplay *display;
+    const char *prefix;
+
+    display = gdk_window_get_display (child_window);
+
+#ifdef GDK_WINDOWING_X11
+    if (GDK_IS_X11_DISPLAY (display))
+    {
+        prefix = "x11:";
+
+        if (g_str_has_prefix (parent_handle, prefix))
+        {
+            const char *handle;
+            GdkWindow *window;
+
+            handle = parent_handle + strlen (prefix);
+            window = gdk_x11_window_foreign_new_for_display (display, strtol (handle, NULL, 16));
+
+            if (window != NULL)
+            {
+                gdk_window_set_transient_for (child_window, window);
+                g_object_unref (window);
+            }
+        }
+    }
+#endif
+
+#ifdef GDK_WINDOWING_WAYLAND
+    if (GDK_IS_WAYLAND_DISPLAY (display))
+    {
+        prefix = "wayland:";
+
+        if (g_str_has_prefix (parent_handle, prefix))
+        {
+            const char *handle;
+
+            handle = parent_handle + strlen (prefix);
+
+            gdk_wayland_window_set_transient_for_exported (child_window, (char *) handle);
+        }
+    }
+#endif
+}
+
+static void
+dialog_realize_cb (GtkWidget *widget,
+                   gpointer   user_data)
+{
+    NautilusFileOperationsDBusData *dbus_data = user_data;
+    const char *parent_handle;
+
+    parent_handle = nautilus_file_operations_dbus_data_get_parent_handle (dbus_data);
+    set_transient_for (gtk_widget_get_window (widget), parent_handle);
+}
 
 static gboolean
 do_run_simple_dialog (gpointer _data)
@@ -1228,7 +1306,9 @@ do_run_simple_dialog (gpointer _data)
         button = gtk_dialog_add_button (GTK_DIALOG (dialog), button_title, response_id);
         gtk_dialog_set_default_response (GTK_DIALOG (dialog), response_id);
 
-        if (g_strcmp0 (button_title, DELETE) == 0)
+        if (g_strcmp0 (button_title, DELETE) == 0 ||
+            g_strcmp0 (button_title, EMPTY_TRASH) == 0 ||
+            g_strcmp0 (button_title, DELETE_ALL) == 0)
         {
             gtk_style_context_add_class (gtk_widget_get_style_context (button),
                                          "destructive-action");
@@ -1256,6 +1336,30 @@ do_run_simple_dialog (gpointer _data)
         gtk_container_add (GTK_CONTAINER (content_area), label);
 
         gtk_widget_show (label);
+    }
+
+    if (data->dbus_data != NULL)
+    {
+        guint32 timestamp;
+
+        timestamp = nautilus_file_operations_dbus_data_get_timestamp (data->dbus_data);
+
+        /* Assuming this is used for desktop implementations, we want the
+         * dialog to be centered on the screen rather than the parent window,
+         * which could extend to all monitors. This is the case for
+         * gnome-flashback.
+         */
+        gtk_window_set_position (GTK_WINDOW (dialog), GTK_WIN_POS_CENTER);
+
+        if (nautilus_file_operations_dbus_data_get_parent_handle (data->dbus_data) != NULL)
+        {
+            g_signal_connect (dialog, "realize", G_CALLBACK (dialog_realize_cb), data->dbus_data);
+        }
+
+        if (timestamp != 0)
+        {
+            gtk_window_present_with_time (GTK_WINDOW (dialog), timestamp);
+        }
     }
 
     /* Run it. */
@@ -1299,6 +1403,7 @@ run_simple_dialog_va (CommonJob      *job,
 
     data = g_new0 (RunSimpleDialogData, 1);
     data->parent_window = &job->parent_window;
+    data->dbus_data = job->dbus_data;
     data->ignore_close_box = ignore_close_box;
     data->message_type = message_type;
     data->primary_text = primary_text;
@@ -1584,7 +1689,7 @@ confirm_empty_trash (CommonJob *job)
                             g_strdup (_("All items in the Trash will be permanently deleted.")),
                             NULL,
                             FALSE,
-                            CANCEL, _("Empty _Trash"),
+                            CANCEL, EMPTY_TRASH,
                             NULL);
 
     return (response == 1);
@@ -2491,16 +2596,17 @@ trash_or_delete_internal (GTask        *task,
 }
 
 static DeleteJob *
-setup_delete_job (GList                  *files,
-                  GtkWindow              *parent_window,
-                  gboolean                try_trash,
-                  NautilusDeleteCallback  done_callback,
-                  gpointer                done_callback_data)
+setup_delete_job (GList                          *files,
+                  GtkWindow                      *parent_window,
+                  NautilusFileOperationsDBusData *dbus_data,
+                  gboolean                        try_trash,
+                  NautilusDeleteCallback          done_callback,
+                  gpointer                        done_callback_data)
 {
     DeleteJob *job;
 
     /* TODO: special case desktop icon link files ... */
-    job = op_job_new (DeleteJob, parent_window);
+    job = op_job_new (DeleteJob, parent_window, dbus_data);
     job->files = g_list_copy_deep (files, (GCopyFunc) g_object_ref, NULL);
     job->try_trash = try_trash;
     job->user_cancel = FALSE;
@@ -2528,15 +2634,17 @@ setup_delete_job (GList                  *files,
 }
 
 static void
-trash_or_delete_internal_sync (GList                  *files,
-                               GtkWindow              *parent_window,
-                               gboolean                try_trash)
+trash_or_delete_internal_sync (GList                          *files,
+                               GtkWindow                      *parent_window,
+                               NautilusFileOperationsDBusData *dbus_data,
+                               gboolean                        try_trash)
 {
     GTask *task;
     DeleteJob *job;
 
     job = setup_delete_job (files,
                             parent_window,
+                            dbus_data,
                             try_trash,
                             NULL,
                             NULL);
@@ -2552,17 +2660,19 @@ trash_or_delete_internal_sync (GList                  *files,
 }
 
 static void
-trash_or_delete_internal_async (GList                  *files,
-                                GtkWindow              *parent_window,
-                                gboolean                try_trash,
-                                NautilusDeleteCallback  done_callback,
-                                gpointer                done_callback_data)
+trash_or_delete_internal_async (GList                          *files,
+                                GtkWindow                      *parent_window,
+                                NautilusFileOperationsDBusData *dbus_data,
+                                gboolean                        try_trash,
+                                NautilusDeleteCallback          done_callback,
+                                gpointer                        done_callback_data)
 {
     GTask *task;
     DeleteJob *job;
 
     job = setup_delete_job (files,
                             parent_window,
+                            dbus_data,
                             try_trash,
                             done_callback,
                             done_callback_data);
@@ -2574,35 +2684,39 @@ trash_or_delete_internal_async (GList                  *files,
 }
 
 void
-nautilus_file_operations_trash_or_delete_sync (GList                  *files)
+nautilus_file_operations_trash_or_delete_sync (GList *files)
 {
-    trash_or_delete_internal_sync (files, NULL, TRUE);
+    trash_or_delete_internal_sync (files, NULL, NULL, TRUE);
 }
 
 void
-nautilus_file_operations_delete_sync (GList                  *files)
+nautilus_file_operations_delete_sync (GList *files)
 {
-    trash_or_delete_internal_sync (files, NULL, FALSE);
+    trash_or_delete_internal_sync (files, NULL, NULL, FALSE);
 }
 
 void
-nautilus_file_operations_trash_or_delete_async (GList                  *files,
-                                                GtkWindow              *parent_window,
-                                                NautilusDeleteCallback  done_callback,
-                                                gpointer                done_callback_data)
+nautilus_file_operations_trash_or_delete_async (GList                          *files,
+                                                GtkWindow                      *parent_window,
+                                                NautilusFileOperationsDBusData *dbus_data,
+                                                NautilusDeleteCallback          done_callback,
+                                                gpointer                        done_callback_data)
 {
     trash_or_delete_internal_async (files, parent_window,
+                                    dbus_data,
                                     TRUE,
                                     done_callback, done_callback_data);
 }
 
 void
-nautilus_file_operations_delete_async (GList                  *files,
-                                       GtkWindow              *parent_window,
-                                       NautilusDeleteCallback  done_callback,
-                                       gpointer                done_callback_data)
+nautilus_file_operations_delete_async (GList                          *files,
+                                       GtkWindow                      *parent_window,
+                                       NautilusFileOperationsDBusData *dbus_data,
+                                       NautilusDeleteCallback          done_callback,
+                                       gpointer                        done_callback_data)
 {
     trash_or_delete_internal_async (files, parent_window,
+                                    dbus_data,
                                     FALSE,
                                     done_callback, done_callback_data);
 }
@@ -2927,7 +3041,7 @@ nautilus_file_operations_unmount_mount_full (GtkWindow               *parent_win
             GTask *task;
             EmptyTrashJob *job;
 
-            job = op_job_new (EmptyTrashJob, parent_window);
+            job = op_job_new (EmptyTrashJob, parent_window, NULL);
             job->should_confirm = FALSE;
             job->trash_dirs = get_trash_dirs_for_mount (mount);
             job->done_callback = empty_trash_for_unmount_done;
@@ -4069,7 +4183,7 @@ report_copy_progress (CopyMoveJob  *copy_job,
 }
 #pragma GCC diagnostic pop
 
-#define FAT_FORBIDDEN_CHARACTERS "/:;*?\"<>\\|"
+#define FAT_FORBIDDEN_CHARACTERS "/:*?\"<>\\|"
 
 static gboolean
 fat_str_replace (char *str,
@@ -4100,6 +4214,12 @@ make_file_name_valid_for_dest_fs (char       *filename,
     {
         if (!strcmp (dest_fs_type, "fat") ||
             !strcmp (dest_fs_type, "vfat") ||
+            /* The fuseblk filesystem type could be of any type
+             * in theory, but in practice is usually NTFS or exFAT.
+             * This assumption is a pragmatic way to solve
+             * https://gitlab.gnome.org/GNOME/nautilus/-/issues/1343 */
+            !strcmp (dest_fs_type, "fuse") ||
+            !strcmp (dest_fs_type, "ntfs") ||
             !strcmp (dest_fs_type, "msdos") ||
             !strcmp (dest_fs_type, "msdosfs"))
         {
@@ -5048,6 +5168,57 @@ get_target_file_for_display_name (GFile       *dir,
     return dest;
 }
 
+/* This is a workaround to resolve broken conflict dialog for google-drive
+ * locations. This is needed to provide POSIX-like behavior for google-drive
+ * filesystem, where each file has an unique identificator that is not tied to
+ * its display_name. See the following MR for more details:
+ * https://gitlab.gnome.org/GNOME/nautilus/merge_requests/514.
+ */
+static GFile *
+get_target_file_from_source_display_name (CopyMoveJob *copy_job,
+                                          GFile       *src,
+                                          GFile       *dir)
+{
+    CommonJob *job;
+    g_autoptr (GError) error = NULL;
+    g_autoptr (GFileInfo) info = NULL;
+    gchar *primary, *secondary;
+    GFile *dest = NULL;
+
+    job = (CommonJob *) copy_job;
+
+    info = g_file_query_info (src, G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME, 0, NULL, &error);
+    if (info == NULL)
+    {
+        if (copy_job->is_move)
+        {
+            primary = g_strdup (_("Error while moving."));
+        }
+        else
+        {
+            primary = g_strdup (_("Error while copying."));
+        }
+        secondary = g_strdup (_("There was an error getting information about the source."));
+
+        run_error (job,
+                   primary,
+                   secondary,
+                   error->message,
+                   FALSE,
+                   CANCEL,
+                   NULL);
+
+        abort_job (job);
+    }
+    else
+    {
+        dest = get_target_file_for_display_name (dir, g_file_info_get_display_name (info));
+    }
+
+    return dest;
+}
+
+
 /* Debuting files is non-NULL only for toplevel items */
 static void
 copy_move_file (CopyMoveJob   *copy_job,
@@ -5100,6 +5271,15 @@ copy_move_file (CopyMoveJob   *copy_job,
     {
         dest = get_target_file_with_custom_name (src, dest_dir, *dest_fs_type, same_fs,
                                                  copy_job->target_name);
+    }
+    else if (g_file_has_uri_scheme (src, "google-drive") &&
+             g_file_has_uri_scheme (dest_dir, "google-drive"))
+    {
+        dest = get_target_file_from_source_display_name (copy_job, src, dest_dir);
+        if (dest == NULL)
+        {
+            return;
+        }
     }
     else
     {
@@ -5673,15 +5853,16 @@ copy_task_done (GObject      *source_object,
 }
 
 static CopyMoveJob *
-copy_job_setup (GList *files,
-                GFile *target_dir,
-                GtkWindow *parent_window,
-                NautilusCopyCallback done_callback,
-                gpointer done_callback_data)
+copy_job_setup (GList                          *files,
+                GFile                          *target_dir,
+                GtkWindow                      *parent_window,
+                NautilusFileOperationsDBusData *dbus_data,
+                NautilusCopyCallback            done_callback,
+                gpointer                        done_callback_data)
 {
     CopyMoveJob *job;
 
-    job = op_job_new (CopyMoveJob, parent_window);
+    job = op_job_new (CopyMoveJob, parent_window, dbus_data);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->files = g_list_copy_deep (files, (GCopyFunc) g_object_ref, NULL);
@@ -5780,10 +5961,11 @@ nautilus_file_operations_copy_sync (GList *files,
     CopyMoveJob *job;
 
     job = copy_job_setup (files,
-                           target_dir,
-                           NULL,
-                           NULL,
-                           NULL);
+                          target_dir,
+                          NULL,
+                          NULL,
+                          NULL,
+                          NULL);
 
     task = g_task_new (NULL, job->common.cancellable, NULL, job);
     g_task_set_task_data (task, job, NULL);
@@ -5796,20 +5978,22 @@ nautilus_file_operations_copy_sync (GList *files,
 }
 
 void
-nautilus_file_operations_copy_async (GList                *files,
-                                     GFile                *target_dir,
-                                     GtkWindow            *parent_window,
-                                     NautilusCopyCallback  done_callback,
-                                     gpointer              done_callback_data)
+nautilus_file_operations_copy_async (GList                          *files,
+                                     GFile                          *target_dir,
+                                     GtkWindow                      *parent_window,
+                                     NautilusFileOperationsDBusData *dbus_data,
+                                     NautilusCopyCallback            done_callback,
+                                     gpointer                        done_callback_data)
 {
     GTask *task;
     CopyMoveJob *job;
 
     job = copy_job_setup (files,
-                           target_dir,
-                           parent_window,
-                           done_callback,
-                           done_callback_data);
+                          target_dir,
+                          parent_window,
+                          dbus_data,
+                          done_callback,
+                          done_callback_data);
 
     task = g_task_new (NULL, job->common.cancellable, copy_task_done, job);
     g_task_set_task_data (task, job, NULL);
@@ -5900,7 +6084,19 @@ move_file_prepare (CopyMoveJob  *move_job,
 
     job = (CommonJob *) move_job;
 
-    dest = get_target_file (src, dest_dir, *dest_fs_type, same_fs);
+    if (g_file_has_uri_scheme (src, "google-drive") &&
+        g_file_has_uri_scheme (dest_dir, "google-drive"))
+    {
+        dest = get_target_file_from_source_display_name (move_job, src, dest_dir);
+        if (dest == NULL)
+        {
+            return;
+        }
+    }
+    else
+    {
+        dest = get_target_file (src, dest_dir, *dest_fs_type, same_fs);
+    }
 
 
     /* Don't allow recursive move/copy into itself.
@@ -6273,15 +6469,16 @@ move_task_done (GObject      *source_object,
 }
 
 static CopyMoveJob *
-move_job_setup (GList                *files,
-                GFile                *target_dir,
-                GtkWindow            *parent_window,
-                NautilusCopyCallback  done_callback,
-                gpointer              done_callback_data)
+move_job_setup (GList                          *files,
+                GFile                          *target_dir,
+                GtkWindow                      *parent_window,
+                NautilusFileOperationsDBusData *dbus_data,
+                NautilusCopyCallback            done_callback,
+                gpointer                        done_callback_data)
 {
     CopyMoveJob *job;
 
-    job = op_job_new (CopyMoveJob, parent_window);
+    job = op_job_new (CopyMoveJob, parent_window, dbus_data);
     job->is_move = TRUE;
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
@@ -6297,13 +6494,13 @@ move_job_setup (GList                *files,
 }
 
 void
-nautilus_file_operations_move_sync (GList                *files,
-                                    GFile                *target_dir)
+nautilus_file_operations_move_sync (GList *files,
+                                    GFile *target_dir)
 {
     GTask *task;
     CopyMoveJob *job;
 
-    job = move_job_setup (files, target_dir, NULL, NULL, NULL);
+    job = move_job_setup (files, target_dir, NULL, NULL, NULL, NULL);
     task = g_task_new (NULL, job->common.cancellable, NULL, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread_sync (task, nautilus_file_operations_move);
@@ -6315,16 +6512,23 @@ nautilus_file_operations_move_sync (GList                *files,
 }
 
 void
-nautilus_file_operations_move_async (GList                *files,
-                                     GFile                *target_dir,
-                                     GtkWindow            *parent_window,
-                                     NautilusCopyCallback  done_callback,
-                                     gpointer              done_callback_data)
+nautilus_file_operations_move_async (GList                          *files,
+                                     GFile                          *target_dir,
+                                     GtkWindow                      *parent_window,
+                                     NautilusFileOperationsDBusData *dbus_data,
+                                     NautilusCopyCallback            done_callback,
+                                     gpointer                        done_callback_data)
 {
     GTask *task;
     CopyMoveJob *job;
 
-    job = move_job_setup (files, target_dir, parent_window, done_callback, done_callback_data);
+    job = move_job_setup (files,
+                          target_dir,
+                          parent_window,
+                          dbus_data,
+                          done_callback,
+                          done_callback_data);
+
     task = g_task_new (NULL, job->common.cancellable, move_task_done, job);
     g_task_set_task_data (task, job, NULL);
     g_task_run_in_thread (task, nautilus_file_operations_move);
@@ -6726,16 +6930,17 @@ link_task_thread_func (GTask        *task,
 }
 
 void
-nautilus_file_operations_link (GList                *files,
-                               GFile                *target_dir,
-                               GtkWindow            *parent_window,
-                               NautilusCopyCallback  done_callback,
-                               gpointer              done_callback_data)
+nautilus_file_operations_link (GList                          *files,
+                               GFile                          *target_dir,
+                               GtkWindow                      *parent_window,
+                               NautilusFileOperationsDBusData *dbus_data,
+                               NautilusCopyCallback            done_callback,
+                               gpointer                        done_callback_data)
 {
     g_autoptr (GTask) task = NULL;
     CopyMoveJob *job;
 
-    job = op_job_new (CopyMoveJob, parent_window);
+    job = op_job_new (CopyMoveJob, parent_window, dbus_data);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->files = g_list_copy_deep (files, (GCopyFunc) g_object_ref, NULL);
@@ -6762,16 +6967,17 @@ nautilus_file_operations_link (GList                *files,
 
 
 void
-nautilus_file_operations_duplicate (GList                *files,
-                                    GtkWindow            *parent_window,
-                                    NautilusCopyCallback  done_callback,
-                                    gpointer              done_callback_data)
+nautilus_file_operations_duplicate (GList                          *files,
+                                    GtkWindow                      *parent_window,
+                                    NautilusFileOperationsDBusData *dbus_data,
+                                    NautilusCopyCallback            done_callback,
+                                    gpointer                        done_callback_data)
 {
     g_autoptr (GTask) task = NULL;
     CopyMoveJob *job;
     g_autoptr (GFile) parent = NULL;
 
-    job = op_job_new (CopyMoveJob, parent_window);
+    job = op_job_new (CopyMoveJob, parent_window, dbus_data);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->files = g_list_copy_deep (files, (GCopyFunc) g_object_ref, NULL);
@@ -6823,16 +7029,54 @@ set_permissions_task_done (GObject      *source_object,
 static void
 set_permissions_file (SetPermissionsJob *job,
                       GFile             *file,
+                      GFileInfo         *info);
+
+static void
+set_permissions_contained_files (SetPermissionsJob *job,
+                                 GFile             *file)
+{
+    CommonJob *common;
+    GFileEnumerator *enumerator;
+
+    common = (CommonJob *) job;
+
+    enumerator = g_file_enumerate_children (file,
+                                            G_FILE_ATTRIBUTE_STANDARD_NAME ","
+                                            G_FILE_ATTRIBUTE_STANDARD_TYPE ","
+                                            G_FILE_ATTRIBUTE_UNIX_MODE,
+                                            G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                            common->cancellable,
+                                            NULL);
+    if (enumerator)
+    {
+        GFileInfo *child_info;
+
+        while (!job_aborted (common) &&
+               (child_info = g_file_enumerator_next_file (enumerator, common->cancellable, NULL)) != NULL)
+        {
+            GFile *child;
+
+            child = g_file_get_child (file,
+                                      g_file_info_get_name (child_info));
+            set_permissions_file (job, child, child_info);
+            g_object_unref (child);
+            g_object_unref (child_info);
+        }
+        g_file_enumerator_close (enumerator, common->cancellable, NULL);
+        g_object_unref (enumerator);
+    }
+}
+
+static void
+set_permissions_file (SetPermissionsJob *job,
+                      GFile             *file,
                       GFileInfo         *info)
 {
     CommonJob *common;
-    GFileInfo *child_info;
     gboolean free_info;
     guint32 current;
     guint32 value;
     guint32 mask;
-    GFileEnumerator *enumerator;
-    GFile *child;
 
     common = (CommonJob *) job;
 
@@ -6888,34 +7132,13 @@ set_permissions_file (SetPermissionsJob *job,
     if (!job_aborted (common) &&
         g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY)
     {
-        enumerator = g_file_enumerate_children (file,
-                                                G_FILE_ATTRIBUTE_STANDARD_NAME ","
-                                                G_FILE_ATTRIBUTE_STANDARD_TYPE ","
-                                                G_FILE_ATTRIBUTE_UNIX_MODE,
-                                                G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-                                                common->cancellable,
-                                                NULL);
-        if (enumerator)
-        {
-            while (!job_aborted (common) &&
-                   (child_info = g_file_enumerator_next_file (enumerator, common->cancellable, NULL)) != NULL)
-            {
-                child = g_file_get_child (file,
-                                          g_file_info_get_name (child_info));
-                set_permissions_file (job, child, child_info);
-                g_object_unref (child);
-                g_object_unref (child_info);
-            }
-            g_file_enumerator_close (enumerator, common->cancellable, NULL);
-            g_object_unref (enumerator);
-        }
+        set_permissions_contained_files (job, file);
     }
     if (free_info)
     {
         g_object_unref (info);
     }
 }
-
 
 static void
 set_permissions_thread_func (GTask        *task,
@@ -6932,11 +7155,8 @@ set_permissions_thread_func (GTask        *task,
                                        _("Setting permissions"));
 
     nautilus_progress_info_start (job->common.progress);
-
-    set_permissions_file (job, job->file, NULL);
+    set_permissions_contained_files (job, job->file);
 }
-
-
 
 void
 nautilus_file_set_permissions_recursive (const char         *directory,
@@ -6950,7 +7170,7 @@ nautilus_file_set_permissions_recursive (const char         *directory,
     g_autoptr (GTask) task = NULL;
     SetPermissionsJob *job;
 
-    job = op_job_new (SetPermissionsJob, NULL);
+    job = op_job_new (SetPermissionsJob, NULL, NULL);
     job->file = g_file_new_for_uri (directory);
     job->file_permissions = file_permissions;
     job->file_mask = file_mask;
@@ -7008,12 +7228,13 @@ callback_for_move_to_trash (GHashTable      *debuting_uris,
 }
 
 void
-nautilus_file_operations_copy_move (const GList          *item_uris,
-                                    const char           *target_dir,
-                                    GdkDragAction         copy_action,
-                                    GtkWidget            *parent_view,
-                                    NautilusCopyCallback  done_callback,
-                                    gpointer              done_callback_data)
+nautilus_file_operations_copy_move (const GList                    *item_uris,
+                                    const char                     *target_dir,
+                                    GdkDragAction                   copy_action,
+                                    GtkWidget                      *parent_view,
+                                    NautilusFileOperationsDBusData *dbus_data,
+                                    NautilusCopyCallback            done_callback,
+                                    gpointer                        done_callback_data)
 {
     GList *locations;
     GList *p;
@@ -7068,6 +7289,7 @@ nautilus_file_operations_copy_move (const GList          *item_uris,
         {
             nautilus_file_operations_duplicate (locations,
                                                 parent_window,
+                                                dbus_data,
                                                 done_callback, done_callback_data);
         }
         else
@@ -7075,6 +7297,7 @@ nautilus_file_operations_copy_move (const GList          *item_uris,
             nautilus_file_operations_copy_async (locations,
                                                  dest,
                                                  parent_window,
+                                                 dbus_data,
                                                  done_callback, done_callback_data);
         }
         if (src_dir)
@@ -7094,6 +7317,7 @@ nautilus_file_operations_copy_move (const GList          *item_uris,
 
             nautilus_file_operations_trash_or_delete_async (locations,
                                                             parent_window,
+                                                            dbus_data,
                                                             (NautilusDeleteCallback) callback_for_move_to_trash,
                                                             cb_data);
         }
@@ -7102,6 +7326,7 @@ nautilus_file_operations_copy_move (const GList          *item_uris,
             nautilus_file_operations_move_async (locations,
                                                  dest,
                                                  parent_window,
+                                                 dbus_data,
                                                  done_callback, done_callback_data);
         }
     }
@@ -7110,6 +7335,7 @@ nautilus_file_operations_copy_move (const GList          *item_uris,
         nautilus_file_operations_link (locations,
                                        dest,
                                        parent_window,
+                                       dbus_data,
                                        done_callback, done_callback_data);
     }
 
@@ -7274,7 +7500,7 @@ retry:
         {
             res = g_file_copy (job->src,
                                dest,
-                               G_FILE_COPY_NONE,
+                               G_FILE_COPY_TARGET_DEFAULT_PERMS,
                                common->cancellable,
                                NULL, NULL,
                                &error);
@@ -7370,6 +7596,7 @@ retry:
         job->created_file = g_object_ref (dest);
         nautilus_file_changes_queue_file_added (dest);
         dest_uri = g_file_get_uri (dest);
+        gtk_recent_manager_add_item (gtk_recent_manager_get_default (), dest_uri);
     }
     else
     {
@@ -7542,11 +7769,12 @@ retry:
 }
 
 void
-nautilus_file_operations_new_folder (GtkWidget              *parent_view,
-                                     const char             *parent_dir,
-                                     const char             *folder_name,
-                                     NautilusCreateCallback  done_callback,
-                                     gpointer                done_callback_data)
+nautilus_file_operations_new_folder (GtkWidget                      *parent_view,
+                                     NautilusFileOperationsDBusData *dbus_data,
+                                     const char                     *parent_dir,
+                                     const char                     *folder_name,
+                                     NautilusCreateCallback          done_callback,
+                                     gpointer                        done_callback_data)
 {
     g_autoptr (GTask) task = NULL;
     CreateJob *job;
@@ -7558,7 +7786,7 @@ nautilus_file_operations_new_folder (GtkWidget              *parent_view,
         parent_window = (GtkWindow *) gtk_widget_get_ancestor (parent_view, GTK_TYPE_WINDOW);
     }
 
-    job = op_job_new (CreateJob, parent_window);
+    job = op_job_new (CreateJob, parent_window, dbus_data);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->dest_dir = g_file_new_for_uri (parent_dir);
@@ -7593,7 +7821,7 @@ nautilus_file_operations_new_file_from_template (GtkWidget              *parent_
         parent_window = (GtkWindow *) gtk_widget_get_ancestor (parent_view, GTK_TYPE_WINDOW);
     }
 
-    job = op_job_new (CreateJob, parent_window);
+    job = op_job_new (CreateJob, parent_window, NULL);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->dest_dir = g_file_new_for_uri (parent_dir);
@@ -7633,7 +7861,7 @@ nautilus_file_operations_new_file (GtkWidget              *parent_view,
         parent_window = (GtkWindow *) gtk_widget_get_ancestor (parent_view, GTK_TYPE_WINDOW);
     }
 
-    job = op_job_new (CreateJob, parent_window);
+    job = op_job_new (CreateJob, parent_window, NULL);
     job->done_callback = done_callback;
     job->done_callback_data = done_callback_data;
     job->dest_dir = g_file_new_for_uri (parent_dir);
@@ -7670,6 +7898,15 @@ delete_trash_file (CommonJob *job,
 
     if (del_children)
     {
+        gboolean should_recurse;
+
+        /* The g_file_delete operation works differently for locations provided
+         * by the trash backend as it prevents modifications of trashed items
+         * For that reason, it is enough to call g_file_delete on top-level
+         * items only.
+         */
+        should_recurse = !g_file_has_uri_scheme (file, "trash");
+
         enumerator = g_file_enumerate_children (file,
                                                 G_FILE_ATTRIBUTE_STANDARD_NAME ","
                                                 G_FILE_ATTRIBUTE_STANDARD_TYPE,
@@ -7681,10 +7918,13 @@ delete_trash_file (CommonJob *job,
             while (!job_aborted (job) &&
                    (info = g_file_enumerator_next_file (enumerator, job->cancellable, NULL)) != NULL)
             {
+                gboolean is_dir;
+
                 child = g_file_get_child (file,
                                           g_file_info_get_name (info));
-                delete_trash_file (job, child, TRUE,
-                                   g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY);
+                is_dir = (g_file_info_get_file_type (info) == G_FILE_TYPE_DIRECTORY);
+
+                delete_trash_file (job, child, TRUE, should_recurse && is_dir);
                 g_object_unref (child);
                 g_object_unref (info);
             }
@@ -7754,7 +7994,9 @@ empty_trash_thread_func (GTask        *task,
 }
 
 void
-nautilus_file_operations_empty_trash (GtkWidget *parent_view)
+nautilus_file_operations_empty_trash (GtkWidget                      *parent_view,
+                                      gboolean                        ask_confirmation,
+                                      NautilusFileOperationsDBusData *dbus_data)
 {
     g_autoptr (GTask) task = NULL;
     EmptyTrashJob *job;
@@ -7766,10 +8008,10 @@ nautilus_file_operations_empty_trash (GtkWidget *parent_view)
         parent_window = (GtkWindow *) gtk_widget_get_ancestor (parent_view, GTK_TYPE_WINDOW);
     }
 
-    job = op_job_new (EmptyTrashJob, parent_window);
+    job = op_job_new (EmptyTrashJob, parent_window, dbus_data);
     job->trash_dirs = g_list_prepend (job->trash_dirs,
                                       g_file_new_for_uri ("trash:"));
-    job->should_confirm = TRUE;
+    job->should_confirm = ask_confirmation;
 
     inhibit_power_manager ((CommonJob *) job, _("Emptying Trash"));
 
@@ -8207,16 +8449,17 @@ extract_task_thread_func (GTask        *task,
 }
 
 void
-nautilus_file_operations_extract_files (GList                   *files,
-                                        GFile                   *destination_directory,
-                                        GtkWindow               *parent_window,
-                                        NautilusExtractCallback  done_callback,
-                                        gpointer                 done_callback_data)
+nautilus_file_operations_extract_files (GList                          *files,
+                                        GFile                          *destination_directory,
+                                        GtkWindow                      *parent_window,
+                                        NautilusFileOperationsDBusData *dbus_data,
+                                        NautilusExtractCallback         done_callback,
+                                        gpointer                        done_callback_data)
 {
     ExtractJob *extract_job;
     g_autoptr (GTask) task = NULL;
 
-    extract_job = op_job_new (ExtractJob, parent_window);
+    extract_job = op_job_new (ExtractJob, parent_window, dbus_data);
     extract_job->source_files = g_list_copy_deep (files,
                                                   (GCopyFunc) g_object_ref,
                                                   NULL);
@@ -8554,18 +8797,19 @@ compress_task_thread_func (GTask        *task,
 }
 
 void
-nautilus_file_operations_compress (GList                  *files,
-                                   GFile                  *output,
-                                   AutoarFormat            format,
-                                   AutoarFilter            filter,
-                                   GtkWindow              *parent_window,
-                                   NautilusCreateCallback  done_callback,
-                                   gpointer                done_callback_data)
+nautilus_file_operations_compress (GList                          *files,
+                                   GFile                          *output,
+                                   AutoarFormat                    format,
+                                   AutoarFilter                    filter,
+                                   GtkWindow                      *parent_window,
+                                   NautilusFileOperationsDBusData *dbus_data,
+                                   NautilusCreateCallback          done_callback,
+                                   gpointer                        done_callback_data)
 {
     g_autoptr (GTask) task = NULL;
     CompressJob *compress_job;
 
-    compress_job = op_job_new (CompressJob, parent_window);
+    compress_job = op_job_new (CompressJob, parent_window, dbus_data);
     compress_job->source_files = g_list_copy_deep (files,
                                                    (GCopyFunc) g_object_ref,
                                                    NULL);

@@ -1,12 +1,9 @@
-foreach icon_size: ['16x16', '22x22', '24x24', '32x32', '48x48', '512x512']
-  icondir = join_paths('icons', 'hicolor', icon_size, 'apps')
-
-  install_data(
-    join_paths(icondir, 'org.gnome.Nautilus.png'),
-    install_dir: join_paths(datadir, icondir),
-    rename: '@0@.png'.format(application_id)
-  )
-endforeach
+icondir = join_paths('icons', 'hicolor', 'scalable', 'apps')
+install_data(
+  join_paths(icondir, 'org.gnome.Nautilus' + profile + '.svg'),
+  install_dir: join_paths(datadir, icondir),
+  rename: '@0@.svg'.format(application_id)
+)
 
 icondir = join_paths('icons', 'hicolor', 'symbolic', 'apps')
 
@@ -21,6 +18,7 @@ po_dir = join_paths(meson.source_root(), 'po')
 line_up_parameters = executable(
   'lineup-parameters',
   'lineup-parameters.c',
+  build_by_default: false,
   dependencies: [
     gio,
     gio_unix,
@@ -135,7 +133,10 @@ if appstream_util.found()
   test(
     'validate-appdata', appstream_util,
     args: [
-      'validate-relax', appdata.full_path()
+      'validate-relax', '--nonet', appdata.full_path()
     ]
   )
 endif
+
+subdir('ontology')
+subdir('tracker')

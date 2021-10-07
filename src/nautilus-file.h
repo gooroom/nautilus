@@ -50,13 +50,21 @@ typedef struct NautilusFile NautilusFile;
   (G_TYPE_INSTANCE_GET_CLASS ((obj), NAUTILUS_TYPE_FILE, NautilusFileClass))
 
 typedef enum {
-	NAUTILUS_FILE_SORT_NONE,
-	NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
-	NAUTILUS_FILE_SORT_BY_SIZE,
-	NAUTILUS_FILE_SORT_BY_TYPE,
-	NAUTILUS_FILE_SORT_BY_STARRED,
-	NAUTILUS_FILE_SORT_BY_MTIME,
-        NAUTILUS_FILE_SORT_BY_ATIME,
+	/* These may be set as default-sort-order. When touching this, make sure to
+	 * keep the values in sync with the "org.gnome.nautilus.SortOrder" enum in the
+	 * `data/org.gnome.nautilus.gschema.xml` schemas file, and the attributes[]
+	 * array in `src/nautilus-list-view.c`.
+	 */
+	NAUTILUS_FILE_SORT_BY_DISPLAY_NAME = 0,
+	NAUTILUS_FILE_SORT_BY_SIZE = 1,
+	NAUTILUS_FILE_SORT_BY_TYPE = 2,
+	NAUTILUS_FILE_SORT_BY_MTIME = 3,
+	NAUTILUS_FILE_SORT_BY_ATIME = 4,
+	NAUTILUS_FILE_SORT_BY_STARRED = 5,
+
+	/* The following are specific to special locations and as such are not to be
+	 * included in the "org.gnome.nautilus.SortOrder" enum.
+	 */
 	NAUTILUS_FILE_SORT_BY_TRASHED_TIME,
 	NAUTILUS_FILE_SORT_BY_SEARCH_RELEVANCE,
 	NAUTILUS_FILE_SORT_BY_RECENCY
@@ -417,8 +425,6 @@ gboolean                nautilus_file_is_local_or_fuse                  (Nautilu
 
 /* Comparing two file objects for sorting */
 NautilusFileSortType    nautilus_file_get_default_sort_type             (NautilusFile                   *file,
-									 gboolean                       *reversed);
-const gchar *           nautilus_file_get_default_sort_attribute        (NautilusFile                   *file,
 									 gboolean                       *reversed);
 
 int                     nautilus_file_compare_for_sort                  (NautilusFile                   *file_1,

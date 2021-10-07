@@ -33,6 +33,18 @@
 #include "eel-lib-self-check-functions.h"
 #endif
 
+/**
+ * eel_str_double_underscores:
+ * @string: input string
+ *
+ * This is used if you want to preserve underscore characters
+ * when creating a label with gtk_label_new_with_mnemonic().
+ *
+ * Returns: a newly allocated copy of @string,
+ * with a doubled number of underscores.
+ * If @string doesn't contain underscores, returns a copy of it.
+ * If @string is %NULL, returns %NULL.
+ */
 char *
 eel_str_double_underscores (const char *string)
 {
@@ -72,6 +84,14 @@ eel_str_double_underscores (const char *string)
     return escaped;
 }
 
+/**
+ * eel_str_capitalize:
+ * @string: input string
+ *
+ * Returns: a newly allocated copy of @string,
+ * with the first letter capitalized.
+ * If @string is %NULL, returns %NULL.
+ */
 char *
 eel_str_capitalize (const char *string)
 {
@@ -89,6 +109,15 @@ eel_str_capitalize (const char *string)
     return capitalized;
 }
 
+/**
+ * eel_str_middle_truncate:
+ * @string: (not nullable): input string
+ * truncate_length: length of the truncated string
+ *
+ * Returns: (transfer full): a newly-allocated copy of @string with its middle
+ * truncated and replaced with ellipsis to fit into @truncate_length characters.
+ * If length of @string is already small enough, returns a copy of @string.
+ */
 gchar *
 eel_str_middle_truncate (const gchar *string,
                          guint        truncate_length)
@@ -131,6 +160,15 @@ eel_str_middle_truncate (const gchar *string,
     return g_strconcat (left_substring, ellipsis, right_substring, NULL);
 }
 
+/**
+ * eel_str_strip_substring_and_after:
+ * @string: input string
+ * @substring: (not nullable): substring to use in search
+ *
+ * Returns: (transfer full): a copy of @string with the first occurence of
+ * @substring removed, along with any trailing characters.
+ * If @string is %NULL, returns %NULL.
+ */
 char *
 eel_str_strip_substring_and_after (const char *string,
                                    const char *substring)
@@ -155,6 +193,15 @@ eel_str_strip_substring_and_after (const char *string,
                       substring_position - string);
 }
 
+/**
+ * eel_str_replace_substring:
+ * @string: input string
+ * @substring: (not nullable): string to be replaced
+ * @replacement: string used as replacement
+ *
+ * Returns: (transfer full): a copy of @string with all occurences of @substring
+ * replaced with @replacement.
+ */
 char *
 eel_str_replace_substring (const char *string,
                            const char *substring,
@@ -265,6 +312,15 @@ get_common_prefix_length (char *str_a,
     return matching_chars;
 }
 
+/**
+ * eel_str_get_common_prefix:
+ * @strs: a list of strings
+ * @min_required_len: the minimum number of characters required in prefix
+ *
+ * Returns: (transfer full): the common prefix for strings in @strs.
+ * If no such prefix exists or if the common prefix is smaller than
+ * @min_required_len, %NULL is returned.
+ */
 char *
 eel_str_get_common_prefix (GList *strs,
                            int    min_required_len)
@@ -344,121 +400,6 @@ enum
     ARG_TYPE_DOUBLE,
     ARG_TYPE_POINTER
 };
-
-/*********** refcounted strings ****************/
-
-G_LOCK_DEFINE_STATIC (unique_ref_strs);
-static GHashTable *unique_ref_strs = NULL;
-
-static eel_ref_str
-eel_ref_str_new_internal (const char *string,
-                          int         start_count)
-{
-    char *res;
-    volatile gint *count;
-    gsize len;
-
-    len = strlen (string);
-    res = g_malloc (sizeof (gint) + len + 1);
-    count = (volatile gint *) res;
-    *count = start_count;
-    res += sizeof (gint);
-    memcpy (res, string, len + 1);
-    return res;
-}
-
-eel_ref_str
-eel_ref_str_new (const char *string)
-{
-    if (string == NULL)
-    {
-        return NULL;
-    }
-
-    return eel_ref_str_new_internal (string, 1);
-}
-
-eel_ref_str
-eel_ref_str_get_unique (const char *string)
-{
-    eel_ref_str res;
-
-    if (string == NULL)
-    {
-        return NULL;
-    }
-
-    G_LOCK (unique_ref_strs);
-    if (unique_ref_strs == NULL)
-    {
-        unique_ref_strs =
-            g_hash_table_new (g_str_hash, g_str_equal);
-    }
-
-    res = g_hash_table_lookup (unique_ref_strs, string);
-    if (res != NULL)
-    {
-        eel_ref_str_ref (res);
-    }
-    else
-    {
-        res = eel_ref_str_new_internal (string, 0x80000001);
-        g_hash_table_insert (unique_ref_strs, res, res);
-    }
-
-    G_UNLOCK (unique_ref_strs);
-
-    return res;
-}
-
-eel_ref_str
-eel_ref_str_ref (eel_ref_str str)
-{
-    volatile gint *count;
-
-    count = (volatile gint *) ((char *) str - sizeof (gint));
-    g_atomic_int_add (count, 1);
-
-    return str;
-}
-
-void
-eel_ref_str_unref (eel_ref_str str)
-{
-    volatile gint *count;
-    gint old_ref;
-
-    if (str == NULL)
-    {
-        return;
-    }
-
-    count = (volatile gint *) ((char *) str - sizeof (gint));
-
-retry_atomic_decrement:
-    old_ref = g_atomic_int_get (count);
-    if (old_ref == 1)
-    {
-        g_free ((char *) count);
-    }
-    else if (old_ref == 0x80000001)
-    {
-        G_LOCK (unique_ref_strs);
-        /* Need to recheck after taking lock to avoid races with _get_unique() */
-        if (g_atomic_int_add (count, -1) == 0x80000001)
-        {
-            g_hash_table_remove (unique_ref_strs, (char *) str);
-            g_free ((char *) count);
-        }
-        G_UNLOCK (unique_ref_strs);
-    }
-    else if (!g_atomic_int_compare_and_exchange (count,
-                                                 old_ref, old_ref - 1))
-    {
-        goto retry_atomic_decrement;
-    }
-}
-
 
 #if !defined (EEL_OMIT_SELF_CHECK)
 

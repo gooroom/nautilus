@@ -407,24 +407,10 @@ nautilus_canvas_view_get_directory_sort_by (NautilusCanvasView *canvas_view,
 static const SortCriterion *
 get_default_sort_order (NautilusFile *file)
 {
-    NautilusFileSortType sort_type, default_sort_order;
+    NautilusFileSortType sort_type;
     gboolean reversed;
 
-    default_sort_order = g_settings_get_enum (nautilus_preferences,
-                                              NAUTILUS_PREFERENCES_DEFAULT_SORT_ORDER);
-    reversed = g_settings_get_boolean (nautilus_preferences,
-                                       NAUTILUS_PREFERENCES_DEFAULT_SORT_IN_REVERSE_ORDER);
-
-    /* If this is a special folder (e.g. search or recent), override the sort
-     * order and reversed flag with values appropriate for the folder */
     sort_type = nautilus_file_get_default_sort_type (file, &reversed);
-
-    if (sort_type == NAUTILUS_FILE_SORT_NONE)
-    {
-        sort_type = CLAMP (default_sort_order,
-                           NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
-                           NAUTILUS_FILE_SORT_BY_ATIME);
-    }
 
     return get_sort_criterion_by_sort_type (sort_type, reversed);
 }
@@ -1291,13 +1277,16 @@ nautilus_canvas_view_sort_directories_first_changed (NautilusFilesView *director
     nautilus_canvas_container_sort (get_canvas_container (canvas_view));
 }
 
-static gboolean
-canvas_view_can_accept_item (NautilusCanvasContainer *container,
-                             NautilusFile            *target_item,
-                             const char              *item_uri,
-                             NautilusFilesView       *view)
+static void
+nautilus_canvas_view_preview_selection_event (NautilusFilesView *directory_view,
+                                              GtkDirectionType   direction)
 {
-    return nautilus_drag_can_accept_item (target_item, item_uri);
+    NautilusCanvasView *canvas_view;
+
+    canvas_view = NAUTILUS_CANVAS_VIEW (directory_view);
+
+    nautilus_canvas_container_preview_selection_event (get_canvas_container (canvas_view),
+                                                       direction);
 }
 
 static char *
@@ -1410,8 +1399,6 @@ initialize_canvas_container (NautilusCanvasView      *canvas_view,
                              G_CALLBACK (canvas_view_move_copy_items), canvas_view, 0);
     g_signal_connect_object (canvas_container, "get-container-uri",
                              G_CALLBACK (canvas_view_get_container_uri), canvas_view, 0);
-    g_signal_connect_object (canvas_container, "can-accept-item",
-                             G_CALLBACK (canvas_view_can_accept_item), canvas_view, 0);
 
     gtk_container_add (GTK_CONTAINER (content_widget),
                        GTK_WIDGET (canvas_container));
@@ -1432,6 +1419,18 @@ canvas_view_handle_uri_list (NautilusCanvasContainer *container,
 {
     nautilus_files_view_handle_uri_list_drop (NAUTILUS_FILES_VIEW (view),
                                               item_uris, target_uri, action);
+}
+
+/* Handles an URL received from Mozilla */
+static void
+canvas_view_handle_netscape_url (NautilusCanvasContainer *container,
+                                 const char              *encoded_url,
+                                 const char              *target_uri,
+                                 GdkDragAction            action,
+                                 NautilusCanvasView      *view)
+{
+    nautilus_files_view_handle_netscape_url_drop (NAUTILUS_FILES_VIEW (view),
+                                                  encoded_url, target_uri, action);
 }
 
 static void
@@ -1579,6 +1578,7 @@ nautilus_canvas_view_class_init (NautilusCanvasViewClass *klass)
     nautilus_files_view_class->get_first_visible_file = canvas_view_get_first_visible_file;
     nautilus_files_view_class->scroll_to_file = canvas_view_scroll_to_file;
     nautilus_files_view_class->reveal_for_selection_context_menu = nautilus_canvas_view_reveal_for_selection_context_menu;
+    nautilus_files_view_class->preview_selection_event = nautilus_canvas_view_preview_selection_event;
 }
 
 static void
@@ -1614,6 +1614,8 @@ nautilus_canvas_view_init (NautilusCanvasView *canvas_view)
 
     g_signal_connect_object (canvas_container, "handle-uri-list",
                              G_CALLBACK (canvas_view_handle_uri_list), canvas_view, 0);
+    g_signal_connect_object (canvas_container, "handle-netscape-url",
+                             G_CALLBACK (canvas_view_handle_netscape_url), canvas_view, 0);
     g_signal_connect_object (canvas_container, "handle-text",
                              G_CALLBACK (canvas_view_handle_text), canvas_view, 0);
     g_signal_connect_object (canvas_container, "handle-raw",

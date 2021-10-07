@@ -29,14 +29,12 @@
 #include <eel/eel-gtk-extensions.h>
 #include <eel/eel-vfs-extensions.h>
 #include <gdk/gdkkeysyms.h>
-#include <gdk/gdkx.h>
+#include <gdk/gdk.h>
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
 
 #define DEBUG_FLAG NAUTILUS_DEBUG_CANVAS_CONTAINER
 #include "nautilus-debug.h"
@@ -190,7 +188,6 @@ enum
     BAND_SELECT_STARTED,
     BAND_SELECT_ENDED,
     BUTTON_PRESS,
-    CAN_ACCEPT_ITEM,
     CONTEXT_CLICK_BACKGROUND,
     CONTEXT_CLICK_SELECTION,
     MIDDLE_CLICK,
@@ -1223,7 +1220,7 @@ lay_down_icons_horizontal (NautilusCanvasContainer *container,
         double unused_width = available_width - used_width;
 
         double max_extra_fraction = (unused_width / num_icons) / min_grid_width;
-        double extra_fraction = pow(max_extra_fraction + 1.0, 1.0 / 4.0) - 1.0;
+        double extra_fraction = pow (max_extra_fraction + 1.0, 1.0 / 4.0) - 1.0;
 
         grid_width = min_grid_width * (1 + extra_fraction);
     }
@@ -1306,7 +1303,7 @@ lay_down_icons_horizontal (NautilusCanvasContainer *container,
         /* Advance to the baseline. */
         y += ICON_PAD_TOP + max_height_above;
 
-        lay_down_one_line (container, line_start, NULL, y, max_height_above, positions, TRUE);
+        lay_down_one_line (container, line_start, NULL, y, max_height_above, positions, FALSE);
     }
 
     g_array_free (positions, TRUE);
@@ -2761,7 +2758,8 @@ keyboard_arrow_key (NautilusCanvasContainer *container,
 static gboolean
 is_rectangle_selection_event (GdkEventKey *event)
 {
-    return (event->state & GDK_CONTROL_MASK) != 0 &&
+    return event != NULL &&
+           (event->state & GDK_CONTROL_MASK) != 0 &&
            (event->state & GDK_SHIFT_MASK) != 0;
 }
 
@@ -2867,6 +2865,28 @@ keyboard_up (NautilusCanvasContainer *container,
                         NULL,
                         NULL,
                         closest_in_90_degrees);
+}
+
+void
+nautilus_canvas_container_preview_selection_event (NautilusCanvasContainer *container,
+                                                   GtkDirectionType         direction)
+{
+    if (direction == GTK_DIR_UP)
+    {
+        keyboard_up (container, NULL);
+    }
+    else if (direction == GTK_DIR_DOWN)
+    {
+        keyboard_down (container, NULL);
+    }
+    else if (direction == GTK_DIR_LEFT)
+    {
+        keyboard_left (container, NULL);
+    }
+    else if (direction == GTK_DIR_RIGHT)
+    {
+        keyboard_right (container, NULL);
+    }
 }
 
 static void
@@ -3961,17 +3981,6 @@ nautilus_canvas_container_class_init (NautilusCanvasContainerClass *class)
                         NULL, NULL,
                         g_cclosure_marshal_generic,
                         G_TYPE_STRING, 0);
-    signals[CAN_ACCEPT_ITEM]
-        = g_signal_new ("can-accept-item",
-                        G_TYPE_FROM_CLASS (class),
-                        G_SIGNAL_RUN_LAST,
-                        G_STRUCT_OFFSET (NautilusCanvasContainerClass,
-                                         can_accept_item),
-                        NULL, NULL,
-                        g_cclosure_marshal_generic,
-                        G_TYPE_INT, 2,
-                        G_TYPE_POINTER,
-                        G_TYPE_STRING);
     signals[BAND_SELECT_STARTED]
         = g_signal_new ("band-select-started",
                         G_TYPE_FROM_CLASS (class),
@@ -4959,7 +4968,7 @@ finish_adding_new_icons (NautilusCanvasContainer *container)
     new_icons = container->details->new_icons;
     container->details->new_icons = NULL;
     container->details->is_populating_container = g_list_length (new_icons) ==
-        g_hash_table_size (container->details->icon_set);
+                                                  g_hash_table_size (container->details->icon_set);
 
     /* Position most icons (not unpositioned manual-layout icons). */
     new_icons = g_list_reverse (new_icons);
@@ -5919,7 +5928,9 @@ nautilus_canvas_container_accessible_icon_added_cb (NautilusCanvasContainer *con
 
     /* We don't want to emit children_changed signals during any type of load. */
     if (!container->details->in_layout_now || container->details->is_populating_container)
+    {
         return;
+    }
 
     icon = g_hash_table_lookup (container->details->icon_set, icon_data);
     if (icon)

@@ -104,6 +104,8 @@ struct _NautilusToolbar
     GtkGesture *back_button_longpress_gesture;
     GtkGesture *back_button_multi_press_gesture;
 
+    GtkWidget *search_button;
+
     GtkWidget *location_entry_close_button;
 
     NautilusProgressInfoManager *progress_manager;
@@ -111,6 +113,8 @@ struct _NautilusToolbar
     /* active slot & bindings */
     NautilusWindowSlot *window_slot;
     GBinding *icon_binding;
+    GBinding *search_binding;
+    GBinding *tooltip_binding;
 };
 
 enum
@@ -118,6 +122,7 @@ enum
     PROP_WINDOW = 1,
     PROP_SHOW_LOCATION_ENTRY,
     PROP_WINDOW_SLOT,
+    PROP_SEARCHING,
     NUM_PROPERTIES
 };
 
@@ -127,7 +132,7 @@ G_DEFINE_TYPE (NautilusToolbar, nautilus_toolbar, GTK_TYPE_HEADER_BAR);
 
 static void nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                                    NautilusWindowSlot *slot);
-static void update_operations                     (NautilusToolbar    *self);
+static void update_operations (NautilusToolbar *self);
 
 static void
 toolbar_update_appearance (NautilusToolbar *self)
@@ -137,7 +142,6 @@ toolbar_update_appearance (NautilusToolbar *self)
     show_location_entry = self->show_location_entry ||
                           g_settings_get_boolean (nautilus_preferences,
                                                   NAUTILUS_PREFERENCES_ALWAYS_USE_LOCATION_ENTRY);
-
 
     if (self->window_slot != NULL &&
         nautilus_window_slot_get_searching (self->window_slot))
@@ -192,7 +196,7 @@ fill_menu (NautilusToolbar *self,
     GList *list;
 
     list = back ? nautilus_window_slot_get_back_history (self->window_slot) :
-                  nautilus_window_slot_get_forward_history (self->window_slot);
+           nautilus_window_slot_get_forward_history (self->window_slot);
 
     index = 0;
     while (list != NULL)
@@ -846,31 +850,6 @@ undo_manager_changed (NautilusToolbar *self)
 }
 
 static void
-on_notify_width_maximized (NautilusContainerMaxWidth *container,
-                           GParamSpec                *pspec,
-                           gpointer                   user_data)
-{
-    NautilusToolbar *self;
-    GtkStyleContext *context;
-    gboolean width_maximized;
-
-    self = NAUTILUS_TOOLBAR (user_data);
-    context = gtk_widget_get_style_context (self->path_bar_container);
-    width_maximized = nautilus_container_max_width_get_width_maximized (container);
-
-    g_return_if_fail (gtk_style_context_has_class (context, "width-maximized") != width_maximized);
-
-    if (width_maximized)
-    {
-        gtk_style_context_add_class (context, "width-maximized");
-    }
-    else
-    {
-        gtk_style_context_remove_class (context, "width-maximized");
-    }
-}
-
-static void
 on_location_entry_close (GtkWidget       *close_button,
                          NautilusToolbar *self)
 {
@@ -933,10 +912,6 @@ nautilus_toolbar_constructed (GObject *object)
     self->path_bar = g_object_new (NAUTILUS_TYPE_PATH_BAR, NULL);
     gtk_container_add (GTK_CONTAINER (self->path_bar_container),
                        self->path_bar);
-    g_signal_connect (self->toolbar_switcher_container_max_width,
-                      "notify::width-maximized",
-                      G_CALLBACK (on_notify_width_maximized),
-                      self);
 
     self->location_entry = nautilus_location_entry_new ();
     gtk_container_add (GTK_CONTAINER (self->location_entry_container),
@@ -1032,6 +1007,12 @@ nautilus_toolbar_get_property (GObject    *object,
         }
         break;
 
+        case PROP_SEARCHING:
+        {
+            g_value_set_boolean (value, gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (self->search_button)));
+        }
+        break;
+
         default:
         {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1052,6 +1033,7 @@ on_window_slot_destroyed (gpointer  data,
      * Null it here, so that dispose() does not trip over itself when removing it.
      */
     self->icon_binding = NULL;
+    self->search_binding = NULL;
 
     nautilus_toolbar_set_window_slot_real (self, NULL);
 }
@@ -1130,6 +1112,13 @@ nautilus_toolbar_set_property (GObject      *object,
         }
         break;
 
+        case PROP_SEARCHING:
+        {
+            gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (self->search_button),
+                                          g_value_get_boolean (value));
+        }
+        break;
+
         default:
         {
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1148,6 +1137,7 @@ nautilus_toolbar_dispose (GObject *object)
     g_clear_object (&self->forward_button_multi_press_gesture);
     g_clear_object (&self->back_button_multi_press_gesture);
     g_clear_pointer (&self->icon_binding, g_binding_unbind);
+    g_clear_pointer (&self->search_binding, g_binding_unbind);
 
     G_OBJECT_CLASS (nautilus_toolbar_parent_class)->dispose (object);
 }
@@ -1213,12 +1203,19 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
                               G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
     properties [PROP_WINDOW_SLOT] =
-      g_param_spec_object ("window-slot",
-                           "Window slot currently active",
-                           "Window slot currently acive",
-                           NAUTILUS_TYPE_WINDOW_SLOT,
-                           (G_PARAM_READWRITE |
-                            G_PARAM_STATIC_STRINGS));
+        g_param_spec_object ("window-slot",
+                             "Window slot currently active",
+                             "Window slot currently acive",
+                             NAUTILUS_TYPE_WINDOW_SLOT,
+                             (G_PARAM_READWRITE |
+                              G_PARAM_STATIC_STRINGS));
+
+    properties [PROP_SEARCHING] =
+        g_param_spec_boolean ("searching",
+                              "Current view is searching",
+                              "Whether the current view is searching or not",
+                              FALSE,
+                              G_PARAM_READWRITE);
 
     g_object_class_install_properties (oclass, NUM_PROPERTIES, properties);
 
@@ -1242,6 +1239,8 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, view_menu_extended_section);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, undo_button);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, redo_button);
+
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, search_button);
 
     gtk_widget_class_bind_template_callback (widget_class, on_operations_icon_draw);
     gtk_widget_class_bind_template_callback (widget_class, on_operations_button_toggled);
@@ -1342,9 +1341,9 @@ on_slot_toolbar_menu_sections_changed (NautilusToolbar    *self,
                             new_sections->extended_section, FALSE, FALSE, 0);
     }
 
-    gtk_widget_set_sensitive (self->view_button, new_sections->extended_section != NULL ||
-                                                 new_sections->zoom_section != NULL ||
-                                                 new_sections->supports_undo_redo);
+    gtk_widget_set_sensitive (self->view_button, (new_sections->extended_section != NULL ||
+                                                  new_sections->zoom_section != NULL ||
+                                                  new_sections->supports_undo_redo));
 }
 
 
@@ -1381,6 +1380,26 @@ nautilus_toolbar_view_toggle_icon_transform_to (GBinding     *binding,
     return TRUE;
 }
 
+static gboolean
+nautilus_toolbar_view_toggle_tooltip_transform_to (GBinding     *binding,
+                                                   const GValue *from_value,
+                                                   GValue       *to_value,
+                                                   gpointer      user_data)
+{
+    const gchar *tooltip;
+
+    tooltip = g_value_get_string (from_value);
+
+    /* As per design decision, we let the previous used tooltip if no
+     * view menu is available */
+    if (tooltip)
+    {
+        g_value_set_string (to_value, tooltip);
+    }
+
+    return TRUE;
+}
+
 /* Called from on_window_slot_destroyed(), since bindings and signal handlers
  * are automatically removed once the slot goes away.
  */
@@ -1406,6 +1425,18 @@ nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                                           self,
                                                           NULL);
 
+        self->tooltip_binding = g_object_bind_property_full (self->window_slot, "tooltip",
+                                                             self->view_toggle_button, "tooltip-text",
+                                                             G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE,
+                                                             (GBindingTransformFunc) nautilus_toolbar_view_toggle_tooltip_transform_to,
+                                                             NULL,
+                                                             self,
+                                                             NULL);
+
+        self->search_binding = g_object_bind_property (self->window_slot, "searching",
+                                                       self, "searching",
+                                                       G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
+
         on_slot_toolbar_menu_sections_changed (self, NULL, self->window_slot);
         g_signal_connect_swapped (self->window_slot, "notify::toolbar-menu-sections",
                                   G_CALLBACK (on_slot_toolbar_menu_sections_changed), self);
@@ -1415,7 +1446,6 @@ nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                   G_CALLBACK (slot_on_templates_menu_changed), self);
         g_signal_connect_swapped (self->window_slot, "notify::searching",
                                   G_CALLBACK (toolbar_update_appearance), self);
-
     }
 
     children = gtk_container_get_children (GTK_CONTAINER (self->search_container));
@@ -1434,6 +1464,7 @@ nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
     toolbar_update_appearance (self);
 
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_WINDOW_SLOT]);
+    g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_SEARCHING]);
 }
 
 void
@@ -1449,6 +1480,7 @@ nautilus_toolbar_set_window_slot (NautilusToolbar    *self,
     }
 
     g_clear_pointer (&self->icon_binding, g_binding_unbind);
+    g_clear_pointer (&self->search_binding, g_binding_unbind);
 
     disconnect_toolbar_menu_sections_change_handler (self);
     if (self->window_slot != NULL)

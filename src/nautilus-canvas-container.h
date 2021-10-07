@@ -155,9 +155,6 @@ typedef struct {
 	 * These must be implemented => These are signals !
 	 * The default "do nothing" is not good enough.
 	 */
-	gboolean     (* can_accept_item)	  (NautilusCanvasContainer *container,
-						   NautilusCanvasIconData *target, 
-						   const char *item_uri);
 	gboolean     (* get_stored_icon_position) (NautilusCanvasContainer *container,
 						     NautilusCanvasIconData *data,
 						     NautilusCanvasPosition *position);
@@ -255,6 +252,8 @@ void              nautilus_canvas_container_select_all                    (Nauti
 
 void              nautilus_canvas_container_select_first                  (NautilusCanvasContainer  *view);
 
+void              nautilus_canvas_container_preview_selection_event       (NautilusCanvasContainer  *view,
+                                                                           GtkDirectionType          direction);
 
 /* operations on the selection */
 GList     *       nautilus_canvas_container_get_selection                 (NautilusCanvasContainer  *view);

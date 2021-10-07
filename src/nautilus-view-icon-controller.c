@@ -156,24 +156,9 @@ static const SortConstants *
 get_default_sort_order (NautilusFile *file)
 {
     NautilusFileSortType sort_type;
-    NautilusFileSortType default_sort_order;
     gboolean reversed;
 
-    default_sort_order = g_settings_get_enum (nautilus_preferences,
-                                              NAUTILUS_PREFERENCES_DEFAULT_SORT_ORDER);
-    reversed = g_settings_get_boolean (nautilus_preferences,
-                                       NAUTILUS_PREFERENCES_DEFAULT_SORT_IN_REVERSE_ORDER);
-
-    /* If this is a special folder (e.g. search or recent), override the sort
-     * order and reversed flag with values appropriate for the folder */
     sort_type = nautilus_file_get_default_sort_type (file, &reversed);
-
-    if (sort_type == NAUTILUS_FILE_SORT_NONE)
-    {
-        sort_type = CLAMP (default_sort_order,
-                           NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
-                           NAUTILUS_FILE_SORT_BY_ATIME);
-    }
 
     return get_sorts_constants_from_sort_type (sort_type, reversed);
 }
@@ -235,8 +220,9 @@ real_begin_loading (NautilusFilesView *files_view)
 {
     NautilusViewIconController *self = NAUTILUS_VIEW_ICON_CONTROLLER (files_view);
 
-    /* TODO: This calls sort once, and update_context_menus calls update_actions which calls */
-    /* the action again */
+    /* TODO: This calls sort once, and update_context_menus calls update_actions which calls
+     * the action again
+     */
     update_sort_order_from_metadata_and_preferences (self);
 
     /*TODO move this to the files view class begin_loading and hook up? */
@@ -923,6 +909,23 @@ real_select_first (NautilusFilesView *files_view)
 }
 
 static void
+real_preview_selection_event (NautilusFilesView *files_view,
+                              GtkDirectionType   direction)
+{
+    NautilusViewIconController *self = NAUTILUS_VIEW_ICON_CONTROLLER (files_view);
+    GtkMovementStep step;
+    gint count;
+    gboolean handled;
+
+    step = (direction == GTK_DIR_UP || direction == GTK_DIR_DOWN) ?
+           GTK_MOVEMENT_DISPLAY_LINES : GTK_MOVEMENT_VISUAL_POSITIONS;
+    count = (direction == GTK_DIR_RIGHT || direction == GTK_DIR_DOWN) ?
+            1 : -1;
+
+    g_signal_emit_by_name (self->view_ui, "move-cursor", step, count, &handled);
+}
+
+static void
 action_zoom_to_level (GSimpleAction *action,
                       GVariant      *state,
                       gpointer       user_data)
@@ -1071,6 +1074,7 @@ nautilus_view_icon_controller_class_init (NautilusViewIconControllerClass *klass
     files_view_class->is_zoom_level_default = real_is_zoom_level_default;
     files_view_class->compute_rename_popover_pointing_to = real_compute_rename_popover_pointing_to;
     files_view_class->reveal_for_selection_context_menu = real_reveal_for_selection_context_menu;
+    files_view_class->preview_selection_event = real_preview_selection_event;
 }
 
 static void

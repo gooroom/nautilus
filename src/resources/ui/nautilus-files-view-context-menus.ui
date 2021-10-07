@@ -5,18 +5,15 @@
       <attribute name="label" translatable="yes">New _Folder</attribute>
       <attribute name="action">view.new-folder</attribute>
     </item>
-    <submenu>
-      <attribute name="id">templates-submenu</attribute>
+    <submenu id="templates-submenu">
       <attribute name="label" translatable="yes">New _Document</attribute>
       <attribute name="action">view.new-document</attribute>
       <attribute name="hidden-when">action-disabled</attribute>
     </submenu>
-    <section>
-      <item>
-        <attribute name="label" translatable="yes">_Paste</attribute>
-        <attribute name="action">view.paste</attribute>
-      </item>
-    </section>
+    <item>
+      <attribute name="label" translatable="yes">Add to _Bookmarks</attribute>
+      <attribute name="action">win.bookmark-current-location</attribute>
+    </item>
     <section>
       <item>
         <attribute name="label" translatable="yes">Create _Link</attribute>
@@ -26,9 +23,15 @@
     </section>
     <section>
       <item>
+        <attribute name="label" translatable="yes">_Paste</attribute>
+        <attribute name="action">view.paste</attribute>
+      </item>
+      <item>
         <attribute name="label" translatable="yes">Select _All</attribute>
         <attribute name="action">view.select-all</attribute>
       </item>
+    </section>
+    <section id="background-extensions-section">
     </section>
     <section>
       <item>
@@ -37,19 +40,13 @@
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
-    <section>
-      <attribute name="id">extensions</attribute>
-    </section>
   </menu>
   <menu id="selection-menu">
-    <section>
-      <attribute name="id">new-folder-with-selection-section</attribute>
+    <section id="new-folder-with-selection-section">
     </section>
-    <section>
-      <attribute name="id">open-with-default-application-section</attribute>
+    <section id="open-with-default-application-section">
     </section>
-    <submenu>
-      <attribute name="id">scripts-submenu</attribute>
+    <submenu id="scripts-submenu">
       <attribute name="label" translatable="yes">_Scripts</attribute>
       <attribute name="action">view.scripts</attribute>
       <attribute name="hidden-when">action-disabled</attribute>
@@ -85,8 +82,7 @@
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
-    <section>
-      <attribute name="id">drive-section</attribute>
+    <section id="drive-section">
       <item>
         <attribute name="label" translatable="yes">_Mount</attribute>
         <attribute name="action">view.mount-volume</attribute>
@@ -198,7 +194,6 @@
       </item>
     </section>
     <section>
-      <attribute name="id">extensions</attribute>
       <item>
         <attribute name="label" translatable="yes">_Extract Here</attribute>
         <attribute name="action">view.extract-here</attribute>
@@ -214,6 +209,8 @@
         <attribute name="action">view.compress</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
+    </section>
+    <section id="selection-extensions-section">
     </section>
     <section>
       <item>

@@ -32,14 +32,15 @@
 #include <gio/gio.h>
 
 #define FILE_ATTRIBS G_FILE_ATTRIBUTE_STANDARD_IS_HIDDEN "," \
-                     G_FILE_ATTRIBUTE_STANDARD_IS_BACKUP "," \
-                     G_FILE_ATTRIBUTE_ACCESS_CAN_READ ","
+    G_FILE_ATTRIBUTE_STANDARD_IS_BACKUP "," \
+    G_FILE_ATTRIBUTE_ACCESS_CAN_READ ","
 
 struct _NautilusSearchEngineRecent
 {
     GObject parent_instance;
 
     NautilusQuery *query;
+    gboolean running;
     GCancellable *cancellable;
     GtkRecentManager *recent_manager;
     guint add_hits_idle_id;
@@ -55,9 +56,9 @@ G_DEFINE_TYPE_WITH_CODE (NautilusSearchEngineRecent,
 
 enum
 {
-  PROP_0,
-  PROP_RUNNING,
-  LAST_PROP
+    PROP_0,
+    PROP_RUNNING,
+    LAST_PROP
 };
 
 
@@ -92,7 +93,7 @@ static gboolean
 search_thread_add_hits_idle (gpointer user_data)
 {
     SearchHitsData *search_hits = user_data;
-    NautilusSearchEngineRecent *self = search_hits->recent;
+    g_autoptr (NautilusSearchEngineRecent) self = search_hits->recent;
     NautilusSearchProvider *provider = NAUTILUS_SEARCH_PROVIDER (self);
 
     self->add_hits_idle_id = 0;
@@ -103,6 +104,7 @@ search_thread_add_hits_idle (gpointer user_data)
         DEBUG ("Recent engine add hits");
     }
 
+    self->running = FALSE;
     g_list_free_full (search_hits->hits, g_object_unref);
     g_clear_object (&self->cancellable);
     g_free (search_hits);
@@ -110,8 +112,6 @@ search_thread_add_hits_idle (gpointer user_data)
     nautilus_search_provider_finished (provider,
                                        NAUTILUS_SEARCH_PROVIDER_STATUS_NORMAL);
     g_object_notify (G_OBJECT (provider), "running");
-
-    g_object_unref (self);
 
     return FALSE;
 }
@@ -124,20 +124,21 @@ search_add_hits_idle (NautilusSearchEngineRecent *self,
 
     if (self->add_hits_idle_id != 0)
     {
+        g_list_free_full (hits, g_object_unref);
         return;
     }
 
     search_hits = g_new0 (SearchHitsData, 1);
-    search_hits->recent = self;
+    search_hits->recent = g_object_ref (self);
     search_hits->hits = hits;
 
     self->add_hits_idle_id = g_idle_add (search_thread_add_hits_idle, search_hits);
 }
 
 static gboolean
-is_file_valid_recursive (NautilusSearchEngineRecent *self,
-                         GFile                      *file,
-                         GError                    **error)
+is_file_valid_recursive (NautilusSearchEngineRecent  *self,
+                         GFile                       *file,
+                         GError                     **error)
 {
     g_autofree gchar *path = NULL;
     g_autoptr (GFileInfo) file_info = NULL;
@@ -182,11 +183,11 @@ is_file_valid_recursive (NautilusSearchEngineRecent *self,
 static gpointer
 recent_thread_func (gpointer user_data)
 {
-    NautilusSearchEngineRecent *self = NAUTILUS_SEARCH_ENGINE_RECENT (user_data);
+    g_autoptr (NautilusSearchEngineRecent) self = NAUTILUS_SEARCH_ENGINE_RECENT (user_data);
     g_autoptr (GPtrArray) date_range = NULL;
     g_autoptr (GFile) query_location = NULL;
+    g_autoptr (GPtrArray) mime_types = NULL;
     GList *recent_items;
-    GList *mime_types;
     GList *hits;
     GList *l;
 
@@ -214,28 +215,6 @@ recent_thread_func (gpointer user_data)
             continue;
         }
 
-        if (gtk_recent_info_is_local (info))
-        {
-            g_autoptr (GError) error = NULL;
-
-            if (!is_file_valid_recursive (self, file, &error))
-            {
-                if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
-                {
-                    break;
-                }
-
-                if (error != NULL &&
-                    !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
-                {
-                    g_debug("Impossible to read recent file info: %s",
-                            error->message);
-                }
-
-                continue;
-            }
-        }
-
         if (g_cancellable_is_cancelled (self->cancellable))
         {
             break;
@@ -257,16 +236,36 @@ recent_thread_func (gpointer user_data)
             g_autoptr (GDateTime) gmodified = NULL;
             g_autoptr (GDateTime) gvisited = NULL;
 
-            if (mime_types)
+            if (gtk_recent_info_is_local (info))
             {
-                GList *ml;
+                g_autoptr (GError) error = NULL;
+
+                if (!is_file_valid_recursive (self, file, &error))
+                {
+                    if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+                    {
+                        break;
+                    }
+
+                    if (error != NULL &&
+                        !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+                    {
+                        g_debug ("Impossible to read recent file info: %s",
+                                 error->message);
+                    }
+
+                    continue;
+                }
+            }
+
+            if (mime_types->len > 0)
+            {
                 const gchar *mime_type = gtk_recent_info_get_mime_type (info);
                 gboolean found = FALSE;
 
-                for (ml = mime_types; mime_type != NULL && ml != NULL;
-                     ml = ml->next)
+                for (gint i = 0; mime_type != NULL && i < mime_types->len; i++)
                 {
-                    if (g_content_type_is_a (mime_type, ml->data))
+                    if (g_content_type_is_a (mime_type, g_ptr_array_index (mime_types, i)))
                     {
                         found = TRUE;
                         break;
@@ -296,7 +295,7 @@ recent_thread_func (gpointer user_data)
                 end_date = g_ptr_array_index (date_range, 1);
                 type = nautilus_query_get_search_type (self->query);
                 target_time = (type == NAUTILUS_QUERY_SEARCH_TYPE_LAST_ACCESS) ?
-                               visited : modified;
+                              visited : modified;
 
                 if (!nautilus_file_date_in_between (target_time,
                                                     initial_date, end_date))
@@ -317,7 +316,6 @@ recent_thread_func (gpointer user_data)
     search_add_hits_idle (self, hits);
 
     g_list_free_full (recent_items, (GDestroyNotify) gtk_recent_info_unref);
-    g_list_free_full (mime_types, g_free);
 
     return NULL;
 }
@@ -327,7 +325,7 @@ nautilus_search_engine_recent_start (NautilusSearchProvider *provider)
 {
     NautilusSearchEngineRecent *self = NAUTILUS_SEARCH_ENGINE_RECENT (provider);
     g_autoptr (GFile) location = NULL;
-    GThread *thread;
+    g_autoptr (GThread) thread = NULL;
 
     g_return_if_fail (self->query);
     g_return_if_fail (self->cancellable == NULL);
@@ -338,17 +336,16 @@ nautilus_search_engine_recent_start (NautilusSearchProvider *provider)
                               nautilus_query_get_recursive (self->query),
                               location))
     {
-        search_add_hits_idle (g_object_ref (self), NULL);
+        search_add_hits_idle (self, NULL);
         return;
     }
 
-    g_object_ref (self);
+    self->running = TRUE;
     self->cancellable = g_cancellable_new ();
+    thread = g_thread_new ("nautilus-search-recent", recent_thread_func,
+                           g_object_ref (self));
 
-    thread = g_thread_new ("nautilus-search-recent", recent_thread_func, self);
     g_object_notify (G_OBJECT (provider), "running");
-
-    g_thread_unref (thread);
 }
 
 static void
@@ -360,10 +357,9 @@ nautilus_search_engine_recent_stop (NautilusSearchProvider *provider)
     {
         DEBUG ("Recent engine stop");
         g_cancellable_cancel (self->cancellable);
-        g_clear_object (&self->cancellable);
-
-        g_object_notify (G_OBJECT (provider), "running");
     }
+
+    self->running = FALSE;
 }
 
 static void
@@ -381,8 +377,7 @@ nautilus_search_engine_recent_is_running (NautilusSearchProvider *provider)
 {
     NautilusSearchEngineRecent *self = NAUTILUS_SEARCH_ENGINE_RECENT (provider);
 
-    return self->cancellable != NULL &&
-           !g_cancellable_is_cancelled (self->cancellable);
+    return self->running;
 }
 
 static void

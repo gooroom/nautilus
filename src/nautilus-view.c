@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "nautilus-view.h"
+#include <glib/gi18n.h>
 
 G_DEFINE_INTERFACE (NautilusView, nautilus_view, GTK_TYPE_WIDGET)
 
@@ -93,7 +94,7 @@ nautilus_view_default_init (NautilusViewInterface *iface)
                                          g_param_spec_object ("extensions-background-menu",
                                                               "Menu for the background click of extensions",
                                                               "Menu for the background click of extensions",
-                                                              G_TYPE_MENU,
+                                                              G_TYPE_MENU_MODEL,
                                                               G_PARAM_READWRITE));
     /**
      * NautilusView::templates-menu:
@@ -104,7 +105,7 @@ nautilus_view_default_init (NautilusViewInterface *iface)
                                          g_param_spec_object ("templates-menu",
                                                               "Menu of templates",
                                                               "Menu of templates",
-                                                              G_TYPE_MENU,
+                                                              G_TYPE_MENU_MODEL,
                                                               G_PARAM_READWRITE));
 }
 
@@ -130,6 +131,35 @@ nautilus_view_get_icon (guint view_id)
     else if (view_id == NAUTILUS_VIEW_OTHER_LOCATIONS_ID)
     {
         return g_themed_icon_new_with_default_fallbacks ("view-list-symbolic");
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+/**
+ * nautilus_view_get_tooltip:
+ * @view: a #NautilusView
+ *
+ * Retrieves the static string that represents @view.
+ *
+ * Returns: (transfer none): a static string
+ */
+const gchar *
+nautilus_view_get_tooltip (guint view_id)
+{
+    if (view_id == NAUTILUS_VIEW_GRID_ID)
+    {
+        return _("Show grid");
+    }
+    else if (view_id == NAUTILUS_VIEW_LIST_ID)
+    {
+        return _("Show list");
+    }
+    else if (view_id == NAUTILUS_VIEW_OTHER_LOCATIONS_ID)
+    {
+        return _("Show List");
     }
     else
     {
@@ -171,7 +201,7 @@ nautilus_view_get_toolbar_menu_sections (NautilusView *view)
     return NAUTILUS_VIEW_GET_IFACE (view)->get_toolbar_menu_sections (view);
 }
 
-GMenu *
+GMenuModel *
 nautilus_view_get_extensions_background_menu (NautilusView *view)
 {
     g_return_val_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->get_extensions_background_menu, NULL);
@@ -182,14 +212,14 @@ nautilus_view_get_extensions_background_menu (NautilusView *view)
 /* Protected */
 void
 nautilus_view_set_extensions_background_menu (NautilusView *view,
-                                              GMenu        *menu)
+                                              GMenuModel   *menu)
 {
     g_return_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->set_extensions_background_menu);
 
     NAUTILUS_VIEW_GET_IFACE (view)->set_extensions_background_menu (view, menu);
 }
 
-GMenu *
+GMenuModel *
 nautilus_view_get_templates_menu (NautilusView *view)
 {
     g_return_val_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->get_templates_menu, NULL);
@@ -200,7 +230,7 @@ nautilus_view_get_templates_menu (NautilusView *view)
 /* Protected */
 void
 nautilus_view_set_templates_menu (NautilusView *view,
-                                  GMenu        *menu)
+                                  GMenuModel   *menu)
 {
     g_return_if_fail (NAUTILUS_VIEW_GET_IFACE (view)->set_templates_menu);
 
