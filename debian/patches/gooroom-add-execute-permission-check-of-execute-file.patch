@@ -1,0 +1,67 @@
+From 9013b12623f7dcb7e91d86106f3dea08450a301e Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Thu, 6 Feb 2020 16:22:14 +0900
+Subject: [PATCH] Added the execute permission check of execute file and the
+ modify Korean translation
+
+Change-Id: Icfe9981fb39414ed78db456760881638a9eb0bb3
+---
+ po/ko.po                    |  7 ++++++-
+ src/nautilus-mime-actions.c | 16 +++++++++++++++-
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/po/ko.po b/po/ko.po
+index 1f460c8..8329bce 100644
+--- a/po/ko.po
++++ b/po/ko.po
+@@ -5568,7 +5568,7 @@ msgstr "ftp:// 또는 ftps://"
+ 
+ #: src/gtk/nautilusgtkplacesview.c:1640
+ msgid "Network File System"
+-msgstr "NFS (네트워크 파일 시스테)"
++msgstr "NFS (네트워크 파일 시스템)"
+ 
+ #: src/gtk/nautilusgtkplacesview.c:1643
+ msgid "Samba"
+@@ -5661,6 +5661,11 @@ msgstr "서버에 연결(_S)"
+ msgid "Enter server address…"
+ msgstr "서버 주소 입력…"
+ 
++#: src/gtk/nautilus-mime-actions.c:1132
++#, c-format
++msgid "There is no application execute permission for “%s” files"
++msgstr "“%s” 파일에 대한 응용 프로그램 실행 권한이 없습니다"
++
+ #~ msgid "Parent folder:"
+ #~ msgstr "상위 폴더:"
+ 
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index 3ee775b..d560ff3 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1253,7 +1253,21 @@ show_unhandled_type_error (ActivateParametersInstall *parameters)
+     else
+     {
+         char *text;
+-        text = g_strdup_printf (_("There is no application installed for “%s” files"), g_content_type_get_description (mime_type));
++        const char *uri;
++        const char *location;
++        uri = nautilus_file_get_activation_uri (parameters->file);
++        location = g_filename_from_uri (uri, NULL, NULL);
++        //Check file for execute permission
++        if (!g_file_test (location, G_FILE_TEST_IS_EXECUTABLE))
++        {
++            const char *file_name;
++            file_name = nautilus_file_get_display_name (parameters->file);
++            text = g_strdup_printf (_("There is no application execute permission for “%s” files"), file_name);
++        }
++        else
++        {
++            text = g_strdup_printf (_("There is no application installed for “%s” files"), g_content_type_get_description (mime_type));
++        }
+ 
+         dialog = gtk_message_dialog_new (parameters->parent_window,
+                                          GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+-- 
+2.20.1
+
