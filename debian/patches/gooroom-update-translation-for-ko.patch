@@ -1,0 +1,44 @@
+From a545dc3954771de2d8a02c54edbb184a19e1a3d3 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Fri, 19 Jun 2020 19:29:04 +0900
+Subject: [PATCH] Update translation for ko
+
+Change-Id: Ib5a6c927be5cc4d8baf91cf9b741864c6afcfe50
+---
+ po/ko.po | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/po/ko.po b/po/ko.po
+index 8329bce..460b11b 100644
+--- a/po/ko.po
++++ b/po/ko.po
+@@ -2279,7 +2279,7 @@ msgstr "“%s”에 대한 정보를 가져오는 데 오류가 발생했습니
+ #: src/nautilus-file-operations.c:3781 src/nautilus-file-operations.c:3825
+ #, c-format
+ msgid "Error while copying to “%s”."
+-msgstr "“%s”(으)로 복사중 오류가 발생했습니다."
++msgstr "“%s”(으)로 복사 중 오류가 발생했습니다."
+ 
+ #: src/nautilus-file-operations.c:3677
+ msgid "You do not have permissions to access the destination folder."
+@@ -2321,7 +2321,7 @@ msgstr "“%s”을(를) “%s”(으)로 이동함"
+ #: src/nautilus-file-operations.c:3914
+ #, c-format
+ msgid "Copying “%s” to “%s”"
+-msgstr "“%s”을(를) “%s”(으)로 복사중"
++msgstr "“%s”을(를) “%s”(으)로 복사 중"
+ 
+ #: src/nautilus-file-operations.c:3918
+ #, c-format
+@@ -3058,7 +3058,7 @@ msgstr "“%s” 삭제함"
+ #: src/nautilus-file-undo-operations.c:516
+ #, c-format
+ msgid "Copy “%s” to “%s”"
+-msgstr "“%s”을(를) “%s”(으)로 복사중"
++msgstr "“%s”을(를) “%s”(으)로 복사 중"
+ 
+ #: src/nautilus-file-undo-operations.c:518
+ msgid "_Undo Copy"
+-- 
+2.20.1
+

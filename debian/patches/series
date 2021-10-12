@@ -24,3 +24,4 @@ gooroom-fixed-flawfinder-high-priority.patch
 gooroom-change-file-extraction-method-in-context-menu.patch
 gooroom-add-execute-permission-check-of-execute-file.patch
 gooroom-remove-starred-in-icon-view-style.patch
+gooroom-update-translation-for-ko.patch
