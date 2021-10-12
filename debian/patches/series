@@ -27,3 +27,4 @@ gooroom-remove-starred-in-icon-view-style.patch
 gooroom-update-translation-for-ko.patch
 gooroom-ensure-to-check-gnome-disks.patch
 gooroom-fix-checking-volume-mount-in-nautilus-properties-window.patch
+gooroom-disable-custom-icon-setting-in-properties-window.patch

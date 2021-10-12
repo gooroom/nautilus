@@ -1,0 +1,23 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index b5425ef..01fd43b 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2781,7 +2781,8 @@ setup_basic_page (NautilusPropertiesWindow *window)
+ 
+     /* Icon pixmap */
+ 
+-    setup_image_widget (window, should_show_custom_icon_buttons (window));
++    setup_image_widget (window, FALSE);
++//    setup_image_widget (window, should_show_custom_icon_buttons (window));
+ 
+     window->icon_chooser = NULL;
+ 
+@@ -4384,7 +4385,7 @@ append_extension_pages (NautilusPropertiesWindow *window)
+                                       page_widget, label);
+             gtk_container_child_set (GTK_CONTAINER (window->notebook),
+                                      page_widget,
+-                                     "tab-expand", TRUE,
++                                     "tab-expand", FALSE,
+                                      NULL);
+ 
+             g_object_set_data (G_OBJECT (page_widget),
