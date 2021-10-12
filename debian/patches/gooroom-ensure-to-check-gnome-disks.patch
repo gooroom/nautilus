@@ -1,0 +1,34 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index 6c437c1..c7ea246 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2726,6 +2726,19 @@ open_in_disks (GtkButton                *button,
+     }
+ }
+ 
++static gboolean
++check_have_gnome_disks (void)
++{
++    gchar *disks_path;
++    gboolean res;
++
++    disks_path = g_find_program_in_path ("gnome-disks");
++    res = (disks_path != NULL);
++    g_free (disks_path);
++
++    return res;
++}
++
+ static void
+ setup_basic_page (NautilusPropertiesWindow *window)
+ {
+@@ -2889,7 +2902,8 @@ setup_basic_page (NautilusPropertiesWindow *window)
+     if (should_show_volume_usage (window))
+     {
+         gtk_widget_show (window->volume_widget_box);
+-        gtk_widget_show (window->open_in_disks_button);
++        if (check_have_gnome_disks ())
++            gtk_widget_show (window->open_in_disks_button);
+         setup_volume_usage_widget (window);
+         /*Translators: Here Disks mean the name of application GNOME Disks.*/
+         g_signal_connect (window->open_in_disks_button, "clicked", G_CALLBACK (open_in_disks), NULL);
