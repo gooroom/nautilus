@@ -1,0 +1,44 @@
+From 29d4ae27d7b7e9f7ca8ac30b32f076168874f259 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Fri, 12 Nov 2021 14:02:05 +0900
+Subject: [PATCH] [Bug:4254]Fixed a context property menu error when there is
+ no search result
+
+---
+ src/nautilus-files-view.c                             | 7 +++++++
+ src/resources/ui/nautilus-files-view-context-menus.ui | 1 -
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index 4be4957..20d266c 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -7855,6 +7855,13 @@ real_update_actions_state (NautilusFilesView *view)
+                                  !nautilus_files_view_is_empty (view) &&
+                                  !priv->loading);
+ 
++    action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
++                                         "current-directory-properties");
++    g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
++                                 !nautilus_files_view_is_empty (view) &&
++                                 !priv->loading);
++
++
+     /* Toolbar menu actions */
+     g_action_group_change_action_state (view_action_group,
+                                         "show-hidden-files",
+diff --git a/src/resources/ui/nautilus-files-view-context-menus.ui b/src/resources/ui/nautilus-files-view-context-menus.ui
+index 6438314..1e39e3d 100644
+--- a/src/resources/ui/nautilus-files-view-context-menus.ui
++++ b/src/resources/ui/nautilus-files-view-context-menus.ui
+@@ -37,7 +37,6 @@
+       <item>
+         <attribute name="label" translatable="yes">P_roperties</attribute>
+         <attribute name="action">view.current-directory-properties</attribute>
+-        <attribute name="hidden-when">action-disabled</attribute>
+       </item>
+     </section>
+   </menu>
+-- 
+2.30.2
+
