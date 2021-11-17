@@ -1,0 +1,26 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index 01fd43b..ca36f92 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -657,7 +657,7 @@ update_name_field (NautilusPropertiesWindow *window)
+     NautilusFile *file;
+ 
+     gtk_label_set_text_with_mnemonic (window->name_title_label,
+-                                      ngettext ("_Name", "_Names",
++                                      ngettext ("Name", "Names",
+                                                 get_not_gone_original_file_count (window)));
+ 
+     if (is_multi_file_window (window))
+diff --git a/src/resources/ui/nautilus-properties-window.ui b/src/resources/ui/nautilus-properties-window.ui
+index d9cac49..cb0d7d3 100644
+--- a/src/resources/ui/nautilus-properties-window.ui
++++ b/src/resources/ui/nautilus-properties-window.ui
+@@ -79,7 +79,7 @@
+                           <object class="GtkLabel" id="name_title_label">
+                             <property name="visible">True</property>
+                             <property name="can_focus">False</property>
+-                            <property name="label" translatable="yes">_Name</property>
++                            <property name="label" translatable="yes">Name</property>
+                             <property name="use_underline">True</property>
+                             <property name="mnemonic_widget">name_field</property>
+                             <property name="xalign">1</property>

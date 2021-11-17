@@ -29,3 +29,4 @@ gooroom-ensure-to-check-gnome-disks.patch
 gooroom-fix-checking-volume-mount-in-nautilus-properties-window.patch
 gooroom-disable-custom-icon-setting-in-properties-window.patch
 gooroom-fix-context-property-menu-when-no-search-result.patch
+gooroom-update-properties-window-name-label.patch
