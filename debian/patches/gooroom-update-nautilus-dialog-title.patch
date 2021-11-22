@@ -1,0 +1,649 @@
+diff --git a/src/nautilus-file-operations.c b/src/nautilus-file-operations.c
+index 3adf3b5..c2949c9 100644
+--- a/src/nautilus-file-operations.c
++++ b/src/nautilus-file-operations.c
+@@ -1196,6 +1196,7 @@ typedef struct
+     NautilusFileOperationsDBusData *dbus_data;
+     gboolean ignore_close_box;
+     GtkMessageType message_type;
++    const char *title;
+     const char *primary_text;
+     const char *secondary_text;
+     const char *details_text;
+@@ -1288,6 +1289,8 @@ do_run_simple_dialog (gpointer _data)
+                                      GTK_BUTTONS_NONE,
+                                      NULL);
+ 
++    gtk_window_set_title (GTK_WINDOW (dialog), data->title);
++
+     g_object_set (dialog,
+                   "text", data->primary_text,
+                   "secondary-text", data->secondary_text,
+@@ -1388,6 +1391,7 @@ static int
+ run_simple_dialog_va (CommonJob      *job,
+                       gboolean        ignore_close_box,
+                       GtkMessageType  message_type,
++                      char           *title,
+                       char           *primary_text,
+                       char           *secondary_text,
+                       const char     *details_text,
+@@ -1406,6 +1410,7 @@ run_simple_dialog_va (CommonJob      *job,
+     data->dbus_data = job->dbus_data;
+     data->ignore_close_box = ignore_close_box;
+     data->message_type = message_type;
++    data->title = title;
+     data->primary_text = primary_text;
+     data->secondary_text = secondary_text;
+     data->details_text = details_text;
+@@ -1447,6 +1452,7 @@ run_simple_dialog_va (CommonJob      *job,
+ 
+     g_timer_continue (job->time);
+ 
++    g_free (title);
+     g_free (primary_text);
+     g_free (secondary_text);
+ 
+@@ -1481,6 +1487,7 @@ run_simple_dialog (CommonJob     *job,
+ 
+ static int
+ run_error (CommonJob  *job,
++           char       *title,
+            char       *primary_text,
+            char       *secondary_text,
+            const char *details_text,
+@@ -1494,6 +1501,7 @@ run_error (CommonJob  *job,
+     res = run_simple_dialog_va (job,
+                                 FALSE,
+                                 GTK_MESSAGE_ERROR,
++                                title,
+                                 primary_text,
+                                 secondary_text,
+                                 details_text,
+@@ -1505,6 +1513,7 @@ run_error (CommonJob  *job,
+ 
+ static int
+ run_warning (CommonJob  *job,
++             char       *title,
+              char       *primary_text,
+              char       *secondary_text,
+              const char *details_text,
+@@ -1518,6 +1527,7 @@ run_warning (CommonJob  *job,
+     res = run_simple_dialog_va (job,
+                                 FALSE,
+                                 GTK_MESSAGE_WARNING,
++                                title,
+                                 primary_text,
+                                 secondary_text,
+                                 details_text,
+@@ -1529,6 +1539,7 @@ run_warning (CommonJob  *job,
+ 
+ static int
+ run_question (CommonJob  *job,
++              char       *title,
+               char       *primary_text,
+               char       *secondary_text,
+               const char *details_text,
+@@ -1542,6 +1553,7 @@ run_question (CommonJob  *job,
+     res = run_simple_dialog_va (job,
+                                 FALSE,
+                                 GTK_MESSAGE_QUESTION,
++                                title,
+                                 primary_text,
+                                 secondary_text,
+                                 details_text,
+@@ -1553,6 +1565,7 @@ run_question (CommonJob  *job,
+ 
+ static int
+ run_cancel_or_skip_warning (CommonJob  *job,
++                            char       *title,
+                             char       *primary_text,
+                             char       *secondary_text,
+                             const char *details_text,
+@@ -1564,6 +1577,7 @@ run_cancel_or_skip_warning (CommonJob  *job,
+     if (total_operations == 1)
+     {
+         response = run_warning (job,
++                                title,
+                                 primary_text,
+                                 secondary_text,
+                                 details_text,
+@@ -1574,6 +1588,7 @@ run_cancel_or_skip_warning (CommonJob  *job,
+     else
+     {
+         response = run_warning (job,
++                                title,
+                                 primary_text,
+                                 secondary_text,
+                                 details_text,
+@@ -1628,6 +1643,7 @@ static gboolean
+ confirm_delete_from_trash (CommonJob *job,
+                            GList     *files)
+ {
++    char *title;
+     char *prompt;
+     int file_count;
+     int response;
+@@ -1659,7 +1675,10 @@ confirm_delete_from_trash (CommonJob *job,
+                                   file_count);
+     }
+ 
+-    response = run_warning (job,
++    title = g_strdup (_("Permanently Delete"));
++
++    response = run_warning (job,                   
++                            title,
+                             prompt,
+                             g_strdup (_("If you delete an item, it will be permanently lost.")),
+                             NULL,
+@@ -1673,6 +1692,7 @@ confirm_delete_from_trash (CommonJob *job,
+ static gboolean
+ confirm_empty_trash (CommonJob *job)
+ {
++    char *title;
+     char *prompt;
+     int response;
+ 
+@@ -1682,9 +1702,11 @@ confirm_empty_trash (CommonJob *job)
+         return TRUE;
+     }
+ 
++    title = g_strdup (_("Empty Trash"));
+     prompt = g_strdup (_("Empty all items from Trash?"));
+ 
+     response = run_warning (job,
++                            title,
+                             prompt,
+                             g_strdup (_("All items in the Trash will be permanently deleted.")),
+                             NULL,
+@@ -1699,6 +1721,7 @@ static gboolean
+ confirm_delete_directly (CommonJob *job,
+                          GList     *files)
+ {
++    char *title;
+     char *prompt;
+     int file_count;
+     int response;
+@@ -1734,7 +1757,10 @@ confirm_delete_directly (CommonJob *job,
+                                   file_count);
+     }
+ 
++    title = g_strdup (_("Permanently Delete"));
++
+     response = run_warning (job,
++                            title,
+                             prompt,
+                             g_strdup (_("If you delete an item, it will be permanently lost.")),
+                             NULL,
+@@ -1998,6 +2024,7 @@ file_deleted_callback (GFile    *file,
+     SourceInfo *source_info;
+     TransferInfo *transfer_info;
+     GFileType file_type;
++    char *title;
+     char *primary;
+     char *secondary;
+     char *details = NULL;
+@@ -2026,6 +2053,7 @@ file_deleted_callback (GFile    *file,
+         return;
+     }
+ 
++    title = g_strdup (_("Error"));
+     primary = g_strdup (_("Error while deleting."));
+ 
+     file_type = g_file_query_file_type (file,
+@@ -2058,6 +2086,7 @@ file_deleted_callback (GFile    *file,
+     details = error->message;
+ 
+     response = run_cancel_or_skip_warning (job,
++                                           title,
+                                            primary,
+                                            secondary,
+                                            details,
+@@ -2306,7 +2335,7 @@ trash_file (CommonJob     *job,
+             GList        **to_delete)
+ {
+     GError *error;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     g_autofree gchar *basename = NULL;
+ 
+@@ -2346,6 +2375,7 @@ trash_file (CommonJob     *job,
+ 
+     basename = get_basename (file);
+     /* Translators: %s is a file name */
++    title = g_strdup (_("Immediately Delete"));
+     primary = g_strdup_printf (_("“%s” can’t be put in the trash. Do you want "
+                                  "to delete it immediately?"),
+                                basename);
+@@ -2362,6 +2392,7 @@ trash_file (CommonJob     *job,
+     }
+ 
+     response = run_question (job,
++                             title,
+                              primary,
+                              secondary,
+                              details,
+@@ -3309,7 +3340,7 @@ scan_dir (GFile      *dir,
+     GError *error;
+     GFile *subdir;
+     GFileEnumerator *enumerator;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     SourceInfo saved_info;
+ 
+@@ -3363,6 +3394,7 @@ retry:
+         {
+             g_autofree gchar *basename = NULL;
+ 
++            title = g_strdup (_("Error"));
+             primary = get_scan_primary (source_info->op);
+             details = NULL;
+             basename = get_basename (dir);
+@@ -3381,6 +3413,7 @@ retry:
+             }
+ 
+             response = run_warning (job,
++                                    title,
+                                     primary,
+                                     secondary,
+                                     details,
+@@ -3422,6 +3455,7 @@ retry:
+     {
+         g_autofree gchar *basename = NULL;
+ 
++        title = g_strdup (_("Error"));
+         primary = get_scan_primary (source_info->op);
+         details = NULL;
+         basename = get_basename (dir);
+@@ -3441,6 +3475,7 @@ retry:
+          * files we'll end up processing yet.
+          */
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -3483,6 +3518,7 @@ scan_file (GFile      *file,
+     GError *error;
+     GQueue *dirs;
+     GFile *dir;
++    char *title;
+     char *primary;
+     char *secondary;
+     char *details;
+@@ -3532,6 +3568,7 @@ retry:
+     {
+         g_autofree gchar *basename = NULL;
+ 
++        title = g_strdup (_("Error"));
+         primary = get_scan_primary (source_info->op);
+         details = NULL;
+         basename = get_basename (file);
+@@ -3551,6 +3588,7 @@ retry:
+          * files we'll end up processing yet.
+          */
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -3638,7 +3676,7 @@ verify_destination (CommonJob  *job,
+     GError *error;
+     guint64 free_size;
+     guint64 size_difference;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     GFileType file_type;
+     gboolean dest_is_symlink = FALSE;
+@@ -3668,6 +3706,7 @@ retry:
+             return;
+         }
+ 
++        title = g_strdup (_("Error"));
+         basename = get_basename (dest);
+         primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+         details = NULL;
+@@ -3683,6 +3722,7 @@ retry:
+         }
+ 
+         response = run_error (job,
++                              title,
+                               primary,
+                               secondary,
+                               details,
+@@ -3730,11 +3770,13 @@ retry:
+     {
+         g_autofree gchar *basename = NULL;
+ 
++        title = g_strdup (_("Error"));
+         basename = get_basename (dest);
+         primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+         secondary = g_strdup (_("The destination is not a folder."));
+ 
+         run_error (job,
++                   title,
+                    primary,
+                    secondary,
+                    NULL,
+@@ -3776,6 +3818,7 @@ retry:
+             g_autofree gchar *basename = NULL;
+             g_autofree gchar *formatted_size = NULL;
+ 
++            title = g_strdup (_("Error"));
+             basename = get_basename (dest);
+             size_difference = required_size - free_size;
+             primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+@@ -3787,6 +3830,7 @@ retry:
+                                        formatted_size);
+ 
+             response = run_warning (job,
++                                    title,
+                                     primary,
+                                     secondary,
+                                     details,
+@@ -3821,11 +3865,13 @@ retry:
+     {
+         g_autofree gchar *basename = NULL;
+ 
++        title = g_strdup (_("Error"));
+         basename = get_basename (dest);
+         primary = g_strdup_printf (_("Error while copying to “%s”."), basename);
+         secondary = g_strdup (_("The destination is read-only."));
+ 
+         run_error (job,
++                   title,
+                    primary,
+                    secondary,
+                    NULL,
+@@ -4618,7 +4664,7 @@ create_dest_dir (CommonJob  *job,
+ {
+     GError *error;
+     GFile *new_dest, *dest_dir;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     gboolean handled_invalid_filename;
+     gboolean res;
+@@ -4687,6 +4733,7 @@ retry:
+             }
+         }
+ 
++        title = g_strdup (_("Error"));
+         primary = g_strdup (_("Error while copying."));
+         details = NULL;
+         basename = get_basename (src);
+@@ -4705,6 +4752,7 @@ retry:
+         }
+ 
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -4766,7 +4814,7 @@ copy_move_directory (CopyMoveJob   *copy_job,
+     GError *error;
+     GFile *src_file;
+     GFileEnumerator *enumerator;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     char *dest_fs_type;
+     int response;
+     gboolean skip_error;
+@@ -4852,6 +4900,7 @@ retry:
+         {
+             g_autofree gchar *basename = NULL;
+ 
++            title = g_strdup (_("Error"));
+             if (copy_job->is_move)
+             {
+                 primary = g_strdup (_("Error while moving."));
+@@ -4877,6 +4926,7 @@ retry:
+             }
+ 
+             response = run_warning (job,
++                                    title,
+                                     primary,
+                                     secondary,
+                                     details,
+@@ -4918,6 +4968,7 @@ retry:
+     {
+         g_autofree gchar *basename = NULL;
+ 
++        title = g_strdup (_("Error"));
+         if (copy_job->is_move)
+         {
+             primary = g_strdup (_("Error while moving."));
+@@ -4943,6 +4994,7 @@ retry:
+         }
+ 
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -4993,12 +5045,15 @@ retry:
+             {
+                 goto skip;
+             }
++
++            title = g_strdup (_("Error"));
+             basename = get_basename (src);
+             primary = g_strdup_printf (_("Error while moving “%s”."), basename);
+             secondary = g_strdup (_("Could not remove the source folder."));
+             details = error->message;
+ 
+             response = run_cancel_or_skip_warning (job,
++                                                   title,
+                                                    primary,
+                                                    secondary,
+                                                    details,
+@@ -5182,7 +5237,7 @@ get_target_file_from_source_display_name (CopyMoveJob *copy_job,
+     CommonJob *job;
+     g_autoptr (GError) error = NULL;
+     g_autoptr (GFileInfo) info = NULL;
+-    gchar *primary, *secondary;
++    gchar *title, *primary, *secondary;
+     GFile *dest = NULL;
+ 
+     job = (CommonJob *) copy_job;
+@@ -5190,6 +5245,7 @@ get_target_file_from_source_display_name (CopyMoveJob *copy_job,
+     info = g_file_query_info (src, G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME, 0, NULL, &error);
+     if (info == NULL)
+     {
++        title = g_strdup (_("Error"));
+         if (copy_job->is_move)
+         {
+             primary = g_strdup (_("Error while moving."));
+@@ -5201,6 +5257,7 @@ get_target_file_from_source_display_name (CopyMoveJob *copy_job,
+         secondary = g_strdup (_("There was an error getting information about the source."));
+ 
+         run_error (job,
++                   title,
+                    primary,
+                    secondary,
+                    error->message,
+@@ -5238,7 +5295,7 @@ copy_move_file (CopyMoveJob   *copy_job,
+     g_autofree gchar *dest_uri = NULL;
+     GError *error;
+     GFileCopyFlags flags;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     ProgressData pdata;
+     gboolean would_recurse;
+     CommonJob *job;
+@@ -5299,11 +5356,13 @@ copy_move_file (CopyMoveJob   *copy_job,
+         }
+ 
+         /*  the run_warning() frees all strings passed in automatically  */
++        title = g_strdup (_("Error"));
+         primary = copy_job->is_move ? g_strdup (_("You cannot move a folder into itself."))
+                   : g_strdup (_("You cannot copy a folder into itself."));
+         secondary = g_strdup (_("The destination folder is inside the source folder."));
+ 
+         response = run_cancel_or_skip_warning (job,
++                                               title,
+                                                primary,
+                                                secondary,
+                                                NULL,
+@@ -5341,11 +5400,13 @@ copy_move_file (CopyMoveJob   *copy_job,
+         }
+ 
+         /*  the run_warning() frees all strings passed in automatically  */
++        title = g_strdup (_("Error"));
+         primary = copy_job->is_move ? g_strdup (_("You cannot move a file over itself."))
+                   : g_strdup (_("You cannot copy a file over itself."));
+         secondary = g_strdup (_("The source file would be overwritten by the destination."));
+ 
+         response = run_cancel_or_skip_warning (job,
++                                               title,
+                                                primary,
+                                                secondary,
+                                                NULL,
+@@ -5606,6 +5667,7 @@ retry:
+                     goto out;
+                 }
+ 
++                title = g_strdup (_("Error"));
+                 basename = get_basename (src);
+                 if (copy_job->is_move)
+                 {
+@@ -5625,6 +5687,7 @@ retry:
+                  * another error on the same file later.
+                  */
+                 response = run_warning (job,
++                                        title,
+                                         primary,
+                                         secondary,
+                                         details,
+@@ -5700,6 +5763,7 @@ retry:
+             g_error_free (error);
+             goto out;
+         }
++        title = g_strdup (_("Error"));
+         basename = get_basename (src);
+         primary = g_strdup_printf (_("Error while copying “%s”."), basename);
+         filename = get_truncated_parse_name (dest_dir);
+@@ -5708,6 +5772,7 @@ retry:
+         details = error->message;
+ 
+         response = run_cancel_or_skip_warning (job,
++                                               title,
+                                                primary,
+                                                secondary,
+                                                details,
+@@ -6074,7 +6139,7 @@ move_file_prepare (CopyMoveJob  *move_job,
+     GError *error;
+     CommonJob *job;
+     gboolean overwrite;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     GFileCopyFlags flags;
+     MoveFileCopyFallback *fallback;
+     gboolean handled_invalid_filename;
+@@ -6112,11 +6177,13 @@ move_file_prepare (CopyMoveJob  *move_job,
+         }
+ 
+         /*  the run_warning() frees all strings passed in automatically  */
++        title = g_strdup (_("Error"));
+         primary = move_job->is_move ? g_strdup (_("You cannot move a folder into itself."))
+                   : g_strdup (_("You cannot copy a folder into itself."));
+         secondary = g_strdup (_("The destination folder is inside the source folder."));
+ 
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 NULL,
+@@ -6309,6 +6376,8 @@ retry:
+             g_error_free (error);
+             goto out;
+         }
++
++        title = g_strdup (_("Error"));
+         basename = get_basename (src);
+         primary = g_strdup_printf (_("Error while moving “%s”."), basename);
+         filename = get_truncated_parse_name (dest_dir);
+@@ -6318,6 +6387,7 @@ retry:
+         details = error->message;
+ 
+         response = run_warning (job,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -6707,7 +6777,7 @@ link_file (CopyMoveJob  *job,
+     gboolean not_local;
+     GError *error;
+     CommonJob *common;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     gboolean handled_invalid_filename;
+ 
+@@ -6804,6 +6874,7 @@ retry:
+         {
+             return;
+         }
++        title = g_strdup (_("Error"));
+         basename = get_basename (src);
+         primary = g_strdup_printf (_("Error while creating link to %s."),
+                                    basename);
+@@ -6828,6 +6899,7 @@ retry:
+         }
+ 
+         response = run_warning (common,
++                                title,
+                                 primary,
+                                 secondary,
+                                 details,
+@@ -7395,7 +7467,7 @@ create_task_thread_func (GTask        *task,
+     GError *error;
+     gboolean res;
+     gboolean filename_is_utf8;
+-    char *primary, *secondary, *details;
++    char *title, *primary, *secondary, *details;
+     int response;
+     char *data;
+     int length;
+@@ -7726,6 +7798,7 @@ retry:
+             g_autofree gchar *basename = NULL;
+             g_autofree gchar *parse_name = NULL;
+ 
++            title = g_strdup (_("Error"));
+             basename = get_basename (dest);
+             if (job->make_dir)
+             {
+@@ -7744,6 +7817,7 @@ retry:
+             details = error->message;
+ 
+             response = run_warning (common,
++                                    title,
+                                     primary,
+                                     secondary,
+                                     details,
+@@ -8207,6 +8281,7 @@ extract_job_on_error (AutoarExtractor *extractor,
+                                                          basename));
+ 
+     response_id = run_warning ((CommonJob *) extract_job,
++                               g_strdup (_("Error")),
+                                g_strdup_printf (_("There was an error while extracting “%s”."),
+                                                 basename),
+                                g_strdup (error->message),
+@@ -8268,6 +8343,7 @@ extract_job_on_scanned (AutoarExtractor *extractor,
+                                             g_strdup_printf (_("Error extracting “%s”"),
+                                                              basename));
+         run_error (&extract_job->common,
++                   g_strdup (_("Error")),
+                    g_strdup_printf (_("Not enough free space to extract %s"), basename),
+                    NULL,
+                    NULL,
+@@ -8696,6 +8772,7 @@ compress_job_on_error (AutoarCompressor *compressor,
+                                         status);
+ 
+     run_error ((CommonJob *) compress_job,
++               g_strdup (_("Error")),
+                g_strdup (_("There was an error while compressing files.")),
+                g_strdup (error->message),
+                NULL,
