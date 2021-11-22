@@ -1,0 +1,89 @@
+diff --git a/src/nautilus-file-name-widget-controller.c b/src/nautilus-file-name-widget-controller.c
+index 308ab51..f1ae38b 100644
+--- a/src/nautilus-file-name-widget-controller.c
++++ b/src/nautilus-file-name-widget-controller.c
+@@ -33,7 +33,9 @@ typedef struct
+     NautilusDirectory *containing_directory;
+ 
+     gboolean duplicated_is_folder;
++    gboolean is_preedit_changed;
+     gint duplicated_label_timeout_id;
++    gchar *preedit_text;
+ } NautilusFileNameWidgetControllerPrivate;
+ 
+ enum
+@@ -119,10 +121,13 @@ static gchar *
+ real_get_new_name (NautilusFileNameWidgetController *self)
+ {
+     NautilusFileNameWidgetControllerPrivate *priv;
++    gchar *real_name;
+ 
+     priv = nautilus_file_name_widget_controller_get_instance_private (self);
+ 
+-    return g_strstrip (g_strdup (gtk_entry_get_text (GTK_ENTRY (priv->name_entry))));
++    real_name = (priv->is_preedit_changed) ? g_strdup_printf ("%s%s", g_strstrip (g_strdup (gtk_entry_get_text (GTK_ENTRY (priv->name_entry)))), priv->preedit_text) : g_strstrip (g_strdup (gtk_entry_get_text (GTK_ENTRY (priv->name_entry)))); 
++
++    return real_name;
+ }
+ 
+ static gboolean
+@@ -213,6 +218,7 @@ file_name_widget_controller_process_new_name (NautilusFileNameWidgetController *
+     g_return_if_fail (NAUTILUS_IS_DIRECTORY (priv->containing_directory));
+ 
+     name = nautilus_file_name_widget_controller_get_new_name (controller);
++
+     *valid_name = nautilus_file_name_widget_controller_name_is_valid (controller,
+                                                                       name,
+                                                                       &error_message);
+@@ -283,6 +289,28 @@ file_name_widget_controller_on_changed (gpointer user_data)
+     controller = NAUTILUS_FILE_NAME_WIDGET_CONTROLLER (user_data);
+     priv = nautilus_file_name_widget_controller_get_instance_private (controller);
+ 
++    priv->is_preedit_changed = FALSE;
++
++    nautilus_directory_call_when_ready (priv->containing_directory,
++                                        NAUTILUS_FILE_ATTRIBUTE_INFO,
++                                        TRUE,
++                                        file_name_widget_controller_on_changed_directory_info_ready,
++                                        controller);
++}
++
++static void
++file_name_widget_controller_on_preedit_changed (gpointer user_data,
++                                                gchar    *preedit)
++{
++    NautilusFileNameWidgetController *controller;
++    NautilusFileNameWidgetControllerPrivate *priv;
++
++    controller = NAUTILUS_FILE_NAME_WIDGET_CONTROLLER (user_data);
++    priv = nautilus_file_name_widget_controller_get_instance_private (controller);
++
++    priv->is_preedit_changed = TRUE;
++    priv->preedit_text = g_strdup (preedit);
++
+     nautilus_directory_call_when_ready (priv->containing_directory,
+                                         NAUTILUS_FILE_ATTRIBUTE_INFO,
+                                         TRUE,
+@@ -386,6 +414,10 @@ nautilus_file_name_widget_controller_set_property (GObject      *object,
+                                       "changed",
+                                       (GCallback) file_name_widget_controller_on_changed,
+                                       controller);
++            g_signal_connect_swapped (G_OBJECT (priv->name_entry),
++                                      "preedit-changed",
++                                      (GCallback) file_name_widget_controller_on_preedit_changed,
++                                      controller);
+         }
+         break;
+ 
+@@ -442,6 +474,11 @@ nautilus_file_name_widget_controller_finalize (GObject *object)
+         priv->duplicated_label_timeout_id = 0;
+     }
+ 
++    if (priv->preedit_text != NULL)
++    {
++        g_clear_pointer (&priv->preedit_text, g_free);
++    }
++
+     G_OBJECT_CLASS (nautilus_file_name_widget_controller_parent_class)->finalize (object);
+ }
+ 

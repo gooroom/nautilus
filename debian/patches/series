@@ -31,3 +31,4 @@ gooroom-disable-custom-icon-setting-in-properties-window.patch
 gooroom-fix-context-property-menu-when-no-search-result.patch
 gooroom-update-properties-window-name-label.patch
 gooroom-update-nautilus-dialog-title.patch
+gooroom-added-new-item-name-preedit-text.patch
