@@ -1,0 +1,43 @@
+diff --git a/src/nautilus-toolbar.c b/src/nautilus-toolbar.c
+index a64518d..ec5967e 100644
+--- a/src/nautilus-toolbar.c
++++ b/src/nautilus-toolbar.c
+@@ -90,6 +90,7 @@ struct _NautilusToolbar
+     GtkWidget *redo_button;
+     GtkWidget *view_toggle_button;
+     GtkWidget *view_toggle_icon;
++    GtkWidget *show_help_button;
+ 
+     GtkWidget *operations_popover;
+     GtkWidget *operations_container;
+@@ -974,6 +975,9 @@ static void
+ nautilus_toolbar_init (NautilusToolbar *self)
+ {
+     gtk_widget_init_template (GTK_WIDGET (self));
++
++    if (!g_file_test ("/usr/share/gooroom-yelp-adjustments", G_FILE_TEST_EXISTS))
++      gtk_widget_set_visible (self->show_help_button, FALSE);
+ }
+ 
+ void
+@@ -1241,6 +1245,7 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
+     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, redo_button);
+ 
+     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, search_button);
++    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, show_help_button);
+ 
+     gtk_widget_class_bind_template_callback (widget_class, on_operations_icon_draw);
+     gtk_widget_class_bind_template_callback (widget_class, on_operations_button_toggled);
+diff --git a/src/resources/ui/nautilus-toolbar.ui b/src/resources/ui/nautilus-toolbar.ui
+index 51a8828..d793552 100644
+--- a/src/resources/ui/nautilus-toolbar.ui
++++ b/src/resources/ui/nautilus-toolbar.ui
+@@ -311,7 +311,7 @@
+           </packing>
+         </child>
+         <child>
+-          <object class="GtkModelButton">
++          <object class="GtkModelButton" id="show_help_button">
+             <property name="visible">True</property>
+             <property name="can_focus">True</property>
+             <property name="receives_default">True</property>

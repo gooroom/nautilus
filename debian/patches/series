@@ -32,3 +32,4 @@ gooroom-fix-context-property-menu-when-no-search-result.patch
 gooroom-update-properties-window-name-label.patch
 gooroom-update-nautilus-dialog-title.patch
 gooroom-added-new-item-name-preedit-text.patch
+gooroom-update-show-help-button-depends-on-yelp-installed.patch
