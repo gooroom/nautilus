@@ -1,0 +1,91 @@
+From 2606c61f52bdd52284ebe8ac27a59d8e9e133f2c Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Mon, 14 Feb 2022 14:58:36 +0900
+Subject: [PATCH 2/3] Fixed a search bar error when searching for Korean
+ combinations
+
+---
+ src/nautilus-window-slot.c | 50 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/src/nautilus-window-slot.c b/src/nautilus-window-slot.c
+index 8eeb781..e0b03f5 100644
+--- a/src/nautilus-window-slot.c
++++ b/src/nautilus-window-slot.c
+@@ -652,6 +652,46 @@ nautilus_window_slot_search (NautilusWindowSlot *self,
+     }
+ }
+ 
++static gboolean
++nautilus_window_slot_is_keynav_event (GdkEvent *event)
++{
++    guint keyval;
++
++    if (!gdk_event_get_keyval (event, &keyval))
++      return FALSE;
++
++    if (keyval == GDK_KEY_Tab       || keyval == GDK_KEY_KP_Tab ||
++        keyval == GDK_KEY_Up        || keyval == GDK_KEY_KP_Up ||
++        keyval == GDK_KEY_Down      || keyval == GDK_KEY_KP_Down ||
++        keyval == GDK_KEY_Left      || keyval == GDK_KEY_KP_Left ||
++        keyval == GDK_KEY_Right     || keyval == GDK_KEY_KP_Right ||
++        keyval == GDK_KEY_Home      || keyval == GDK_KEY_KP_Home ||
++        keyval == GDK_KEY_End       || keyval == GDK_KEY_KP_End ||
++        keyval == GDK_KEY_Page_Up   || keyval == GDK_KEY_KP_Page_Up ||
++        keyval == GDK_KEY_Page_Down || keyval == GDK_KEY_KP_Page_Down ||
++        keyval == GDK_KEY_Delete || keyval == GDK_KEY_KP_Delete ||
++        keyval == GDK_KEY_Insert || keyval == GDK_KEY_KP_Insert ||
++        keyval == GDK_KEY_F1 || keyval == GDK_KEY_KP_F1 ||
++        keyval == GDK_KEY_F2 || keyval == GDK_KEY_KP_F2 ||
++        keyval == GDK_KEY_F3 || keyval == GDK_KEY_KP_F3 ||
++        keyval == GDK_KEY_F4 || keyval == GDK_KEY_KP_F4 ||
++        keyval == GDK_KEY_Num_Lock ||
++        keyval == GDK_KEY_Escape ||
++        keyval == GDK_KEY_BackSpace ||
++        keyval == GDK_KEY_Caps_Lock ||
++        keyval == GDK_KEY_Alt_L ||
++        keyval == GDK_KEY_Alt_R ||
++        keyval == GDK_KEY_Control_L ||
++        keyval == GDK_KEY_Control_R ||
++        keyval == GDK_KEY_Hangul ||
++        keyval == GDK_KEY_Hangul_Hanja ||
++        keyval == GDK_KEY_Shift_L ||
++        keyval == GDK_KEY_Shift_R ||
++        keyval == GDK_KEY_Display )
++        return TRUE;
++    return FALSE;
++}
++
+ gboolean
+ nautilus_window_slot_handle_event (NautilusWindowSlot *self,
+                                    GdkEvent           *event)
+@@ -687,10 +727,14 @@ nautilus_window_slot_handle_event (NautilusWindowSlot *self,
+             nautilus_window_slot_set_search_visible (self, FALSE);
+         }
+     }
+-
+     /* If the action is not enabled, don't try to handle search */
+     if (g_action_get_enabled (action))
+     {
++        /* Hangul combination issue according to search bar focus order */
++        if (!nautilus_window_slot_get_search_visible (self)) {
++            if (!nautilus_window_slot_is_keynav_event (event))
++                nautilus_window_slot_set_search_visible (self, TRUE);
++        }
+         retval = nautilus_query_editor_handle_event (priv->query_editor, event);
+     }
+ 
+@@ -698,6 +742,10 @@ nautilus_window_slot_handle_event (NautilusWindowSlot *self,
+     {
+         nautilus_window_slot_set_search_visible (self, TRUE);
+     }
++    else
++    {
++        nautilus_window_slot_set_search_visible (self, FALSE);
++    }
+ 
+     return retval;
+ }
+-- 
+2.30.2
+

@@ -33,3 +33,5 @@ gooroom-update-properties-window-name-label.patch
 gooroom-update-nautilus-dialog-title.patch
 gooroom-added-new-item-name-preedit-text.patch
 gooroom-update-show-help-button-depends-on-yelp-installed.patch
+gooroom-add-error-message-title-in-dialog.patch
+gooroom-fix-search-bar-error-when-searching-for-Korean.patch

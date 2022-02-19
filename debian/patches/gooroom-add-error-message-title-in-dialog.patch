@@ -1,0 +1,25 @@
+From 16dacb5634eea59ef7a071218ee02cd3754931cd Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Mon, 14 Feb 2022 12:12:30 +0900
+Subject: [PATCH] Added error message title in dialog
+
+---
+ src/nautilus-ui-utilities.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/nautilus-ui-utilities.c b/src/nautilus-ui-utilities.c
+index 195f765..6288d84 100644
+--- a/src/nautilus-ui-utilities.c
++++ b/src/nautilus-ui-utilities.c
+@@ -291,6 +291,8 @@ show_dialog (const gchar    *primary_text,
+ 
+     gtk_widget_show (dialog);
+ 
++	gtk_window_set_title (GTK_WINDOW (dialog), _("Error"));
++
+     g_signal_connect (GTK_DIALOG (dialog), "response",
+                       G_CALLBACK (gtk_widget_destroy), NULL);
+ 
+-- 
+2.30.2
+
