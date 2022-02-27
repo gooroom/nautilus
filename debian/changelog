@@ -1,3 +1,28 @@
+nautilus (3.38.2-1+deb11u1+grm3u2) bullseye; urgency=medium
+
+  [ heejun.jang ]
+  * [9dbe43d7] Added the patch to modify context menu and prevent root folder access
+  * [e15525ef] Removed permission setting tab from property window
+  * [93d26bd2] Moved header button to bottom in file conflict dialog
+  * [ce1abf6f] Fixed Flawfinder - High Priority
+  * [f704f7f9] Added patch for change file extraction method in context menu
+  * [6172f349] [Bug:1849]Added the execute permission check of execute file and the modify Korean translations
+  * [88458e82] [Bug:2024]Removed the starred in icon view style
+  * [98a9e8a7] [Bug:1991]Update translation for Korean
+  * [4bd4ff2e] Controls the display of the 'Open in Disks' button in the properties window
+  * [bdce2143] [Bug:2090]Fix function to check volume mount in properties window
+  * [7a57acb1] Disable custom icon setting function in properties window
+  * [8c5b4878] [Bug:4225]Update properties window name label
+  * [adee5a1c] [Bug:4255]Update nautilus dialog title
+  * [51134f4d] [Bug:4257]Added new item name preedit text
+  * [39c01b30] Updated show help button depends on yelp installed
+
+  [ donghun ]
+  * [ae7125d3] [Bug:4254]Fixed a context property menu error when there is no search result
+  * [a612d3c0] [Bug 4358, 4403, 4682]Added patches such as search bar error and compression error
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Sun, 27 Feb 2022 15:18:43 +0900
+
 nautilus (3.38.2-1+deb11u1) bullseye; urgency=medium
 
   * Update from upstream gnome-3-38 branch
