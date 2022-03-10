@@ -1,0 +1,85 @@
+From 64074a99a05210fec902013f3df7e3b66f3c4463 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Thu, 10 Mar 2022 20:53:42 +0900
+Subject: [PATCH] Fix context menu empty space error
+
+Change-Id: I1d240409919b73e9497042d373beeba204c3c3d7
+---
+ src/nautilus-files-view.c | 26 +++++++++++++-------------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index be36ac5..9175973 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -7240,6 +7240,10 @@ on_clipboard_contents_received (GtkClipboard *clipboard,
+     gboolean selection_contains_starred;
+     GAction *action;
+     gboolean is_data_valid;
++    /*Paste Menu Setting */
++    gint selection_count;
++    g_autolist (NautilusFile) selection = NULL;
++    gboolean can_paste_files_into;
+ 
+     view = NAUTILUS_FILES_VIEW (user_data);
+     priv = nautilus_files_view_get_instance_private (view);
+@@ -7262,6 +7266,13 @@ on_clipboard_contents_received (GtkClipboard *clipboard,
+                                  !selection_contains_recent && !selection_contains_starred &&
+                                  !is_read_only && selection_data != NULL;
+ 
++    /* Paste Menu Setting */
++    selection = nautilus_view_get_selection (NAUTILUS_VIEW (view));
++    selection_count = g_list_length (selection);
++    can_paste_files_into = (selection_count == 1 &&
++                            can_paste_into_file (NAUTILUS_FILE (selection->data)));
++
++
+     action = g_action_map_lookup_action (G_ACTION_MAP (priv->view_action_group),
+                                          "create-link");
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+@@ -7279,7 +7290,8 @@ on_clipboard_contents_received (GtkClipboard *clipboard,
+                                          "paste-into");
+ 
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+-                                 is_data_valid && g_action_get_enabled (action));
++                                 can_paste_files_into &&
++                                 is_data_valid);
+ 
+     action = g_action_map_lookup_action (G_ACTION_MAP (priv->view_action_group),
+                                          "create-link");
+@@ -7517,7 +7529,6 @@ real_update_actions_state (NautilusFilesView *view)
+     gboolean can_move_files;
+     gboolean can_trash_files;
+     gboolean can_copy_files;
+-    gboolean can_paste_files_into;
+     gboolean can_extract_files;
+     gboolean handles_all_files_to_extract;
+     gboolean can_extract_here;
+@@ -7570,10 +7581,6 @@ real_update_actions_state (NautilusFilesView *view)
+     can_copy_files = selection_count != 0;
+     can_move_files = can_delete_files && !selection_contains_recent &&
+                      !selection_contains_starred;
+-    can_paste_files_into = (!selection_contains_recent &&
+-                            !selection_contains_starred &&
+-                            selection_count == 1 &&
+-                            can_paste_into_file (NAUTILUS_FILE (selection->data)));
+     can_extract_files = selection_count != 0 &&
+                         can_extract_all (selection);
+     can_extract_here = nautilus_files_view_supports_extract_here (view);
+@@ -7815,13 +7822,6 @@ real_update_actions_state (NautilusFilesView *view)
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                  !is_read_only && !selection_contains_recent &&
+                                  !selection_contains_starred);
+-
+-    action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
+-                                         "paste-into");
+-    g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+-                                 !selection_is_read_only && !selection_contains_recent &&
+-                                 can_paste_files_into && !selection_contains_starred);
+-
+     action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
+                                          "properties");
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+-- 
+2.30.2
+

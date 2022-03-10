@@ -1,0 +1,57 @@
+From 55612584764e4aafd2ee9908c15fccd7444218b3 Mon Sep 17 00:00:00 2001
+From: donghun <donghun@gooroom.kr>
+Date: Thu, 10 Mar 2022 18:35:05 +0900
+Subject: [PATCH] Fixed a search bar error when searching for Korean
+
+Change-Id: Ie087de4d839e6ff9609bd8d31dd9056b0b5ecbf4
+---
+ src/nautilus-query-editor.c | 7 +++++++
+ src/nautilus-query-editor.h | 7 +++++++
+ src/nautilus-window-slot.c  | 1 +
+ 3 files changed, 15 insertions(+)
+
+diff --git a/src/nautilus-query-editor.c b/src/nautilus-query-editor.c
+index 0f284b5..c6d2875 100644
+--- a/src/nautilus-query-editor.c
++++ b/src/nautilus-query-editor.c
+@@ -749,3 +749,10 @@ nautilus_query_editor_handle_event (NautilusQueryEditor *self,
+ 
+     return gtk_search_entry_handle_event (GTK_SEARCH_ENTRY (self->entry), event);
+ }
++
++void
++nautilus_query_editor_entry_init (NautilusQueryEditor *self)
++{
++    g_return_val_if_fail (NAUTILUS_IS_QUERY_EDITOR (self), GDK_EVENT_PROPAGATE);
++    gtk_entry_reset_im_context(GTK_ENTRY(self->entry));
++}
+diff --git a/src/nautilus-query-editor.h b/src/nautilus-query-editor.h
+index c09de18..6b9a04b 100644
+--- a/src/nautilus-query-editor.h
++++ b/src/nautilus-query-editor.h
+@@ -75,3 +75,10 @@ void           nautilus_query_editor_set_text     (NautilusQueryEditor *editor,
+ gboolean
+ nautilus_query_editor_handle_event (NautilusQueryEditor *self,
+                                     GdkEvent            *event);
++
++/**
++ * nautilus_query_editor_entry_init:
++ *
++ * @editor: A #NautilusQueryEditor instance.
++ */
++void           nautilus_query_editor_entry_init     (NautilusQueryEditor *editor);
+diff --git a/src/nautilus-window-slot.c b/src/nautilus-window-slot.c
+index e0b03f5..fec57bf 100644
+--- a/src/nautilus-window-slot.c
++++ b/src/nautilus-window-slot.c
+@@ -501,6 +501,7 @@ hide_query_editor (NautilusWindowSlot *self)
+     g_clear_signal_handler (&priv->qe_activated_id, priv->query_editor);
+     g_clear_signal_handler (&priv->qe_focus_view_id, priv->query_editor);
+ 
++    nautilus_query_editor_entry_init (priv->query_editor);
+     nautilus_query_editor_set_query (priv->query_editor, NULL);
+ 
+     if (nautilus_view_is_searching (view))
+-- 
+2.30.2
+

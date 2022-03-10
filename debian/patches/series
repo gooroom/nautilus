@@ -35,3 +35,5 @@ gooroom-added-new-item-name-preedit-text.patch
 gooroom-update-show-help-button-depends-on-yelp-installed.patch
 gooroom-add-error-message-title-in-dialog.patch
 gooroom-fix-search-bar-error-when-searching-for-Korean.patch
+gooroom-fix-im-error-in-search-bar.patch
+gooroom-fix-context-menu-empty-space-error.patch
