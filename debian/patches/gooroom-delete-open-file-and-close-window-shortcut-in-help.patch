@@ -1,0 +1,18 @@
+diff --git a/src/resources/gtk/help-overlay.ui b/src/resources/gtk/help-overlay.ui
+index 5f4c689..2938dbb 100644
+--- a/src/resources/gtk/help-overlay.ui
++++ b/src/resources/gtk/help-overlay.ui
+@@ -108,13 +108,6 @@
+                 <property name="accelerator">&lt;alt&gt;&lt;Primary&gt;O</property>
+               </object>
+             </child>
+-            <child>
+-              <object class="GtkShortcutsShortcut">
+-                <property name="visible">True</property>
+-                <property name="title" translatable="yes" context="shortcut window">Open file and close window</property>
+-                <property name="accelerator">&lt;shift&gt;&lt;Primary&gt;Down</property>
+-              </object>
+-            </child>
+             <child>
+               <object class="GtkShortcutsShortcut">
+                 <property name="visible">True</property>
