@@ -1,0 +1,14 @@
+diff --git a/src/nautilus-window-slot.c b/src/nautilus-window-slot.c
+index fec57bf..3299956 100644
+--- a/src/nautilus-window-slot.c
++++ b/src/nautilus-window-slot.c
+@@ -2812,7 +2812,8 @@ nautilus_window_slot_show_special_location_bar (NautilusWindowSlot      *self,
+     GtkWidget *bar;
+ 
+     bar = nautilus_special_location_bar_new (special_location);
+-    gtk_widget_show (bar);
++    if (g_file_test ("/usr/share/gooroom-yelp-adjustments", G_FILE_TEST_EXISTS))
++        gtk_widget_show (bar);
+ 
+     nautilus_window_slot_add_extra_location_widget (self, bar);
+ }
