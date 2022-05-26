@@ -1,3 +1,14 @@
+nautilus (3.38.2-1+deb11u1+grm3u3) bullseye; urgency=medium
+
+  [ donghun ]
+  * [b255024f] [Bug 5083, 5092]Added patches for search entry errors and context menu empty space error
+
+  [ heejun.jang ]
+  * [fc1e4b40] [4683]Delete Open File and Close Window shortcut in Help
+  * [ad6cef66] Update Folder Help Link Appear When Help Contents Exist
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Thu, 26 May 2022 15:49:38 +0900
+
 nautilus (3.38.2-1+deb11u1+grm3u2) bullseye; urgency=medium
 
   [ heejun.jang ]
