@@ -1,3 +1,10 @@
+nautilus (3.38.2-1+deb11u1+grm3u4) bullseye; urgency=medium
+
+  [ heejun.jang ]
+  * [dc0fbb28] [HGOOROOM-152]Updated nautilus description message
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Mon, 20 Jun 2022 08:49:41 +0900
+
 nautilus (3.38.2-1+deb11u1+grm3u3) bullseye; urgency=medium
 
   [ donghun ]
