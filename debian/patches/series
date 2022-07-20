@@ -40,3 +40,4 @@ gooroom-fix-context-menu-empty-space-error.patch
 gooroom-delete-open-file-and-close-window-shortcut-in-help.patch
 gooroom-update-folder-help-link-when-help-contents-exist.patch
 gooroom-updated-nautilus-description-message.patch
+gooroom-fix-context-property-menu-when-searching.patch

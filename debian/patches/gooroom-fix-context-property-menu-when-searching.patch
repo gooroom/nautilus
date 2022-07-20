@@ -1,0 +1,13 @@
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index 9175973..e4fb26b 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -7849,7 +7849,7 @@ real_update_actions_state (NautilusFilesView *view)
+                                          "current-directory-properties");
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                  !nautilus_files_view_is_empty (view) &&
+-                                 !priv->loading);
++                                 !priv->loading && !selection_contains_search);
+ 
+ 
+     /* Toolbar menu actions */
