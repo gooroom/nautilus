@@ -1,0 +1,36 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index ca36f92..dbf9b2f 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2351,6 +2351,9 @@ should_show_trash_orig_path (NautilusPropertiesWindow *window)
+ 
+     for (l = window->original_files; l != NULL; l = l->next)
+     {
++        if (g_strcmp0 (nautilus_file_get_uri(NAUTILUS_FILE(l->data)),"trash:///") == 0)
++            return FALSE;
++
+         if (!nautilus_file_is_in_trash (NAUTILUS_FILE (l->data)))
+         {
+             return FALSE;
+@@ -2379,6 +2382,11 @@ should_show_accessed_date (NautilusPropertiesWindow *window)
+ static gboolean
+ should_show_modified_date (NautilusPropertiesWindow *window)
+ {
++
++    if (!is_multi_file_window (window))
++      if (g_strcmp0 (nautilus_file_get_uri(get_original_file(window)),"trash:///") == 0)
++          return FALSE;
++
+     return !is_multi_file_window (window);
+ }
+ 
+@@ -2389,6 +2397,9 @@ should_show_trashed_on (NautilusPropertiesWindow *window)
+ 
+     for (l = window->original_files; l != NULL; l = l->next)
+     {
++        if (g_strcmp0 (nautilus_file_get_uri(NAUTILUS_FILE(l->data)),"trash:///") == 0)
++            return FALSE;
++
+         if (!nautilus_file_is_in_trash (NAUTILUS_FILE (l->data)))
+         {
+             return FALSE;
