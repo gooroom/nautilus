@@ -1,3 +1,14 @@
+nautilus (3.38.2-1+deb11u1+grm3u5) bullseye; urgency=medium
+
+  [ heejun.jang ]
+  * [fd976c3f] Fixed a context property menu error when searching the files
+  * [36d23ae9] Remove properties date information in trash
+
+  [ seolhee.sun ]
+  * [252d40e0] Fixed multiple media unmount notify popup showing
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Thu, 08 Sep 2022 12:47:11 +0900
+
 nautilus (3.38.2-1+deb11u1+grm3u4) bullseye; urgency=medium
 
   [ heejun.jang ]
