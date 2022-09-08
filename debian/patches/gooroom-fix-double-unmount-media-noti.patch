@@ -1,0 +1,15 @@
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index f05d920..da40a48 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -981,8 +981,8 @@ static void
+ places_sidebar_unmount_operation_cb (NautilusWindow  *window,
+                                      GMountOperation *mount_operation)
+ {
+-    g_signal_connect (mount_operation, "show-unmount-progress",
+-                      G_CALLBACK (show_unmount_progress_cb), NULL);
++//    g_signal_connect (mount_operation, "show-unmount-progress",
++//                      G_CALLBACK (show_unmount_progress_cb), NULL);
+     g_signal_connect (mount_operation, "aborted",
+                       G_CALLBACK (show_unmount_progress_aborted_cb), NULL);
+ }
