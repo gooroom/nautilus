@@ -1,0 +1,24 @@
+diff --git a/src/nautilus-canvas-item.c b/src/nautilus-canvas-item.c
+index a3c3895..e265bb8 100644
+--- a/src/nautilus-canvas-item.c
++++ b/src/nautilus-canvas-item.c
+@@ -449,7 +449,7 @@ get_scaled_icon_size (NautilusCanvasItem *item,
+ {
+     EelCanvas *canvas;
+     GdkPixbuf *pixbuf = NULL;
+-    gint scale;
++    gint scale = 0;
+ 
+     if (item != NULL)
+     {
+@@ -545,8 +545,8 @@ compute_text_rectangle (const NautilusCanvasItem      *item,
+                         NautilusCanvasItemBoundsUsage  usage)
+ {
+     EelIRect text_rectangle;
+-    double pixels_per_unit;
+-    double text_width, text_height, text_height_for_layout, text_height_for_entire_text, real_text_height;
++    double pixels_per_unit = 0;
++    double text_width = 0, text_height = 0, text_height_for_layout = 0, text_height_for_entire_text = 0, real_text_height = 0;
+ 
+     pixels_per_unit = EEL_CANVAS_ITEM (item)->canvas->pixels_per_unit;
+     if (canvas_coords)
