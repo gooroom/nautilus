@@ -1,0 +1,54 @@
+diff --git a/src/nautilus-application.c b/src/nautilus-application.c
+index 17f1da5..a11aa8e 100644
+--- a/src/nautilus-application.c
++++ b/src/nautilus-application.c
+@@ -514,6 +514,7 @@ nautilus_application_open_location (NautilusApplication *self,
+     }
+ 
+     nautilus_application_open_location_full (self, location, 0, sel_list, window, slot);
++    gtk_window_set_keep_above (GTK_WINDOW (window), TRUE);
+ 
+     if (sel_list != NULL)
+     {
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index d560ff3..9303efe 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1829,6 +1829,8 @@ activate_files (ActivateParameters *parameters)
+             nautilus_launch_application_by_uri (one_parameters->application,
+                                                 one_parameters->uris,
+                                                 parameters->parent_window);
++            gtk_window_set_keep_below (GTK_WINDOW (parameters->parent_window), TRUE);
++            gtk_window_set_keep_below (GTK_WINDOW (parameters->parent_window), FALSE);
+             application_launch_parameters_free (one_parameters);
+         }
+ 
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index da40a48..6c9dfba 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -1586,6 +1586,15 @@ remove_notifications (NautilusWindow *window)
+     }
+ }
+ 
++static gboolean
++on_focus_out_event_cb (GtkWidget *self, GdkEventFocus event, gpointer user_data)
++{
++    gtk_window_set_keep_below (GTK_WINDOW (self), TRUE);
++    gtk_window_set_keep_below (GTK_WINDOW (self), FALSE);
++
++    return FALSE;
++}
++
+ static void
+ hide_in_app_notification_undo (NautilusWindow *window)
+ {
+@@ -2825,6 +2834,8 @@ nautilus_window_init (NautilusWindow *window)
+     g_signal_connect (window->multi_press_gesture, "pressed",
+                       G_CALLBACK (on_multi_press_gesture_pressed), NULL);
+ 
++    g_signal_connect (window, "focus-out-event", G_CALLBACK (on_focus_out_event_cb), NULL);
++
+     window->notebook_multi_press_gesture = gtk_gesture_multi_press_new (window->notebook);
+ 
+     gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (window->notebook_multi_press_gesture),
