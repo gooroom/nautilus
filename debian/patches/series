@@ -45,3 +45,4 @@ gooroom-remove-properties-date-information-in-trash.patch
 gooroom-fix-double-unmount-media-noti.patch
 gooroom-fixed-cppcheck-sevirity-high.patch
 gooroom-top-of-window-when-it-open.patch
+gooroom-update-canvas-label-color-black.patch
