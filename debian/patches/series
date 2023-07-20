@@ -46,3 +46,4 @@ gooroom-fix-double-unmount-media-noti.patch
 gooroom-fixed-cppcheck-sevirity-high.patch
 gooroom-top-of-window-when-it-open.patch
 gooroom-update-canvas-label-color-black.patch
+gooroom-remove-files-which-is-nested-file-in-deep-count-files.patch

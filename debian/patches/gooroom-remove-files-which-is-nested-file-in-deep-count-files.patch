@@ -1,0 +1,12 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index dbf9b2f..cb4967e 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2123,6 +2123,7 @@ directory_contents_value_field_update (NautilusPropertiesWindow *window)
+         if (file_has_prefix (file, window->target_files))
+         {
+             /* don't count nested files twice */
++            window->deep_count_files = g_list_remove (window->deep_count_files, file);
+             continue;
+         }
+ 
