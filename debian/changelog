@@ -1,3 +1,13 @@
+nautilus (3.38.2-1+deb11u1+grm3u8) bullseye; urgency=medium
+
+  [ boyeon.choi ]
+  * [788e689d] Update label color black
+
+  [ heejun.jang ]
+  * [b637a374] Remove files which is nested file in deep count files list
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Fri, 28 Jul 2023 09:49:42 +0900
+
 nautilus (3.38.2-1+deb11u1+grm3u7) bullseye; urgency=medium
 
   [ boyeon.choi ]
