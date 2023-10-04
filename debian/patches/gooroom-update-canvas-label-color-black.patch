@@ -1,0 +1,15 @@
+diff --git a/src/resources/style.css b/src/resources/style.css
+index 54cf229..47df02f 100644
+--- a/src/resources/style.css
++++ b/src/resources/style.css
+@@ -287,6 +287,10 @@
+   animation: rotate_star 0.4s ease;
+ }
+ 
++.view {
++  color: rgba(0, 0, 0, 0.7);
++}
++
+ #NautilusAppChooser treeview {
+   min-height: 36px;
+   -gtk-icon-size: 32px;
