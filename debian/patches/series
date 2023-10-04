@@ -1,2 +1,3 @@
 Revert-meson.build-Use-environment-to-make-warnings-fatal.patch
 gooroom-remove-Computer-row-to-prevent-access-root-folder.patch
+gooroom-remove-permission-setting-tab-from-property-window.patch
