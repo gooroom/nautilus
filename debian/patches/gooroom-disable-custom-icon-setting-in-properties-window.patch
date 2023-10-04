@@ -1,0 +1,14 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index a46a7fd..179a50a 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2718,7 +2718,8 @@ setup_basic_page (NautilusPropertiesWindow *self)
+ 
+     /* Icon pixmap */
+ 
+-    setup_image_widget (self, should_show_custom_icon_buttons (self));
++//    setup_image_widget (self, should_show_custom_icon_buttons (self));
++    setup_image_widget (self, FALSE);
+ 
+     self->icon_chooser = NULL;
+ 
