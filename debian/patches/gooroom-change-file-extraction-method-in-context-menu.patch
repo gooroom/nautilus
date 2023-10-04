@@ -1,0 +1,119 @@
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index 13f256a..7b0cdd5 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -120,6 +120,8 @@
+ 
+ #define MIN_COMMON_FILENAME_PREFIX_LENGTH 4
+ 
++#define MAX_SPLIT_TOKEN 4
++
+ enum
+ {
+     ADD_FILES,
+@@ -329,6 +331,12 @@ static void     update_templates_directory (NautilusFilesView *view);
+ static void     extract_files (NautilusFilesView *view,
+                                GList             *files,
+                                GFile             *destination_directory);
++static void     extract_files_use_autoar (NautilusFilesView *view,
++                                          GList             *files,
++                                          GFile             *destination_directory);
++static void     extract_files_use_fileroller (NautilusFilesView *view,
++                                              GList             *files,
++                                              GFile             *destination_directory);
+ static void     extract_files_to_chosen_location (NautilusFilesView *view,
+                                                   GList             *files);
+ 
+@@ -6308,6 +6316,21 @@ static void
+ extract_files (NautilusFilesView *view,
+                GList             *files,
+                GFile             *destination_directory)
++{
++    if (nautilus_is_file_roller_installed ())
++    {
++        extract_files_use_fileroller (view, files, destination_directory);
++    }
++    else
++    {
++        extract_files_use_autoar (view, files, destination_directory);
++    }
++}
++
++static void
++extract_files_use_autoar (NautilusFilesView *view,
++                          GList             *files,
++                          GFile             *destination_directory)
+ {
+     GList *locations = NULL;
+     GList *l;
+@@ -6370,6 +6393,70 @@ extract_files (NautilusFilesView *view,
+     g_list_free_full (locations, g_object_unref);
+ }
+ 
++static void
++extract_files_use_fileroller (NautilusFilesView *view,
++                              GList             *files,
++                              GFile             *destination_directory)
++{
++    GList *l;
++    GFile* ar_file;
++    GdkDisplay *display;
++    GList *locations = NULL;
++
++    int i;
++    char *command, *path, *tmp;
++    char *tokens[MAX_SPLIT_TOKEN] = {"\\","\(","\)"," "};
++
++    if (files == NULL)
++    {
++        return;
++    }
++
++    for (l = files; l != NULL; l = l->next)
++    {
++        locations = g_list_prepend (locations,
++                                    nautilus_file_get_location (l->data));
++    }
++
++    locations = g_list_reverse (locations);
++
++    path = g_file_get_path (destination_directory);
++    for (i = 0; i < MAX_SPLIT_TOKEN; i++) {
++        tmp = g_strdup_printf ("\\%s", tokens[i]);
++           path = eel_str_replace_substring (path, tokens[i], tmp);
++               g_free (tmp);
++       }
++    command = g_strconcat ("file-roller -e ", path, NULL);
++    g_free (path);
++
++    for (l = locations; l != NULL; l = l->next)
++    {
++        ar_file = G_FILE(l->data);
++        path = g_file_get_path (ar_file);
++
++        for (i = 0; i < MAX_SPLIT_TOKEN; i++)
++        {
++            tmp = g_strdup_printf ("\\%s", tokens[i]);
++               path = eel_str_replace_substring (path, tokens[i], tmp);
++                   g_free (tmp);
++        }
++
++        command = g_strconcat (command, " ", path, NULL);
++        g_free (path);
++    }
++
++    display = gtk_widget_get_display (GTK_WIDGET (view));
++    if (display == NULL)
++    {
++        display = gdk_display_get_default ();
++    }                              
++
++    nautilus_launch_application_from_command (display, command, FALSE, NULL);
++
++    g_free (command);
++    g_list_free_full (locations, g_object_unref);
++}
++
+ typedef struct
+ {
+     NautilusFilesView *view;
