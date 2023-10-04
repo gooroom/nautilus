@@ -1,0 +1,72 @@
+diff --git a/src/gtk/nautilusgtkplacesview.c b/src/gtk/nautilusgtkplacesview.c
+index 0d062c9..25c3de9 100644
+--- a/src/gtk/nautilusgtkplacesview.c
++++ b/src/gtk/nautilusgtkplacesview.c
+@@ -1083,10 +1083,10 @@ update_places (NautilusGtkPlacesView *view)
+   GList *volumes;
+   GList *drives;
+   GList *l;
+-  GIcon *icon;
+-  GFile *file;
++//  GIcon *icon;
++//  GFile *file;
++//  gchar *osname;
+   GtkWidget *child;
+-  gchar *osname;
+ 
+   /* Clear all previously added items */
+   while ((child = gtk_widget_get_first_child (GTK_WIDGET (view->listbox))))
+@@ -1096,6 +1096,7 @@ update_places (NautilusGtkPlacesView *view)
+   /* Inform clients that we started loading */
+   nautilus_gtk_places_view_set_loading (view, TRUE);
+ 
++#if 0
+   /* Add "Computer" row */
+   file = g_file_new_for_path ("/");
+   icon = g_themed_icon_new_with_default_fallbacks ("drive-harddisk");
+@@ -1106,6 +1107,7 @@ update_places (NautilusGtkPlacesView *view)
+   g_clear_object (&file);
+   g_clear_object (&icon);
+   g_free (osname);
++#endif
+ 
+   /* Add currently connected drives */
+   drives = g_volume_monitor_get_connected_drives (view->volume_monitor);
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index 0b966c0..541f119 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -394,6 +394,7 @@ prompt_for_location (NautilusWindow *window,
+     gtk_editable_set_position (GTK_EDITABLE (entry), -1);
+ }
+ 
++#if 0
+ static void
+ action_prompt_for_location_root (GSimpleAction *action,
+                                  GVariant      *state,
+@@ -401,6 +402,7 @@ action_prompt_for_location_root (GSimpleAction *action,
+ {
+     prompt_for_location (NAUTILUS_WINDOW (user_data), "/");
+ }
++#endif
+ 
+ static void
+ action_prompt_for_location_home (GSimpleAction *action,
+@@ -1475,7 +1477,7 @@ const GActionEntry win_entries[] =
+     { "go-starred", action_go_starred },
+     { "tab-move-left", action_tab_move_left },
+     { "tab-move-right", action_tab_move_right },
+-    { "prompt-root-location", action_prompt_for_location_root },
++//    { "prompt-root-location", action_prompt_for_location_root },
+     { "prompt-home-location", action_prompt_for_location_home },
+     { "go-to-tab", NULL, "i", "0", action_go_to_tab },
+     { "restore-tab", action_restore_tab },
+@@ -1517,7 +1519,7 @@ nautilus_window_initialize_actions (NautilusWindow *window)
+     nautilus_application_set_accelerator (app, "win.go-starred", "Favorites");
+     nautilus_application_set_accelerator (app, "win.tab-move-left", "<shift><control>Page_Up");
+     nautilus_application_set_accelerator (app, "win.tab-move-right", "<shift><control>Page_Down");
+-    nautilus_application_set_accelerators (app, "win.prompt-root-location", ACCELS ("slash", "KP_Divide"));
++//    nautilus_application_set_accelerators (app, "win.prompt-root-location", ACCELS ("slash", "KP_Divide"));
+     /* Support keyboard layouts which have a dead tilde key but not a tilde key. */
+     nautilus_application_set_accelerators (app, "win.prompt-home-location", ACCELS ("asciitilde", "dead_tilde"));
+     nautilus_application_set_accelerator (app, "win.current-location-menu", "F10");
