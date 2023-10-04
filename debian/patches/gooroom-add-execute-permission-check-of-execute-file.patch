@@ -1,0 +1,54 @@
+diff --git a/po/ko.po b/po/ko.po
+index caeb833..55364dc 100644
+--- a/po/ko.po
++++ b/po/ko.po
+@@ -3369,6 +3369,11 @@ msgstr "“%s”을(를) 표시할 수 없습니다"
+ msgid "The file is of an unknown type"
+ msgstr "파일이 올바른 타입이 아닙니다"
+ 
++#: src/gtk/nautilus-mime-actions.c:1132
++#, c-format
++msgid "There is no application execute permission for “%s” files"
++msgstr "“%s” 파일에 대한 응용 프로그램 실행 권한이 없습니다"
++
+ #: src/nautilus-mime-actions.c:1186
+ #, c-format
+ msgid "There is no application installed for “%s” files"
+@@ -5263,7 +5268,7 @@ msgstr "ftp:// 또는 ftps://"
+ 
+ #: src/gtk/nautilusgtkplacesview.c:1656
+ msgid "Network File System"
+-msgstr "NFS (네트워크 파일 시스테)"
++msgstr "NFS (네트워크 파일 시스템)"
+ 
+ #: src/gtk/nautilusgtkplacesview.c:1662
+ msgid "Samba"
+diff --git a/src/nautilus-mime-actions.c b/src/nautilus-mime-actions.c
+index d4dfd16..c02b34d 100644
+--- a/src/nautilus-mime-actions.c
++++ b/src/nautilus-mime-actions.c
+@@ -1182,8 +1182,22 @@ show_unhandled_type_error (ActivateParametersInstall *parameters)
+     }
+     else
+     {
+-        content_type_description = g_content_type_get_description (mime_type);
+-        body = g_strdup_printf (_("There is no application installed for “%s” files"), content_type_description);
++        const char *uri;
++        const char *location;
++        uri = nautilus_file_get_activation_uri (parameters->file);
++        location = g_filename_from_uri (uri, NULL, NULL);
++        //Check file for execute permission
++        if (!g_file_test (location, G_FILE_TEST_IS_EXECUTABLE))
++        {
++            const char *file_name;
++            file_name = nautilus_file_get_display_name (parameters->file);
++            body = g_strdup_printf (_("There is no application execute permission for “%s” files"), file_name);
++        }
++        else
++        {
++            content_type_description = g_content_type_get_description (mime_type);
++            body = g_strdup_printf (_("There is no application installed for “%s” files"), content_type_description);
++        }
+     }
+ 
+     dialog = adw_message_dialog_new (parameters->parent_window, error_message, body);
