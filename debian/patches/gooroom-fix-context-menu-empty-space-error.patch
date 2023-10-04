@@ -1,0 +1,66 @@
+diff --git a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+index 7b0cdd5..8889b6b 100644
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -7329,12 +7329,22 @@ update_actions_state_for_clipboard_targets (NautilusFilesView *view)
+     GdkContentFormats *formats;
+     gboolean is_data_copied;
+     GAction *action;
++    /*Paste Menu Setting */
++    gint selection_count;
++    g_autolist (NautilusFile) selection = NULL;
++    gboolean can_paste_files_into;
+ 
+     priv = nautilus_files_view_get_instance_private (view);
+     clipboard = gtk_widget_get_clipboard (GTK_WIDGET (view));
+     formats = gdk_clipboard_get_formats (clipboard);
+     is_data_copied = gdk_content_formats_contain_gtype (formats, NAUTILUS_TYPE_CLIPBOARD);
+ 
++    /* Paste Menu Setting */
++    selection = nautilus_view_get_selection (NAUTILUS_VIEW (view));
++    selection_count = g_list_length (selection);
++    can_paste_files_into = (selection_count == 1 &&
++                            can_paste_into_file (NAUTILUS_FILE (selection->data)));
++
+     action = g_action_map_lookup_action (G_ACTION_MAP (priv->view_action_group),
+                                          "paste");
+     /* Take into account if the action was previously disabled for other reasons,
+@@ -7346,7 +7356,8 @@ update_actions_state_for_clipboard_targets (NautilusFilesView *view)
+                                          "paste-into");
+ 
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+-                                 is_data_copied && g_action_get_enabled (action));
++                                 can_paste_files_into &&
++                                 is_data_copied);
+ 
+     action = g_action_map_lookup_action (G_ACTION_MAP (priv->view_action_group),
+                                          "create-link");
+@@ -7580,7 +7591,6 @@ real_update_actions_state (NautilusFilesView *view)
+     gboolean can_move_files;
+     gboolean can_trash_files;
+     gboolean can_copy_files;
+-    gboolean can_paste_files_into;
+     gboolean can_extract_files;
+     gboolean handles_all_files_to_extract;
+     gboolean can_extract_here;
+@@ -7636,8 +7646,6 @@ real_update_actions_state (NautilusFilesView *view)
+     can_copy_files = selection_count != 0;
+     can_move_files = can_delete_files && !selection_contains_recent &&
+                      !selection_contains_starred;
+-    can_paste_files_into = (selection_count == 1 &&
+-                            can_paste_into_file (NAUTILUS_FILE (selection->data)));
+     can_extract_files = selection_count != 0 &&
+                         can_extract_all (selection);
+     can_extract_here = nautilus_files_view_supports_extract_here (view);
+@@ -7910,11 +7918,6 @@ real_update_actions_state (NautilusFilesView *view)
+                                  !is_read_only && !selection_contains_recent &&
+                                  !selection_contains_starred);
+ 
+-    action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
+-                                         "paste-into");
+-    g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+-                                 can_paste_files_into);
+-
+     action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
+                                          "console");
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),

@@ -1,0 +1,42 @@
+diff --git a/src/nautilus-query-editor.c b/src/nautilus-query-editor.c
+index a7fe84f..6714141 100644
+--- a/src/nautilus-query-editor.c
++++ b/src/nautilus-query-editor.c
+@@ -842,3 +842,10 @@ nautilus_query_editor_handle_event (NautilusQueryEditor   *self,
+ 
+     return gtk_event_controller_key_forward (controller, self->text);
+ }
++
++void
++nautilus_query_editor_entry_init (NautilusQueryEditor *self)
++{
++    g_return_val_if_fail (NAUTILUS_IS_QUERY_EDITOR (self), GDK_EVENT_PROPAGATE);
++    gtk_entry_reset_im_context(GTK_ENTRY(self->text));
++}
+diff --git a/src/nautilus-query-editor.h b/src/nautilus-query-editor.h
+index e071f94..b6f4d24 100644
+--- a/src/nautilus-query-editor.h
++++ b/src/nautilus-query-editor.h
+@@ -77,3 +77,10 @@ nautilus_query_editor_handle_event (NautilusQueryEditor   *self,
+                                     GtkEventControllerKey *controller,
+                                     guint                  keyval,
+                                     GdkModifierType        state);
++
++/**
++ * nautilus_query_editor_entry_init:
++ *
++ * @editor: A #NautilusQueryEditor instance.
++ */
++void           nautilus_query_editor_entry_init     (NautilusQueryEditor *editor);
+diff --git a/src/nautilus-window-slot.c b/src/nautilus-window-slot.c
+index 64dc5fc..a8de6da 100644
+--- a/src/nautilus-window-slot.c
++++ b/src/nautilus-window-slot.c
+@@ -473,6 +473,7 @@ hide_query_editor (NautilusWindowSlot *self)
+     g_clear_signal_handler (&self->qe_activated_id, self->query_editor);
+     g_clear_signal_handler (&self->qe_focus_view_id, self->query_editor);
+ 
++    nautilus_query_editor_entry_init (self->query_editor);
+     nautilus_query_editor_set_query (self->query_editor, NULL);
+ 
+     if (nautilus_view_is_searching (view))
