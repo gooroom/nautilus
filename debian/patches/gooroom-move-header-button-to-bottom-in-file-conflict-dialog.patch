@@ -1,0 +1,12 @@
+diff --git a/src/nautilus-file-conflict-dialog.c b/src/nautilus-file-conflict-dialog.c
+index f7c3cc7..19652bf 100644
+--- a/src/nautilus-file-conflict-dialog.c
++++ b/src/nautilus-file-conflict-dialog.c
+@@ -302,6 +302,6 @@ nautilus_file_conflict_dialog_new (GtkWindow *parent)
+ {
+     return NAUTILUS_FILE_CONFLICT_DIALOG (g_object_new (NAUTILUS_TYPE_FILE_CONFLICT_DIALOG,
+                                                         "transient-for", parent,
+-                                                        "use-header-bar", TRUE,
++                                                        "use-header-bar", FALSE,
+                                                         NULL));
+ }
