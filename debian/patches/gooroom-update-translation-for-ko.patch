@@ -1,0 +1,31 @@
+diff --git a/po/ko.po b/po/ko.po
+index 55364dc..d6175a9 100644
+--- a/po/ko.po
++++ b/po/ko.po
+@@ -2130,7 +2130,7 @@ msgstr "“%s”에 대한 정보를 가져오는 데 오류가 발생했습니
+ #: src/nautilus-file-operations.c:3876 src/nautilus-file-operations.c:3920
+ #, c-format
+ msgid "Error while copying to “%s”."
+-msgstr "“%s”(으)로 복사중 오류가 발생했습니다."
++msgstr "“%s”(으)로 복사 중 오류가 발생했습니다."
+ 
+ #: src/nautilus-file-operations.c:3764
+ msgid "You do not have permissions to access the destination folder."
+@@ -2172,7 +2172,7 @@ msgstr "“%s”을(를) “%s”(으)로 이동함"
+ #: src/nautilus-file-operations.c:4009
+ #, c-format
+ msgid "Copying “%s” to “%s”"
+-msgstr "“%s”을(를) “%s”(으)로 복사중"
++msgstr "“%s”을(를) “%s”(으)로 복사 중"
+ 
+ #: src/nautilus-file-operations.c:4013
+ #, c-format
+@@ -2898,7 +2898,7 @@ msgstr "“%s” 삭제함"
+ #: src/nautilus-file-undo-operations.c:516
+ #, c-format
+ msgid "Copy “%s” to “%s”"
+-msgstr "“%s”을(를) “%s”(으)로 복사중"
++msgstr "“%s”을(를) “%s”(으)로 복사 중"
+ 
+ #: src/nautilus-file-undo-operations.c:518
+ msgid "_Undo Copy"
