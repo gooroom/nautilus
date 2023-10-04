@@ -12,3 +12,4 @@ gooroom-disable-custom-icon-setting-in-properties-window.patch
 gooroom-added-new-item-name-preedit-text.patch
 gooroom-fix-im-error-in-search-bar.patch
 gooroom-fix-context-menu-empty-space-error.patch
+gooroom-update-folder-help-link-when-help-contents-exist.patch
