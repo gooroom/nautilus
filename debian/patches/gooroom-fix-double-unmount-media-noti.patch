@@ -1,0 +1,15 @@
+diff --git a/src/nautilus-file-operations.c b/src/nautilus-file-operations.c
+index 9a8829e..5de53cb 100644
+--- a/src/nautilus-file-operations.c
++++ b/src/nautilus-file-operations.c
+@@ -2887,8 +2887,8 @@ do_unmount (UnmountData *data)
+         mount_op = gtk_mount_operation_new (data->parent_window);
+     }
+ 
+-    g_signal_connect (mount_op, "show-unmount-progress",
+-                      G_CALLBACK (show_unmount_progress_cb), NULL);
++//    g_signal_connect (mount_op, "show-unmount-progress",
++//                      G_CALLBACK (show_unmount_progress_cb), NULL);
+     g_signal_connect (mount_op, "aborted",
+                       G_CALLBACK (show_unmount_progress_aborted_cb), NULL);
+ 
