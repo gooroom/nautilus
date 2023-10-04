@@ -15,3 +15,4 @@ gooroom-fix-context-menu-empty-space-error.patch
 gooroom-update-folder-help-link-when-help-contents-exist.patch
 gooroom-updated-nautilus-description-message.patch
 gooroom-fix-context-property-menu-when-searching.patch
+gooroom-remove-properties-date-information-in-trash.patch

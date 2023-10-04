@@ -1,0 +1,25 @@
+diff --git a/src/nautilus-properties-window.c b/src/nautilus-properties-window.c
+index 179a50a..8e3df5e 100644
+--- a/src/nautilus-properties-window.c
++++ b/src/nautilus-properties-window.c
+@@ -2436,6 +2436,9 @@ should_show_trashed_info (NautilusPropertiesWindow *self)
+ 
+     for (l = self->original_files; l != NULL; l = l->next)
+     {
++        if (g_strcmp0 (nautilus_file_get_uri(NAUTILUS_FILE(l->data)),"trash:///") == 0)
++            return FALSE;
++
+         if (!nautilus_file_is_in_trash (NAUTILUS_FILE (l->data)))
+         {
+             return FALSE;
+@@ -2464,6 +2467,10 @@ should_show_accessed_date (NautilusPropertiesWindow *self)
+ static gboolean
+ should_show_modified_date (NautilusPropertiesWindow *self)
+ {
++    if (!is_multi_file_window (self))
++      if (g_strcmp0 (nautilus_file_get_uri(get_original_file(self)),"trash:///") == 0)
++          return FALSE;
++
+     return !is_multi_file_window (self);
+ }
+ 
