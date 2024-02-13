@@ -1,0 +1,13 @@
+diff --git a/src/nautilus-window.c b/src/nautilus-window.c
+index 541f119..9fc8240 100644
+--- a/src/nautilus-window.c
++++ b/src/nautilus-window.c
+@@ -496,7 +496,7 @@ tab_view_setup_menu_cb (AdwTabView     *tab_view,
+ {
+     GAction *move_tab_left_action;
+     GAction *move_tab_right_action;
+-    int position, n_pages;
++    int position = 0, n_pages = 0;
+ 
+     if (page != NULL)
+     {

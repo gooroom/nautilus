@@ -19,3 +19,4 @@ gooroom-remove-properties-date-information-in-trash.patch
 gooroom-fix-double-unmount-media-noti.patch
 gooroom-update-canvas-label-color-black.patch
 gooroom-remove-files-which-is-nested-file-in-deep-count-files.patch
+gooroom-fixed-cppcheck-high-priority.patch
