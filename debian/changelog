@@ -1,3 +1,34 @@
+nautilus (43.2-1+grm4u1) unstable; urgency=medium
+
+  [ jongkyung.woo ]
+  * [8e26caab] Rebuild on gooroom-4.0
+
+  [ heejun.jang ]
+  * [10357ed1] [Rebase] Added the patch to modify context menu and prevent root folder access
+  * [82f47527] [Rebase] Removed permission setting tab from property window
+  * [a221eb98] [Rebase] Moved header button to bottom in file conflict dialog
+  * [34730d04] [Rebase] Fixed Flawfinder - High Priority
+  * [baa7cdee] [Rebase] Added patch for change file extraction method in context menu
+  * [39a29227] [Rebase] [Bug:1849]Added the execute permission check of execute file and the modify Korean translations
+  * [5a01b0ea] [Rebase] [Bug:2024]Removed the starred in icon view style
+  * [00fb3538] [Rebase] [Bug:1991]Update translation for Korean
+  * [b63ad685] [Rebase] [Bug:2090]Fix function to check volume mount in properties window
+  * [4d8f7eeb] [Rebase] Disable custom icon setting function in properties window
+  * [0d70e70c] [Rebase] [Bug:4257]Added new item name preedit text
+  * [2b8ba4c4] [Rebase] [Bug 5083, 5092]Added patches for search entry errors and context menu empty space error
+  * [c4d594ad] [Rebase] Update Folder Help Link Appear When Help Contents Exist
+  * [e2fed1f7] [Rebase] Updated nautilus description message
+  * [1afc2f94] [Rebase] Fixed a context property menu error when searching the files
+  * [9fa6be6b] [Rebase] Remove properties date information in trash
+  * [8dcdcc34] [Rebase] Fixed multiple media unmount notify popup showing
+  * [26c67228] [Rebase] Update label color black
+  * [0d1b47a8] [Rebase] Remove files which is nested file in deep count files list
+
+  [ cjheo ]
+  * [a3e86683] Added patch to fix CPPCheck warning (Uninitialized variable).
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Fri, 08 Mar 2024 18:55:00 +0900
+
 nautilus (43.2-1) unstable; urgency=medium
 
   * New upstream release (LP: #2002575)
