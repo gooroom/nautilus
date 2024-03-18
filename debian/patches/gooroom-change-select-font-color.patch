@@ -1,0 +1,12 @@
+diff --git a/src/resources/style.css b/src/resources/style.css
+index 47df02f..22ce716 100644
+--- a/src/resources/style.css
++++ b/src/resources/style.css
+@@ -242,6 +242,7 @@
+ .nautilus-list-view columnview > listview > row:selected,
+ .nautilus-grid-view gridview > child:selected {
+   background-color: alpha(@accent_bg_color, .15);
++  color: rgba(0, 0, 0, 0.7);
+ }
+ 
+ .nautilus-list-view columnview > listview > row.activatable:selected:hover,
