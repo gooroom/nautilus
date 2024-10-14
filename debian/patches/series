@@ -21,3 +21,4 @@ gooroom-update-canvas-label-color-black.patch
 gooroom-remove-files-which-is-nested-file-in-deep-count-files.patch
 gooroom-fixed-cppcheck-high-priority.patch
 gooroom-change-select-font-color.patch
+gooroom-change-star-toggle-trigger-signal-to-pressed.patch

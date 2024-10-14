@@ -1,0 +1,22 @@
+diff --git a/src/nautilus-star-cell.c b/src/nautilus-star-cell.c
+index 9f21028..602f8dd 100644
+--- a/src/nautilus-star-cell.c
++++ b/src/nautilus-star-cell.c
+@@ -19,7 +19,7 @@ struct _NautilusStarCell
+ G_DEFINE_TYPE (NautilusStarCell, nautilus_star_cell, NAUTILUS_TYPE_VIEW_CELL)
+ 
+ static void
+-on_star_click_released (GtkGestureClick *gesture,
++on_star_click_pressed (GtkGestureClick *gesture,
+                         gint             n_press,
+                         gdouble          x,
+                         gdouble          y,
+@@ -128,7 +128,7 @@ nautilus_star_cell_init (NautilusStarCell *self)
+     /* Make it clickable */
+     gesture = gtk_gesture_click_new ();
+     gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (gesture), GDK_BUTTON_PRIMARY);
+-    g_signal_connect (gesture, "released", G_CALLBACK (on_star_click_released), self);
++    g_signal_connect (gesture, "pressed", G_CALLBACK (on_star_click_pressed), self);
+     gtk_widget_add_controller (star, GTK_EVENT_CONTROLLER (gesture));
+ 
+     /* Update on tag changes */
